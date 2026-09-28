@@ -7,6 +7,7 @@ string highStat = "";
 string lowStat = "";
 int [string] chibiStats;
 
+
 record choicePair {
     int first;
     int second;
@@ -16,6 +17,18 @@ record choicePair {
 // abort partway through a run is easy to place.
 void step(string msg){
     print("SM: " + msg, "blue");
+}
+
+void setClan(string clanType){
+    if (clanType == "VIP") {
+        if (get_clan_name() != "Bonus Adventures from Hell")
+            cli_execute("/whitelist Bonus Adventures from Hell");
+    }
+    else if (clanType == "stash") {
+        if (get_clan_name() != "Soup Clan")
+            cli_execute("/whitelist Soup Clan");
+    }
+    return;
 }
 
 // ─── helpers used by FKPrep (verbatim from farto.ash) ────────────────────────
@@ -141,13 +154,14 @@ void chibiHandling(){
     }
 }
 void prepBuffs(){
-    foreach ef in $effects[benetton's medley of diversity, inigo's incantation of inspiration,Familial Ties,Busker Do,Swimming Head]{
+    foreach ef in $effects[benetton's medley of diversity, inigo's incantation of inspiration,Busker Do,Swimming Head]{
         if (have_effect(ef) > 0)
             cli_execute("uneffect " + ef);
     }
 
+    setClan("stash");
     //fam weight
-    foreach ef in $effects[Robot Friends,Healthy Green Glow,Chorale of Companionship,Human-Fish Hybrid,Whole Latte Love,Shortly Stacked,Thoughtful Empathy,Leash of Linguini,blood bond,Empathy,Black Tongue,Man's Worst Enemy,Billiards Belligerence,You Can Really Taste the Dormouse,Kindly Resolve,Human-Machine Hybrid,Shrimpin' Ain't Easy,Over-Familiar With Dactyls,Loyal Tea,Warm Shoulders,One Foot Heavier,Work For Hours a Week,A Girl Named Sue,Panna Consideration,Loyal as a Rock,Candied Devil,Wildsun Boon,Only Dogs Love a Drunken Sailor,Best Pals,Heart of Green,Bestial Sympathy,Herder\, Bitter\, Fester\, Stranger,Party Soundtrack,Shortly Wired,Greased-Up Familiar,Crocodile Tear,Spiced Out,offhand remarkable,Greased-Up Familiar,Crocodile Tear]{
+    foreach ef in $effects[Robot Friends,Healthy Green Glow,Chorale of Companionship,Human-Fish Hybrid,Whole Latte Love,Shortly Stacked,Thoughtful Empathy,Leash of Linguini,blood bond,Empathy,Black Tongue,Man\'s Worst Enemy,Billiards Belligerence,You Can Really Taste the Dormouse,Kindly Resolve,Human-Machine Hybrid,Shrimpin' Ain't Easy,Over-Familiar With Dactyls,Loyal Tea,Warm Shoulders,One Foot Heavier,Work For Hours a Week,A Girl Named Sue,Panna Consideration,Loyal as a Rock,Candied Devil,Wildsun Boon,Only Dogs Love a Drunken Sailor,Best Pals,Heart of Green,Bestial Sympathy,Herder\, Bitter\, Fester\, Stranger,Party Soundtrack,Shortly Wired,Greased-Up Familiar,Crocodile Tear,Spiced Out,offhand remarkable,Greased-Up Familiar,Crocodile Tear]{
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]) && ef.attributes != "nohookah")
             continue;
         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)))
@@ -156,9 +170,7 @@ void prepBuffs(){
             cli_execute(ef.default);
     }
     if (have_effect($effect[Happy Salamander]) == 0){
-        visit_url("showclan.php?whichclan=2047010939&action=joinclan&confirm=on");
         visit_url("clan_rumpus.php?action=click&spot=4&furni=1");
-        visit_url("showclan.php?whichclan=" + get_property("homeClanID").to_int() + "&action=joinclan&confirm=on");
     }
     while (have_effect($effect[blue swayed]) < 50){
         use($item[pulled blue taffy]);
@@ -172,13 +184,17 @@ void prepBuffs(){
             continue;
         if (ef == $effect[Incredibly Well Lit] && dayType() == 0)
             continue;
-        if (ef == $effect[Meet the Meat] && get_property("_clanFortuneBuffUsed") == "true")
+        if (ef == $effect[Meet the Meat]){
+            if (get_property("_clanFortuneBuffUsed") == "true")
             continue;
+            else setClan("VIP");
+        }
         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)))
             continue;
         if (have_effect(ef) == 0)
             cli_execute(ef.default);
     }
+    setClan("stash");
     //item drop
     foreach ef in $effects[Steely-Eyed Squint,Spookyravin',Unbarking Dogs,Cold Hearted,One Very Clear Eye,Materiel Intel,Spitting Rhymes,Joyful Resolve,Lubricating Sauce]{
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]))
@@ -194,20 +210,16 @@ void prepBuffs(){
         if (have_effect(ef) == 0)
             cli_execute(ef.default);
     }
-    use ($item[fishy pipe]);
-    //mus needs to be done later, shieldbutt may be able to do it
-#    foreach ef in $effects[Puissant Pressure,Incredibly Hulking,Juiced Out,Gr8ness]{
-#        if (have_effect(ef) == 0)
-#            cli_execute(ef.default);
-#    }
+// uncomment for fish path
+    // use ($item[fishy pipe]);
 }
 
 // ─── FREE-KILL PREP ──────────────────────────────────────────────────────────
 
 void doSpleen(){
-    //add 'Crimbeau de toilette' to list if it becomes profitable
+    setClan("stash");
     foreach spl in $items[medicinal gruel, psilocyber mushroom, gleaming oyster egg,
-        Party-in-a-Can&trade;, body spradium]{
+        Party-in-a-Can&trade;, body spradium, Crimbeau de toilette]{
         if (my_spleen_use() >= 3)
             return;
         if (spl == $item[body spradium] && item_amount($item[body spradium]) == 0)
@@ -219,6 +231,7 @@ void doSpleen(){
 }
 
 item cheapestPasta(){
+    setClan("stash");
     int [item] pasta_prices;
     foreach it in $items[Frutti di Scatoletta,Pesto alla Marziano,Arrattabbattabiata,Orzo di Riso,Pasta Grimavera,Linguini Ubriacapa,Gnocci Domani,Formica e Pepe,Tubetto Gelatto]{
         pasta_prices[it] = mall_price(it);
@@ -399,10 +412,22 @@ int valueOfFamPot(item it) {
 
 // Effect extenders on day 1 of ascensions, some nohookah food on day 2
 void dieting(){
-	if (dayType() == 0){
-		// Strip every effect that might get in the way of effect extenders
+//      dayType is 1 on a farming/aftercore day, 0 mid-ascension.
+//      This replaced the old get_property("ascensionsToday") checks
+//      and is the INVERSE polarity: where
+//      those read "0" this reads 1, where they read "1" this reads 0.
+
+    // Mid-Ascension DayType (0) Logic
+    if (dayType() == 0){
         if (have_item($item[Bowl of Infinite Jelly]))
-            put_closet($item[Bowl of Infinite Jelly]);
+        put_closet($item[Bowl of Infinite Jelly]);
+        foreach ef in my_effects(){
+            if ($effects[Shadow Affinity, On the Trail, Lucky!, Apriling Band Battle Cadence,
+                    Everything Looks Red, Everything Looks Yellow, Everything Looks Green,
+            Apriling Band Patrol Beat] contains ef)
+            continue;
+            cli_execute("uneffect " + ef);
+        }
 		if (have_effect($effect[Shadow Affinity]) == 0)
 			if (!user_confirm("dieting: Shadow Affinity fell off before the rollover-day binge. Continue?"))
                 abort();
@@ -424,7 +449,8 @@ void dieting(){
                 use_skill($skill[Sweat Out Some Booze]);
         }
         if (get_property("_mimeArmyShotglassUsed") == "false")
-            drink($item[Friendly Turkey]);
+            drink($item[Temps Tempranillo]);
+        drink(inebriety_limit() - my_inebriety(), $item[Temps Tempranillo]);
 
         //implement when I get PANTSGIVING
 /*        if (my_fullness() == fullness_limit() && get_property("_pantsgivingFullness").to_int() < 1){
@@ -440,48 +466,25 @@ void dieting(){
                 eat(1,$item[thyme jelly donut]);
         }
  */
+        setClan("stash");
         if ((get_property("spiceMelangeUsed") == "false") && my_fullness() > 3 && my_inebriety() > 3)
             use ($item[spice melange]);
+	    eat(fullness_limit() - my_fullness(), $item[thyme jelly donut]);
+	    drink(inebriety_limit() - my_inebriety(), $item[Temps Tempranillo]);
+        doSpleen();
 
-        //DO MY OWN DIETING HERE
-//		eat(fullness_limit() - my_fullness(), $item[thyme jelly donut]);
-//		drink(inebriety_limit() - my_inebriety(), $item[Temps Tempranillo]);
-
-	doSpleen();
+    // Farming DayType (1) Logic
 	} else {
-		foreach dr in $items[Feliz Navidad]{
-			if (valueOfFamPot(dr) > valueOfOrgan("liver"))
-				drink(dr);
-		}
         if (get_property("_cupOf13sJewels") == 13){
-            cli_execute("make 4 asbestos meat stack; acquire tombstone-shaped Crimboween cookie; acquire grease gun");
+            if (item_amount($item[asbestos meat stack]) < 4)
+                cli_execute("make 4 asbestos meat stack");
+            cli_execute("acquire 4 asbestos meat stack; acquire tombstone-shaped Crimboween cookie; acquire grease gun");
             visit_url("inventory.php?action=cupof13s");
             visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=376&whichitem2=2200&whichitem3=1708");
             visit_url("inventory.php?action=cupof13s");
             visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=376&whichitem2=376&whichitem3=376");
         }
-		foreach fo in $effects[Sugar-Frosted Pet Guts, ratabunga\, dude!, Beefy Heart]{
-			if (my_fullness() >= fullness_limit())
-				break;
-			if (have_effect(fo) > 0)
-				continue;
-			if (effect_to_item(fo) == $item[Black and White Apron Meal Kit]){
-                if (valueOfFamPot($item[Black and White Apron Meal Kit]) < valueOfOrgan("liver"))
-                    continue;
-                if (my_class() == $class[seal clubber]){
-                    retrieve_item($item[cranberries]);
-                    visit_url("inv_use.php?which=3&whichitem=11472");
-                    visit_url("choice.php?whichchoice=1518&option=1&meal=0&ingredients0%5B%5D=672");
-                } else if (my_class() == $class[pastamancer]){
-                    retrieve_item($item[philosopher's scone]);
-                    visit_url("inv_use.php?which=3&whichitem=11472");
-                    visit_url("choice.php?whichchoice=1518&option=1&meal=1&ingredients1%5B%5D=4956");
-                }else
-                    abort();
-			} else if (valueOfFamPot(effect_to_item(fo)) > valueOfOrgan("stomach")){
-				eat(effect_to_item(fo));
-			}
-		}
+        // END OF DAY DIET BUFFING SHOULD GO HERE - eodDiet();
 	}
 }
 
@@ -535,6 +538,8 @@ void feedCandy(){
 }
 
 void FKPrep(){
+    // TO DO: Implement differet dieting plans (at eod, beginning, etc)
+
 	step("phase: FKPrep start");
 	starter();
 	// Combat runs off the player's saved combat macro (id in the combatMacroID
@@ -556,10 +561,6 @@ void FKPrep(){
 	if (my_inebriety() < inebriety_limit()){
 		dieting();
 	}
-    if (my_name().to_lower_case() == "fart scauce"){
-        retrieve_item(25, $item[bag of many confections]);
-        retrieve_item(25, $item[stomp box]);
-    }
 	set_property("script", "FreeKill");
     retrieve_item($item[burning paper crane]);
     step("phase: 9 special buffs");
@@ -580,6 +581,7 @@ void FKPrep(){
 		adv1($location[The Hidden Temple]);
 		useMayamRings();
 	}
+/* uncomment this code when writing script for others paths outside of hatpath
     if (have_effect($effect[Hammertime]) == 0)
         use($item[too legit potion]);
     effect[int] beretBuffs;
@@ -596,6 +598,7 @@ void FKPrep(){
         beretBuffs[3] = $effect[Phairly Pheromonal];
         beretBuffs[4] = $effect[Souper Vengeful];
     }
+ */
     while (get_property("_beretBuskingUses").to_int() < 5){
         beretBusking("familiar weight,meat drop",beretBuffs[get_property("_beretBuskingUses").to_int()].to_string());
     }
@@ -2010,6 +2013,9 @@ void bulkFKD1(){
 // mafia hooks / CCS / auto-recovery even if a phase aborts partway.
 void main(){
     try {
+//UNCOMMENT ON FINAL RELEASE
+//        if (!user_confirm("This script is currently coded for Hat Path. Continue?"))
+//            abort();
         starter();
         if (get_property("expressCardUsed") == "false"){
             if (get_property("prusias_profitTracking_date") != today_to_string( ))
