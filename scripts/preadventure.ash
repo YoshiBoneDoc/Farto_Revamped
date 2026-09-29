@@ -124,7 +124,7 @@ void preAdv(){
                 use_familiar($familiar[robortender]);
             else
 //                use_familiar($familiar[comma chameleon]);
-                use_familiar($familiar[skeleton of crimbo past]);
+                use_familiar($familiar[Jill-of-All-Trades]);
         }
 
     // ── Familiar equip helper ─────────────────────────────────────────────────
