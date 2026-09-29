@@ -28,6 +28,10 @@ void setClan(string clanType){
         if (get_clan_name() != "Soup Clan")
             cli_execute("/whitelist Soup Clan");
     }
+    else if (clanType == "radio") {
+        if (get_clan_name() != "White Knight's District")
+            cli_execute("/whitelist White Knight's District");
+    }
     return;
 }
 
@@ -154,24 +158,30 @@ void chibiHandling(){
     }
 }
 void prepBuffs(){
-    foreach ef in $effects[benetton's medley of diversity, inigo's incantation of inspiration,Busker Do,Swimming Head]{
+    setClan("stash");
+    foreach ef in $effects[Busker Do,Swimming Head,Ode to Booze,The Moxious Madrigal,The Magical Mojomuscular Melody,Cletus's Canticle of Celerity,Power Ballad of the Arrowsmith,Jackasses' Symphony of Destruction,Brawnee's Anthem of Absorption,Psalm of Pointiness,Stevedave's Shanty of Superiority,Aloysius' Antiphon of Aptitude,The Sonata of Sneakiness,Carlweather's Cantata of Confrontation,Ur-Kel's Aria of Annoyance,Dirge of Dreadfulness,Benetton's Medley of Diversity,Elron's Explosive Etude,Prelude of Precision,Donho's Bubbly Ballad,Cringle's Curative Carol,Inigo's Incantation of Inspiration]{
         if (have_effect(ef) > 0)
             cli_execute("uneffect " + ef);
     }
-
-    setClan("stash");
     //fam weight
-    foreach ef in $effects[Robot Friends,Healthy Green Glow,Chorale of Companionship,Human-Fish Hybrid,Whole Latte Love,Shortly Stacked,Thoughtful Empathy,Leash of Linguini,blood bond,Empathy,Black Tongue,Man\'s Worst Enemy,Billiards Belligerence,You Can Really Taste the Dormouse,Kindly Resolve,Human-Machine Hybrid,Shrimpin' Ain't Easy,Over-Familiar With Dactyls,Loyal Tea,Warm Shoulders,One Foot Heavier,Work For Hours a Week,A Girl Named Sue,Panna Consideration,Loyal as a Rock,Candied Devil,Wildsun Boon,Only Dogs Love a Drunken Sailor,Best Pals,Heart of Green,Bestial Sympathy,Herder\, Bitter\, Fester\, Stranger,Party Soundtrack,Shortly Wired,Greased-Up Familiar,Crocodile Tear,Spiced Out,offhand remarkable,Greased-Up Familiar,Crocodile Tear]{
+    //cli_execute("hatter reinforced beaded headband");   <-- this is not working in hatpath
+    //'Adobe Ayam Subscription' buff only for hat path
+    foreach ef in $effects[Adobe Ayam Subscription, Robot Friends,Healthy Green Glow,Chorale of Companionship,Human-Fish Hybrid,Whole Latte Love,Shortly Stacked,Thoughtful Empathy,Leash of Linguini,blood bond,Empathy,Black Tongue,Man\'s Worst Enemy,Kindly Resolve,Human-Machine Hybrid,Shrimpin' Ain't Easy,Over-Familiar With Dactyls,Loyal Tea,Warm Shoulders,One Foot Heavier,Work For Hours a Week,Panna Consideration,Loyal as a Rock,Candied Devil,Wildsun Boon,Only Dogs Love a Drunken Sailor,Best Pals,Heart of Green,Bestial Sympathy,Herder\, Bitter\, Fester\, Stranger,Party Soundtrack,Shortly Wired,Greased-Up Familiar,Crocodile Tear,Spiced Out,offhand remarkable,Greased-Up Familiar,Crocodile Tear,Billiards Belligerence,A Girl Named Sue]{
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]) && ef.attributes != "nohookah")
             continue;
         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)))
             continue;
+        if (ef == $effect[Billiards Belligerence] || ef == $effect[A Girl Named Sue])
+            setClan("VIP");
         if (have_effect(ef) == 0)
             cli_execute(ef.default);
     }
+
+    setClan("radio");
     if (have_effect($effect[Happy Salamander]) == 0){
         visit_url("clan_rumpus.php?action=click&spot=4&furni=1");
     }
+    setClan("stash");
     while (have_effect($effect[blue swayed]) < 50){
         use($item[pulled blue taffy]);
     }
@@ -179,7 +189,7 @@ void prepBuffs(){
         use($item[Prunets]);
     }
     //meat drop
-    foreach ef in $effects[Incredibly Well Lit,Loded,Meet the Meat,Tubes of Universal Meat,Holiday Bliss,So You Can Work More...,Legendary Pasta Eyeball,Polka of Plenty]{
+    foreach ef in $effects[Incredibly Well Lit,Loded,Tubes of Universal Meat,Holiday Bliss,So You Can Work More...,Legendary Pasta Eyeball,Polka of Plenty,Meet the Meat]{
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]))
             continue;
         if (ef == $effect[Incredibly Well Lit] && dayType() == 0)
@@ -274,7 +284,7 @@ int [string] freeKillCap = {
     "_aprilBandTomUses": 3,
     "_glitchMonsterFights": 1,
     "_shadowBricksUsed": 13,
-    "_gingerbreadCityTurns": 30,
+    "_gingerbreadCityTurns": 21,
     "_leafMonstersFought": 5,
     "_tiedUpFlamingLeafletFought": 1,
     "_brickoFights": 10,
@@ -299,7 +309,9 @@ boolean [string] freeKillGate = {
     "_clubEmTimeUsed": have_item($item[legendary seal-clubbing club]),
     "_interestingCoinHeads": have_item($item[interesting coin]),
     "_aprilBandTomUses": have_item($item[Apriling band quad tom]),
-    "_glitchMonsterFights": have_item($item[\[glitch season reward name\]])
+    "_glitchMonsterFights": have_item($item[\[glitch season reward name\]]),
+    "_cargoPocketEmptied": have_item($item[Cargo Cultist Shorts]),
+    "_speakeasyFreeFights": have_item($item[deed to Oliver's Place])
 };
 
 // Preliminary estimate of remaining free kills for the given leg ("leg1", "leg2", or "both"),
@@ -372,7 +384,8 @@ int freeKillCount(string leg){
                     && total_turns_played() >= to_int(get_property("nextParanormalActivity"))
                     && item_amount($item[almost-dead walkie-talkie]) > 0))
                 n += 1;
-            if (get_property("_eldritchTentacleFought") == "false" && to_int(get_property("eldritchTentaclesFought")) < 11)
+            //changed 11 to 1 because im poor
+            if (get_property("_eldritchTentacleFought") == "false" && to_int(get_property("eldritchTentaclesFought")) < 1)
                 n += 1;
             if (item_amount($item[envyfish egg]) > 0)
                 n += 1;
@@ -561,6 +574,7 @@ void FKPrep(){
 	if (my_inebriety() < inebriety_limit()){
 		dieting();
 	}
+
 	set_property("script", "FreeKill");
     retrieve_item($item[burning paper crane]);
     step("phase: 9 special buffs");
@@ -598,12 +612,18 @@ void FKPrep(){
         beretBuffs[3] = $effect[Phairly Pheromonal];
         beretBuffs[4] = $effect[Souper Vengeful];
     }
- */
+
     while (get_property("_beretBuskingUses").to_int() < 5){
         beretBusking("familiar weight,meat drop",beretBuffs[get_property("_beretBuskingUses").to_int()].to_string());
     }
+ */
+    //replace with above commented code for paths outside of hat path
+    while (get_property("_beretBuskingUses").to_int() < 5){
+        use_skill($skill[Beret Busking]);
+    }
+
 	prepBuffs();
-	monkeypaw("familiar weight");
+	//monkeypaw("familiar weight");
 
 	step("phase: FKPrep ChibiBuddy");
 	// ChibiBuddy: wake it, chat once, then hand off to farto's chibiHandling.
@@ -617,15 +637,17 @@ void FKPrep(){
 	step("phase: FKPrep daily items");
 	if (get_property("_glennGoldenDiceUsed") == "false" && have_item($item[Glenn's golden dice]))
 		use($item[Glenn's golden dice]);
-	while (get_property("_poolGames").to_int() < 3)
+    setClan("VIP");
+    while (get_property("_poolGames").to_int() < 3)
 		cli_execute("pool 1");
 	if (get_property("friarsBlessingReceived") == "false")
 		cli_execute("friars blessing 2");
 	if (get_property("_portableSteamUnitUsed") == "false")
 		cli_execute("use portable steam unit");
-	if (get_property("_madTeaParty") == "false")
-		cli_execute("hatter filthy knitted dread sack");
+//	if (get_property("_madTeaParty") == "false")
+//		cli_execute("hatter filthy knitted dread sack");
 
+    setClan("stash");
 	foreach ef in $effects[Flapper Dancin', Polka Face, Polka of Plenty,
 		The Ballad of Richie Thingfinder, Earning Interest, Bet Your Autumn Dollar,
 		Sweat Equity, Legendary Pasta Eyeball, Heart of Pink, Tingling Feeling,
@@ -642,6 +664,7 @@ void FKPrep(){
 		cli_execute("beach head 10");
 		cli_execute("combo 10");
 	}
+/*
     if (my_name().to_lower_case() == "fart scauce"){
         foreach ef in $effects[familiar.enq]{
             if (have_effect(ef) > 0)
@@ -653,8 +676,11 @@ void FKPrep(){
         altFam($familiar[stocking mimic]);
         feedCandy();
     }
+ */
+
 	step("phase: FKPrep stash pops");
 	// Stash-borrowed one-a-day item pops.
+    setClan("stash");
 	foreach it in $items[defective Game Grid token, BittyCar MeatCar, Platinum Yendorian Express Card]{
 		stashgrab(it);
 		if (have_item(it))
@@ -675,7 +701,7 @@ void FKPrep(){
 // ─── bulkFK and helpers (verbatim from farto.ash, not yet refactored) ────────
 
 // Standard free-kill farming stance used all over weakMonsters()/bulkFK()'s
-// one-off monster kills: comma chameleon out, maximize for familiar weight
+// one-off monster kills: comma chameleon out, maximize for familiar weight  <-- use Jill-of-All-Trades because im poor
 // with the eternity codpiece equipped (so its own familiar-weight bonus
 // doesn't get maximized away). extraMax, if given, is appended to
 // maxOverride as-is (e.g. ",-weapon" in seals()).
@@ -683,7 +709,7 @@ void equipStockingMimic(){
     if (have_familiar($familiar[stocking mimic]))
         set_property("famOverride","stocking mimic");
     else
-        set_property("famOverride","comma chameleon");
+        set_property("famOverride","Jill-of-All-Trades");
 }
 
 void mimicPrep(string extraMax){
@@ -943,6 +969,7 @@ boolean looseFK(){
     }
     if (get_property("_assertYourAuthorityCast").to_int() < 3){
         print ("FK is assert");
+        setClan("VIP");
         set_property("maxOverride","familiar weight, equip sheriff pistol, equip sheriff moustache, equip sheriff badge");
         return true;
     }
@@ -1012,7 +1039,7 @@ void pearloP1(){
     if ((baseballPlayers() >= 8 && get_property("_baseballInnings").to_int() < 3) || get_property("_curveballFightsLeft").to_int() > 0) {
         underwaterBaseball();
     } else if (looseFK()){
-        set_property("acc3Override",", equip time lord badge of honor");
+        set_property("acc3Override",", equip Time Bandit Badge of Courage");
         set_property("subscript","looseFK");
         foreach str in $strings[trench,bar]{
             if (get_property(pearls[str].donePref) == "false" || str == "bar"){
@@ -1067,7 +1094,7 @@ void gingerbread(){
             use($item[counterfeit city]);
     }
     retrieve_item(29,$item[gingerbread cigarette]);
-    if (get_property("_gingerbreadCityTurns").to_int() < 30){
+    if (get_property("_gingerbreadCityTurns").to_int() < 21){
         mimicPrep();
         adv1($location[Gingerbread Upscale Retail District]);
     }
@@ -1090,24 +1117,27 @@ void habitatRecall(){
             MobiusMaybe();
             if (get_auto_attack() == 0)
                 aa("facsimile");
+/*
             if (get_property("beGregariousFightsLeft").to_int() == 1 && get_property("beGregariousCharges").to_int() == 0 && to_int(get_property("_monsterHabitatsRecalled")) == 3 && dayType() == 1){
                 if (mall_price($item[flask of embalming fluid]) > 1000)
                     abort("reanimated reanimator is too expensive rn");
                 altFam($familiar[reanimated reanimator]);
             }
             pearloP2();
+*/
         }
         set_property("offOverride","");
         set_property("acc2Override","");
     }
 }
 void backup(){
+    if (!have_item($item[backup camera])) return;
     while (to_int(get_property("_backUpUses")) < 11){
         if (to_int(get_property("_mimicEggsObtained")) < 11 && $familiar[chest mimic].experience > 100){
             set_property("famOverride","chest mimic");
         } else
             equipStockingMimic();
-        if (have_effect($effect[everything looks purple]) == 0 && (get_property("famOverride") == "comma chameleon" || get_property("famOverride") == "stocking mimic")){
+        if (have_effect($effect[everything looks purple]) == 0 && (get_property("famOverride") == "Jill-of-All-Trades" || get_property("famOverride") == "stocking mimic")){
             set_property("offOverride",", equip roman candel");
         } else
             set_property("offOverride",",equip Kramco Sausage-o-Matic");
@@ -1132,7 +1162,7 @@ void mimicEgg(){
 }
 void faxing(){
     if (get_property("_photocopyUsed") == false){
-        cli_execute("/whitelist fart sauce annex");
+        setClan("VIP");
         visit_url("clan_viplounge.php?action=faxmachine&whichfloor=2");
         visit_url("clan_viplounge.php?preaction=receivefax&whichfloor=2");
         if (item_amount($item[photocopied monster]) > 0){
@@ -1185,8 +1215,9 @@ int passiveDamage(){
 	return n;
 }
 
-float MLDamageReduction()
-	return max(0.50,(1-(numeric_modifier($modifier[monster level])*0.004)));
+float MLDamageReduction() {
+    return max(0.50, (1 - (numeric_modifier($modifier[monster level])*0.004)));
+}
 
 // -- HP-headroom math for fightPicker() ----------------------------------------
 // The double-ice build chips every monster each round (coldform proc plus the
@@ -1203,11 +1234,12 @@ int estimatedIceDamage(){
 }
 // lowHPTarget: chip damage across a fast (~9-round) free kill.
 // highHPTarget: chip damage across a slow (~29-round) one.
-int lowHPTarget()
+int lowHPTarget() {
     return (9 * passiveDamage()) + estimatedIceDamage();
-int highHPTarget()
+}
+int highHPTarget() {
     return (23 * passiveDamage()) + estimatedIceDamage();
-
+}
 
 boolean buffML(monster m){
     int currentML = numeric_modifier("Monster level");
@@ -1323,11 +1355,13 @@ string pickWeakling(boolean checkHP){
         && (!checkHP || safeToFK(to_monster("vandal kid"))))
         return "trickortreat";
     if (get_property("_cargoPocketEmptied") != "true"
-        && (!checkHP || safeToFK(to_monster("haxx0r"))))
+        && (!checkHP || safeToFK(to_monster("haxx0r")))
+        && (have_item($item[Cargo Cultist Shorts])))
         return "shorts";
     if (to_int(get_property("_speakeasyFreeFights")) < 3
-        && (!checkHP || safeToFK(to_monster("traveling hobo"))))
-        return "speakeasy";
+        && (!checkHP || safeToFK(to_monster("traveling hobo")))
+        && (have_item($item[deed to Oliver's Place])))
+    return "speakeasy";
     if (to_int(get_property("_brickoFights")) < 10
         && (!checkHP || safeToFK($monster[BRICKO ooze])))
         return "BRICKO";
@@ -1357,7 +1391,7 @@ string fightPicker(){
     if (pick != "done")
         return pick;
 
-    if (to_int(get_property("_gingerbreadCityTurns")) < 30)
+    if (to_int(get_property("_gingerbreadCityTurns")) < 21)
         return "gingerbread";
 
     return pickWeakling(false);
@@ -1376,13 +1410,14 @@ void settleStance(){
 }
 
 void weakMonsters(){
+    setClan("stash");
     step("phase: weakMonsters start");
-    set_property("acc3Override",", equip time lord badge of honor");
+    set_property("acc3Override",", equip Time Bandit Badge of Courage");
     set_property("subscript","weakling");
     retrieve_item($item[shard of double-ice]);
     if (have_effect($effect[coldform]) == 0)
         use($item[phial of coldness]);
-    equip($slot[acc3],$item[time lord badge of honor]);
+    equip($slot[acc3],$item[Time Bandit Badge of Courage]);
     // fightPicker() returns one key per call, in strict priority order; run that
     // fight, then re-ask. It also sets offOverride and buffs ML as needed.
     // settleStance() before every fightPicker() so the pick is made with the real
@@ -1396,10 +1431,13 @@ void weakMonsters(){
         if (pick == "gingerbread"){
             step("phase: weakMonsters gingerbread");
             gingerbread();
-        } else if (pick == "pearloP1"){
-            step("phase: weakMonsters pearl P1");
-            pearloP1();
-        } else if (pick == "leaflet"){
+        }
+//unreachable code - also no sea access in hat path
+//        else if (pick == "pearloP1"){
+//            step("phase: weakMonsters pearl P1");
+//            pearloP1();
+//        }
+        else if (pick == "leaflet"){
             step("phase: weakMonsters flaming leaflets");
             mimicPrep();
             main@preadventure( );
@@ -1421,11 +1459,11 @@ void weakMonsters(){
             main@preadventure( );
             use($item[bricko ooze]);
             main@postadventure( );
-        } else if (pick == "speakeasy"){
+        } else if (pick == "speakeasy" && have_item($item[Cargo Cultist Shorts])){
             step("phase: weakMonsters traveling hobo");
             mimicPrep();
             adv1($location[An Unusually Quiet Barroom Brawl]);
-        } else if (pick == "shorts"){
+        } else if (pick == "shorts" && have_item($item[Cargo Cultist Shorts])){
             step("phase: weakMonsters cargo shorts (haxx0r)");
             shorts();
         } else if (pick == "lynyrd"){
@@ -1437,11 +1475,15 @@ void weakMonsters(){
         } else if (pick == "trickortreat"){
             step("phase: weakMonsters trick-or-treat kid");
             mimicPrep();
-            set_property("hatOverride",", equip beholed bedsheet");
+//            set_property("hatOverride",", equip beholed bedsheet");
+            set_property("shirtOverride",", equip Unkillable Skeleton's breastplate");
+            set_property("pantsOverride",", equip Unkillable Skeleton's shinguards");
             main@preadventure( );
             candy("fight");
             main@postadventure( );
-            set_property("hatOverride","");
+//            set_property("hatOverride","");
+            set_property("shirtOverride",", equip Unkillable Skeleton's breastplate");
+            set_property("pantsOverride",", equip Unkillable Skeleton's shinguards");
         } else if (pick == "zeppelin"){
             step("phase: weakMonsters red zeppelin / archaeologist");
             if (to_int(get_property("_archSpadeDigs")) < 11) {
@@ -1507,7 +1549,7 @@ void LBMWPrep(boolean CMOI){
         set_property("acc1Override",", equip congressional medal of insanity");
     }
     aa("facsimile");
-    set_property("acc3Override",", equip time lord badge of honor");
+    set_property("acc3Override",", equip Time Bandit Badge of Courage");
     retrieve_item($item[shard of double-ice]);
     mimicPrep();
 }
@@ -1518,9 +1560,9 @@ void locationBasedWeakMonsters(){
     set_property("subscript","weakling");
     if (have_effect($effect[coldform]) == 0)
         use($item[phial of coldness]);
-    equip($slot[acc3],$item[time lord badge of honor]);
+    equip($slot[acc3],$item[Time Bandit Badge of Courage]);
     step("phase: weakMonsters gingerbread");
-    while (to_int(get_property("_gingerbreadCityTurns")) < 30){
+    while (to_int(get_property("_gingerbreadCityTurns")) < 21){
         LBMWPrep (false);
         gingerbread();
     }
@@ -1580,7 +1622,7 @@ void nonlocationBasedWeakMonsters(){
         use($item[bricko ooze]);
         main@postadventure( );
     }
-    if (get_property("_cargoPocketEmptied") != "true"){
+    if (get_property("_cargoPocketEmptied") != "true" && have_item($item[Cargo Cultist Shorts])){
         step("phase: weakMonsters cargo shorts (haxx0r)");
         shorts();
     }
@@ -1594,23 +1636,29 @@ void nonlocationBasedWeakMonsters(){
     while (contains_text(get_property("_trickOrTreatBlock"), "D")){
         step("phase: weakMonsters trick-or-treat kid");
         LBMWPrep (true);
-        set_property("hatOverride",", equip beholed bedsheet");
+//            set_property("hatOverride",", equip beholed bedsheet");
+        set_property("shirtOverride",", equip Unkillable Skeleton's breastplate");
+        set_property("pantsOverride",", equip Unkillable Skeleton's shinguards");
         main@preadventure( );
         candy("fight");
         main@postadventure( );
-        set_property("hatOverride","");
+//            set_property("hatOverride","");
+        set_property("shirtOverride",", equip Unkillable Skeleton's breastplate");
+        set_property("pantsOverride",", equip Unkillable Skeleton's shinguards");
     }
     while (to_int(get_property("_aprilBandTomUses")) < 3
         && available_amount($item[Apriling band quad tom]) > 0){
         step("phase: weakMonsters giant sandworm (quad tom)");
         sandworm();
     }
+/*     Note sure if I want this. Probably use personal eod diet to max fam lb
     if (my_fullness() < fullness_limit()){
         equip($item[devilbone corset]);
         equip($slot[acc3],$item[angelbone chopsticks]);
         eat($item[eldritch mushroom pizza]);
         cli_execute("unequip devilbone corset; unequip angelbone chopsticks");
     }
+ */
     while (to_int(get_property("_leafMonstersFought")) < 5
             || get_property("_tiedUpFlamingLeafletFought") == "false"){
         step("phase: weakMonsters flaming leaflets");
@@ -1651,7 +1699,7 @@ void nonlocationBasedWeakMonsters(){
 // True while weakMonsters() still has something to do -- gates the call in
 // bulkFK(). Mirrors fightPicker()'s availability checks (minus the HP math).
 boolean weakMonstersLeft(){
-    if (to_int(get_property("_gingerbreadCityTurns")) < 30) return true;
+    if (to_int(get_property("_gingerbreadCityTurns")) < 21) return true;
     if (to_int(get_property("_leafMonstersFought")) < 5) return true;
     if (get_property("_tiedUpFlamingLeafletFought") == "false") return true;
     if (to_int(get_property("_brickoFights")) < 10) return true;
@@ -1693,9 +1741,11 @@ void embezzler(){
         }
         set_property("script","embezzler");
         if (get_property("_batWingsFreeFights").to_int() < 5){
-            set_property("unconditionalOverride","meat drop; equip mafia pointer finger, equip bat wings");
+            //add 'equip mafia pointer finger' when less poor
+            set_property("unconditionalOverride","meat drop; equip bat wings");
         } else {
-            set_property("unconditionalOverride","meat drop; equip mafia pointer finger");
+            //add 'equip mafia pointer finger' when less poor
+            set_property("unconditionalOverride","meat drop");
         }
         if (have_effect($effect[Lucky!]) == 0){
             getLucky();
@@ -1731,7 +1781,7 @@ void restOfHiddenCity(){
 
 void miscellaneousFams(){
     step("phase: miscellaneous fams");
-    if (get_property("_machineTunnelsAdv").to_int() < 5){
+    if (get_property("_machineTunnelsAdv").to_int() < 5 && have_familiar($familiar[Machine Elf])){
         if (have_effect($effect[Inside The Snowglobe]) == 0)
             use($item[Deep Machine Tunnels snowglobe]);
         while (get_property("_machineTunnelsAdv").to_int() < 5 && mall_price($item[self-dribbling basketball]) <= 5000){
@@ -1743,25 +1793,15 @@ void miscellaneousFams(){
         set_property("subscript","");
         set_property("maxOverride","familiar weight");
     }
-    if (get_property("_pocketProfessorLectures").to_int() == 0 && get_property("_locketMonstersFought").split_string(",").count() < 3 && dayType() == 1){
-        set_property("maxOverride","familiar weight");
-        set_property("famOverride","comma Chameleon");
-        set_property("pantsOverride",", equip tearaway Pants");
-        set_property("offOverride", ", equip kol con snowglobe");
-        set_property("acc1Override", ", equip Mr. Cheeng's spectacles");
-        set_property("acc2Override", ", equip Lucky gold ring");
-        set_property("acc3Override", ", equip Portable Laughing Stock");
-        altFam($familiar[Pocket Professor]);
+    //replace with Professor familiar code when less poor
+    if ((get_property("_locketMonstersFought").split_string(",").count() < 3) && dayType() == 1){
+        mimicPrep();
         main@preadventure();
         cli_execute("reminisce Black Crayon Flower");
         while (get_property("_chainedRelativityMonster") == "Black Crayon Flower")
             run_combat();
-        set_property("pantsOverride","");
-        set_property("offOverride", "");
-        set_property("acc1Override", "");
-        set_property("acc2Override", "");
-        set_property("offOverride", "");
     }
+/*  TOO POOR
     if (get_property("_banderRunaways").to_int() < 20){
         set_auto_attack(0);
         if (have_effect($effect[Apriling Band Battle Cadence]) == 0 && total_turns_played() >= get_property("nextAprilBandTurn").to_int())
@@ -1797,12 +1837,14 @@ void miscellaneousFams(){
             aa("facsimile");
         set_property("pantsOverride","");
     }
+ */
 }
 
 void bulkFKD2(){
     step("phase: bulkFK start");
     set_property("inSpendAdv","true");
     set_property("script","FreeKill");
+    mimicPrep();
     // Arm the player's combat macro as the native auto-attack so a standalone
     // bulkFK() run (FKPrep skipped because the express card is already used) still fights.
     starter();
@@ -1824,7 +1866,8 @@ void bulkFKD2(){
     step ("phase: use up hidden city");
     restOfHiddenCity();
     step("phase: bulkFK habitat recall");
-    habitatRecall();
+// fix this to work for hat path
+//    habitatRecall();
     step("phase: bulkFK backup camera");
     backup();
     step("phase: bulkFK cyberzone");
@@ -1905,8 +1948,8 @@ void locationBasedAdventuring(){
     miscellaneousFams();
     step ("phase: use up hidden city");
     restOfHiddenCity();
-    step("phase: bulkFK habitat recall");
-    habitatRecall();
+//    step("phase: bulkFK habitat recall");
+//    habitatRecall();
     step("phase: bulkFK backup camera");
     backup();
     step("phase: bulkFK cyberzone");
@@ -1919,7 +1962,7 @@ void locationBasedAdventuring(){
 void bulkFKD1(){
     set_property("inSpendAdv","true");
     set_property("script","FreeKill");
-    equip($slot[acc3],$item[time lord badge of honor]);
+    equip($slot[acc3],$item[Time Bandit Badge of Courage]);
     buffML($monster[Flaming leaflet]);
     locationBasedAdventuring();
     if (my_spleen_use() < 10){
@@ -1945,7 +1988,7 @@ void bulkFKD1(){
             toChew = floor((spleen_limit()-my_spleen_use())/2);
             chew (toChew,$item[Extrovermectin&trade;]);
         }
-        use_familiar($familiar[comma chameleon]);
+        use_familiar($familiar[Jill-of-All-Trades]);
         cli_execute("maximize familiar weight");
     }
     nonlocationBasedWeakMonsters();
@@ -1988,7 +2031,7 @@ void bulkFKD1(){
                 eat($item[eldritch mushroom pizza]);
             cli_execute("unequip devilbone corset; unequip angelbone chopsticks");
             cli_execute("ash import dinner;heavyWeightBooze()");
-            cli_execute("unequip devilbone rosary;unequip angelbone dice;unequip devilbone greaves;unequip angelbone totem; familiar comma chameleon");
+            cli_execute("unequip devilbone rosary;unequip angelbone dice;unequip devilbone greaves;unequip angelbone totem; familiar Jill-of-All-Trades");
         }
         step("phase: bulkFK seals");
         seals();
@@ -1999,7 +2042,7 @@ void bulkFKD1(){
         run_choice(1);
         main@postadventure();
     }
-    stashreturn($item[pantsgiving]);
+//    stashreturn($item[pantsgiving]);
     if (!contains_text(get_property("thoth19_event_list"),"postFKD1"))
         cli_execute("ptrack add postFKD1");
     codpiece("none");
@@ -2016,6 +2059,7 @@ void main(){
 //UNCOMMENT ON FINAL RELEASE
 //        if (!user_confirm("This script is currently coded for Hat Path. Continue?"))
 //            abort();
+//      mall_prices("allitems");
         starter();
         if (get_property("expressCardUsed") == "false"){
             if (get_property("prusias_profitTracking_date") != today_to_string( ))

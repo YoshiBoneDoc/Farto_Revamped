@@ -34,7 +34,9 @@ function downSpleen(consumable: string, amount: number): void {
 
 // ---- DIET PLANS ----
 function eodDiet(){
+    //save spleen for extros
 /*      TOTALS - Drunk:1  Fullness: 7  Spleen:
+ */
         PLAN:
             Feliz Navidad - 1 drunk
             Strix stix - 2 full
