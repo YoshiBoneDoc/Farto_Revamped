@@ -188,7 +188,10 @@ void prepBuffs(){
     while (have_effect($effect[She Ate Too Much Candy]) < 25){
         use($item[Prunets]);
     }
-    //meat drop
+    while (have_effect($effect[Cold Hearted]) < 25){
+        use($item[love song of icy revenge]);
+    }
+//meat drop
     foreach ef in $effects[Incredibly Well Lit,Loded,Tubes of Universal Meat,Holiday Bliss,So You Can Work More...,Legendary Pasta Eyeball,Polka of Plenty,Meet the Meat]{
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]))
             continue;
@@ -206,7 +209,7 @@ void prepBuffs(){
     }
     setClan("stash");
     //item drop
-    foreach ef in $effects[Steely-Eyed Squint,Spookyravin',Unbarking Dogs,Cold Hearted,One Very Clear Eye,Materiel Intel,Spitting Rhymes,Joyful Resolve,Lubricating Sauce]{
+    foreach ef in $effects[Steely-Eyed Squint,Spookyravin',Unbarking Dogs,One Very Clear Eye,Materiel Intel,Spitting Rhymes,Joyful Resolve,Lubricating Sauce]{
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]))
             continue;
         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)) && ef != $effect[Steely-Eyed Squint])
@@ -284,7 +287,7 @@ int [string] freeKillCap = {
     "_aprilBandTomUses": 3,
     "_glitchMonsterFights": 1,
     "_shadowBricksUsed": 13,
-    "_gingerbreadCityTurns": 21,
+    "_gingerbreadCityTurns": 20,
     "_leafMonstersFought": 5,
     "_tiedUpFlamingLeafletFought": 1,
     "_brickoFights": 10,
@@ -873,7 +876,8 @@ void shadowRealmFK(){
     if (get_property("_shadowAffinityToday") == false)
         use($item[closed-circuit pay phone]);
     set_property("shirtOverride","");
-    set_property("backOverride","");}
+    set_property("backOverride","");
+}
 void sandworm(){
     mimicPrep();
     if (get_property("_aprilBandTomUses").to_int() < 3){
@@ -964,6 +968,7 @@ boolean looseFK(){
     }
     if (get_property("_firedJokestersGun") == false){
         print ("FK is jokester's gun");
+        setClan("VIP");
         set_property("maxOverride","familiar weight, equip eternity codpiece, equip jokester's gun");
         return true;
     }
@@ -1094,7 +1099,7 @@ void gingerbread(){
             use($item[counterfeit city]);
     }
     retrieve_item(29,$item[gingerbread cigarette]);
-    if (get_property("_gingerbreadCityTurns").to_int() < 21){
+    if (get_property("_gingerbreadCityTurns").to_int() < 20){
         mimicPrep();
         adv1($location[Gingerbread Upscale Retail District]);
     }
@@ -1338,6 +1343,8 @@ location walkieGhost(){
 // item-summon fights look their representative monster up by name -- fix the
 // strings if a lookup misses.
 string pickWeakling(boolean checkHP){
+    //custom variable to avoid shit I'm always dying to
+    boolean ALWAYSDIE = true;
     if (!checkHP)
         set_property("offOverride","");
     if (to_int(get_property("_aprilBandTomUses")) < 3
@@ -1349,7 +1356,9 @@ string pickWeakling(boolean checkHP){
         return "lynyrd";
     if ((to_int(get_property("_glarkCableUses")) < 5 || to_int(get_property("_archSpadeDigs")) < 11)
         && can_adventure($location[A Mob of Zeppelin Protesters])
-        && (!checkHP || safeToFK(to_monster("red snapper"))))
+    //remove later maybe
+        && !ALWAYSDIE
+        && (!checkHP || safeToFK(to_monster("Red Snapper"))))
         return "zeppelin";
     if (contains_text(get_property("_trickOrTreatBlock"), "D")
         && (!checkHP || safeToFK(to_monster("vandal kid"))))
@@ -1391,7 +1400,7 @@ string fightPicker(){
     if (pick != "done")
         return pick;
 
-    if (to_int(get_property("_gingerbreadCityTurns")) < 21)
+    if (to_int(get_property("_gingerbreadCityTurns")) < 20)
         return "gingerbread";
 
     return pickWeakling(false);
@@ -1482,8 +1491,8 @@ void weakMonsters(){
             candy("fight");
             main@postadventure( );
 //            set_property("hatOverride","");
-            set_property("shirtOverride",", equip Unkillable Skeleton's breastplate");
-            set_property("pantsOverride",", equip Unkillable Skeleton's shinguards");
+            set_property("shirtOverride","");
+            set_property("pantsOverride","");
         } else if (pick == "zeppelin"){
             step("phase: weakMonsters red zeppelin / archaeologist");
             if (to_int(get_property("_archSpadeDigs")) < 11) {
@@ -1522,7 +1531,7 @@ void weakMonsters(){
         pick = fightPicker();
     }
     step("phase: special leaf monsters");
-    cli_execute("buy 4 lit leaf lasso");
+    cli_execute("acquire 4 lit leaf lasso");
     if (get_property("_tiedUpFlamingMonsteraFought") == "false"){
         mimicPrep();
         main@preadventure( );
@@ -1554,7 +1563,6 @@ void LBMWPrep(boolean CMOI){
     mimicPrep();
 }
 
-
 void locationBasedWeakMonsters(){
     step("phase: weakMonsters start");
     set_property("subscript","weakling");
@@ -1562,7 +1570,7 @@ void locationBasedWeakMonsters(){
         use($item[phial of coldness]);
     equip($slot[acc3],$item[Time Bandit Badge of Courage]);
     step("phase: weakMonsters gingerbread");
-    while (to_int(get_property("_gingerbreadCityTurns")) < 21){
+    while (to_int(get_property("_gingerbreadCityTurns")) < 20){
         LBMWPrep (false);
         gingerbread();
     }
@@ -1699,12 +1707,12 @@ void nonlocationBasedWeakMonsters(){
 // True while weakMonsters() still has something to do -- gates the call in
 // bulkFK(). Mirrors fightPicker()'s availability checks (minus the HP math).
 boolean weakMonstersLeft(){
-    if (to_int(get_property("_gingerbreadCityTurns")) < 21) return true;
+    if (to_int(get_property("_gingerbreadCityTurns")) < 20) return true;
     if (to_int(get_property("_leafMonstersFought")) < 5) return true;
     if (get_property("_tiedUpFlamingLeafletFought") == "false") return true;
     if (to_int(get_property("_brickoFights")) < 10) return true;
-    if (to_int(get_property("_speakeasyFreeFights")) < 3) return true;
-    if (get_property("_cargoPocketEmptied") != "true") return true;
+    //if (to_int(get_property("_speakeasyFreeFights")) < 3) return true;
+    //if (get_property("_cargoPocketEmptied") != "true") return true;
     if (to_int(get_property("_lynyrdSnareUses")) < 3) return true;
     if (contains_text(get_property("_trickOrTreatBlock"), "D")) return true;
     if ((to_int(get_property("_glarkCableUses")) < 5 || to_int(get_property("_archSpadeDigs")) < 11)
@@ -1948,8 +1956,8 @@ void locationBasedAdventuring(){
     miscellaneousFams();
     step ("phase: use up hidden city");
     restOfHiddenCity();
-//    step("phase: bulkFK habitat recall");
-//    habitatRecall();
+    step("phase: bulkFK habitat recall");
+    habitatRecall();
     step("phase: bulkFK backup camera");
     backup();
     step("phase: bulkFK cyberzone");
@@ -2059,9 +2067,11 @@ void main(){
 //UNCOMMENT ON FINAL RELEASE
 //        if (!user_confirm("This script is currently coded for Hat Path. Continue?"))
 //            abort();
-//      mall_prices("allitems");
+//      cli_execute("mallcheck");
         starter();
-        if (get_property("expressCardUsed") == "false"){
+
+        if(false){   //for debug only
+//        if (get_property("expressCardUsed") == "false"){
             if (get_property("prusias_profitTracking_date") != today_to_string( ))
                 cli_execute("ptrack add preprepD2");
             else if (!contains_text(get_property("thoth19_event_list"),"preprepD1") && dayType() == 0)

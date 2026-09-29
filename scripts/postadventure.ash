@@ -148,7 +148,7 @@ void blackForest(){
     set_property("acc3Override",", equip blackberry galoshes");
     if (item_amount($item[reassembled blackbird]) == 0)
         set_property("famOverride","reassembled blackbird");
-    else 
+    else
         swordPrep();
     if (item_amount($item[sunken eyes]) == 1 && item_amount($item[broken wings]) == 1)
         cli_execute("acquire reassembled blackbird");
@@ -175,7 +175,7 @@ void outskirts() {
         swordPrep();
     if (get_property("famOverride") != "sword of s words")
         set_property("unconditionalOverride","familiar weight");
-    else 
+    else
         set_property("unconditionalOverride","");
     if (get_property("questG09Muscle") == "unstarted")
         visit_url("guild.php?place=challenge");
@@ -398,7 +398,10 @@ void drunkPygmy(){
             set_property("acc2Override","");
         }
         if (!contains_text(get_property("banishedMonsters"),"pygmy janitor"))
-            abort();
+            set_property("mainOverride",", equip Monodent of the Sea");
+        } else {
+            set_property("acc2Override","");
+        }
         cli_execute("closet put * bowling ball");
         adv1($location[The Hidden Bowling Alley]);
     }
@@ -732,7 +735,7 @@ void forceNoncombats(){
     } else {
         if (dayType() == 1)
             cli_execute("ash import farto;shadowRealmNCForce()");
-        else   
+        else
             abort("Have NCForces that should have been spent. This is a bug. Let FS know");
     }
 }
@@ -972,7 +975,7 @@ void main(){
             && !($strings[6-kiss,coat,stick,slime] contains get_property("script"))){
             try{
                 spendAdv();
-            } finally { 
+            } finally {
                 set_property("inSpendAdv","false");
             }
         }
