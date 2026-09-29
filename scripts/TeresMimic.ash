@@ -165,8 +165,9 @@ void prepBuffs(){
     }
     //fam weight
     //cli_execute("hatter reinforced beaded headband");   <-- this is not working in hatpath
+    //also buffs only for sea: Greased-Up Familiar
     //'Adobe Ayam Subscription' buff only for hat path
-    foreach ef in $effects[Adobe Ayam Subscription, Robot Friends,Healthy Green Glow,Chorale of Companionship,Human-Fish Hybrid,Whole Latte Love,Shortly Stacked,Thoughtful Empathy,Leash of Linguini,blood bond,Empathy,Black Tongue,Man\'s Worst Enemy,Kindly Resolve,Human-Machine Hybrid,Shrimpin' Ain't Easy,Over-Familiar With Dactyls,Loyal Tea,Warm Shoulders,One Foot Heavier,Work For Hours a Week,Panna Consideration,Loyal as a Rock,Candied Devil,Wildsun Boon,Only Dogs Love a Drunken Sailor,Best Pals,Heart of Green,Bestial Sympathy,Herder\, Bitter\, Fester\, Stranger,Party Soundtrack,Shortly Wired,Greased-Up Familiar,Crocodile Tear,Spiced Out,offhand remarkable,Greased-Up Familiar,Crocodile Tear,Billiards Belligerence,A Girl Named Sue]{
+    foreach ef in $effects[Adobe Ayam Subscription,Adobe Adze Subscription,Robot Friends,Healthy Green Glow,Chorale of Companionship,Human-Fish Hybrid,Whole Latte Love,Shortly Stacked,Thoughtful Empathy,Leash of Linguini,blood bond,Empathy,Black Tongue,Man\'s Worst Enemy,Kindly Resolve,Human-Machine Hybrid,Shrimpin' Ain't Easy,Over-Familiar With Dactyls,Loyal Tea,Warm Shoulders,One Foot Heavier,Work For Hours a Week,Panna Consideration,Loyal as a Rock,Candied Devil,Wildsun Boon,Only Dogs Love a Drunken Sailor,Best Pals,Heart of Green,Bestial Sympathy,Herder\, Bitter\, Fester\, Stranger,Party Soundtrack,Shortly Wired,Crocodile Tear,Spiced Out,offhand remarkable,Crocodile Tear,Billiards Belligerence,A Girl Named Sue]{
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]) && ef.attributes != "nohookah")
             continue;
         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)))
@@ -819,6 +820,7 @@ void shadowBoss(){
     }
 }
 void shadowRealmFK(){
+    cli_execute("uneffect coldform");
     equipStockingMimic();
     if (get_auto_attack() == 0)
         aa("facsimile");
@@ -1069,7 +1071,7 @@ void pearloP2(){
         if (have_effect($effect[driving waterproofly]) == 0)
             set_property("pantsOverride", ", equip really nice swim");
         equipStockingMimic();
-        set_property("offOverride",",equip Kramco Sausage-o-Matic");
+        //set_property("offOverride",",equip Kramco Sausage-o-Matic");
         if (get_property(pearls[str].donePref) == "false" || str == "reef"){
             resCheck(str);
             adv1(pearls[str].loc);
@@ -1144,8 +1146,8 @@ void backup(){
             equipStockingMimic();
         if (have_effect($effect[everything looks purple]) == 0 && (get_property("famOverride") == "Jill-of-All-Trades" || get_property("famOverride") == "stocking mimic")){
             set_property("offOverride",", equip roman candel");
-        } else
-            set_property("offOverride",",equip Kramco Sausage-o-Matic");
+        } //else
+            //set_property("offOverride",",equip Kramco Sausage-o-Matic");
         set_property("maxOverride","familiar weight, equip eternity codpiece");
         if (have_effect($effect[driving waterproofly]) == 0)
             set_property("pantsOverride",", equip really nice swim");
@@ -1247,11 +1249,12 @@ int highHPTarget() {
 }
 
 boolean buffML(monster m){
+    setClan("stash");
     int currentML = numeric_modifier("Monster level");
     int targetML = currentML + (lowHPTarget()-m.base_hp);
     //Monster level. Needs reconsidering to work with weakMonsters()
-    foreach ef in $effects[Ur-Kel's Aria of Annoyance,Pride of the Puffin,Bloodbathed,Misplaced Rage,Manbait,Sweetbreads Flamb&eacute;,Red Lettered,Spangled Star,Tortious,Litterbug,Not Sharing,Para-lyzed Jaw,Contemptible Emanations,Lapdog,Ashen Burps,The Cupcake of Wrath,Gelded,Mysteriously Handsome]{
-        targetML = currentML + (lowHPTarget()-m.base_hp);
+    foreach ef in $effects[Ur-Kel's Aria of Annoyance,Pride of the Puffin,Bloodbathed,Misplaced Rage,Manbait,Sweetbreads Flamb&eacute;,Red Lettered,Spangled Star,Tortious,Litterbug,Not Sharing,Para-lyzed Jaw,Contemptible Emanations,Lapdog,Ashen Burps,Gelded,Mysteriously Handsome,Eau D\'enmity,Mediocri Tea,Patent Sallowness,Yoloswagyoloswag]{
+        targetML = currentML + (lowHPTarget()-m.base_hp) + 100; //padding this with extra ML cause im slaughtering too hard
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]))
             continue;
         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)))
@@ -1262,7 +1265,7 @@ boolean buffML(monster m){
             cli_execute(ef.default);
     }
     if (numeric_modifier("Monster level") < targetML)
-        change_mcd(11);
+        change_mcd(10);
     if (numeric_modifier("Monster level") >= targetML)
         return true;
     else
@@ -1424,8 +1427,6 @@ void weakMonsters(){
     set_property("acc3Override",", equip Time Bandit Badge of Courage");
     set_property("subscript","weakling");
     retrieve_item($item[shard of double-ice]);
-    if (have_effect($effect[coldform]) == 0)
-        use($item[phial of coldness]);
     equip($slot[acc3],$item[Time Bandit Badge of Courage]);
     // fightPicker() returns one key per call, in strict priority order; run that
     // fight, then re-ask. It also sets offOverride and buffs ML as needed.
@@ -1433,6 +1434,10 @@ void weakMonsters(){
     // combat gear on, not whatever the last dispatch left equipped.
     settleStance();
     string pick = fightPicker();
+
+    if (pick != "done" && have_effect($effect[coldform]) == 0)   //moved so coldform isnt wasted if script rerun
+        use($item[phial of coldness]);
+
     while (pick != "done"){
         // pearloP1() leaves subscript on "looseFK" -- re-assert it each pass.
         set_property("subscript","weakling");
@@ -1888,7 +1893,6 @@ void bulkFKD2(){
     if (get_property("_shadowAffinityToday") == "false")
         shadowRealmFK();
     while (have_effect($effect[shadow affinity]) > 0){
-        cli_execute("uneffect coldform");
         shadowRealmFK();
     }
     step("phase: bulkFK loose FK");
@@ -1896,7 +1900,7 @@ void bulkFKD2(){
         set_property("subscript","looseFK");
         if (baseballPlayers() == 9 && get_property("_curveballFightsLeft").to_int() == 0 && get_property("_baseballInnings").to_int() < 3)
             baseballD();
-        set_property("offOverride",",bonus Kramco Sausage-o-Matic");
+        //set_property("offOverride",",bonus Kramco Sausage-o-Matic");
         shadowRealmFK();
     }
     set_property("subscript","");

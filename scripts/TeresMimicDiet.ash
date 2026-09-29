@@ -76,7 +76,7 @@ function eodDiet(){
 
 
 // ---- MAIN EXPORT FUNCTION ----
-export function hoboDiet() {
+export function garboDiet() {
 
 /*  old diet plan from hobo
 	 ----   DIET PLAN ----
@@ -98,6 +98,7 @@ export function hoboDiet() {
 	> ghost pepper 19d 12f 2s
 	> cookie 19d 13f 2s
  */
+
 
 
 
