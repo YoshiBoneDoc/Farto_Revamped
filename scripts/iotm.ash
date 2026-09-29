@@ -770,7 +770,7 @@
                     equip($slot[acc3], $item[cincho de mayo]);
                     use_skill($skill[Cincho: Fiesta Exit]);
                 }
-            }  else if (loopCount == 1 ){
+            } else if (loopCount == 1 )
                 //default to using allied radio NC force
                 visit_url("choice.php?request=radio&whichchoice=1563&option=5");
         }
