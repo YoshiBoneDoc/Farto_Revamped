@@ -90,12 +90,12 @@ void mood(string function){
             break;
     }}
 void preAdv(){
+    string famOvr = get_property("famOverride");
+    string maxOvr = get_property("maxOverride");
     if (get_property("script") == "FreeKill" && my_fullness() == fullness_limit() && get_property("_pantsgivingFullness").to_int() < 2)
         //stashgrab($item[pantsgiving]);
     // ── Familiar selection ────────────────────────────────────────────────────
         if (my_familiar() != $familiar[stooper]){
-            string famOvr = get_property("famOverride");
-            string maxOvr = get_property("maxOverride");
             if (famOvr != "")
                 use_familiar(famOvr.to_familiar());
     //        else if (have_effect($effect[Citizen of a Zone]) == 0 && get_property("screechCombats").to_int() > 0)
@@ -107,7 +107,7 @@ void preAdv(){
             }
 //            else if (numeric_modifier("familiar weight") > 49){
 //                use_familiar($familiar[comma chameleon]);
-            } else if ($familiar[cooler yeti].experience < 400 && get_property("_coolerYetiAdventures") == "false" && (dayType() == 0 || inebriety_limit() - 4 > my_inebriety())){
+            else if ($familiar[cooler yeti].experience < 400 && get_property("_coolerYetiAdventures") == "false" && (dayType() == 0 || inebriety_limit() - 4 > my_inebriety())){
                 use_familiar($familiar[cooler yeti]);
                 if (have_effect($effect[heart of white]) == 0)
                     use($item[white candy heart]);
@@ -158,7 +158,6 @@ void preAdv(){
             }
         }
 
-    string maxOvr = get_property("maxOverride");
     boolean clubEmReady = get_property("clubEmNextWeekMonster") != "" && total_turns_played() >= get_property("clubEmNextWeekMonsterTurn").to_int() + 8;
     boolean clubEmExact = total_turns_played() == get_property("clubEmNextWeekMonsterTurn").to_int() + 8;
     boolean jokesterReady = get_property("_firedJokestersGun") == "false";
