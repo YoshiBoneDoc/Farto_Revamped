@@ -397,10 +397,10 @@ void drunkPygmy(){
         } else {
             set_property("acc2Override","");
         }
-        if (!contains_text(get_property("banishedMonsters"),"pygmy janitor"))
+        if (!contains_text(get_property("banishedMonsters"),"pygmy janitor")){
             set_property("mainOverride",", equip Monodent of the Sea");
         } else {
-            set_property("acc2Override","");
+            set_property("mainOverride","");
         }
         cli_execute("closet put * bowling ball");
         adv1($location[The Hidden Bowling Alley]);
