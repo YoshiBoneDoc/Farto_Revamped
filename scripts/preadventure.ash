@@ -91,7 +91,7 @@ void mood(string function){
     }}
 void preAdv(){
     if (get_property("script") == "FreeKill" && my_fullness() == fullness_limit() && get_property("_pantsgivingFullness").to_int() < 2)
-        stashgrab($item[pantsgiving]);
+        //stashgrab($item[pantsgiving]);
     // ── Familiar selection ────────────────────────────────────────────────────
         if (my_familiar() != $familiar[stooper]){
             string famOvr = get_property("famOverride");
@@ -104,14 +104,16 @@ void preAdv(){
                 use_familiar($familiar[chest mimic]);
                 if (have_effect($effect[heart of white]) == 0)
                     use($item[white candy heart]);
-            } else if (numeric_modifier("familiar weight") > 49){
-                use_familiar($familiar[comma chameleon]);
+            }
+//            else if (numeric_modifier("familiar weight") > 49){
+//                use_familiar($familiar[comma chameleon]);
             } else if ($familiar[cooler yeti].experience < 400 && get_property("_coolerYetiAdventures") == "false" && (dayType() == 0 || inebriety_limit() - 4 > my_inebriety())){
                 use_familiar($familiar[cooler yeti]);
                 if (have_effect($effect[heart of white]) == 0)
                     use($item[white candy heart]);
-            } else if (get_property("_knuckleboneDrops").to_int() < 100 && my_name().to_lower_case() == "fart scauce" && my_location().environment != "underwater")
-                use_familiar($familiar[skeleton of crimbo past]);
+            }
+//            else if (get_property("_knuckleboneDrops").to_int() < 100 && my_name().to_lower_case() == "fart scauce" && my_location().environment != "underwater")
+//                use_familiar($familiar[skeleton of crimbo past]);
             else if (maxOvr == "item drop" || get_property("_mapToACandyRichBlockDrops").to_int() < 1)
                 use_familiar($familiar[jill-of-all-trades]);
             else if (maxOvr == "-combat")
@@ -121,7 +123,8 @@ void preAdv(){
             else if (have_familiar($familiar[robortender]))
                 use_familiar($familiar[robortender]);
             else
-                use_familiar($familiar[comma chameleon]);
+//                use_familiar($familiar[comma chameleon]);
+                use_familiar($familiar[skeleton of crimbo past]);
         }
 
     // ── Familiar equip helper ─────────────────────────────────────────────────
@@ -466,7 +469,7 @@ void preAdv(){
     if (get_property("subscript") == "weakling" || get_property("subscript") == "looseFK"){
         if (closet_amount($item[shard of double-ice]) > 0)
             take_closet($item[shard of double-ice]);
-        else 
+        else
             retrieve_item($item[shard of double-ice]);
     } else {
         put_closet(item_amount($item[shard of double-ice]),$item[shard of double-ice]);
