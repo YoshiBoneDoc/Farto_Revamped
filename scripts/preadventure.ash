@@ -47,7 +47,7 @@ void mood(string function){
                 continue;
             } else if (ef == $effect[The Ballad of Richie Thingfinder] && get_property("_thingfinderCasts") == 10){
                 continue;
-            } else if (ef == $effect[sweat equity] && ((my_basestat($stat[submoxie]) - 118881) < BCZcost("SweatEquity"))){
+            } else if (ef == $effect[sweat equity] && ((my_basestat($stat[submoxie]) - 118881) < BCZcost("SweatEquityCasts"))){
                 continue;
             } else if (ef == $effect[Legendary Pasta Eyeball] && my_class() == $class[pastamancer]){
                 continue;
@@ -92,12 +92,14 @@ void mood(string function){
 void preAdv(){
     string famOvr = get_property("famOverride");
     string maxOvr = get_property("maxOverride");
-    if (get_property("script") == "FreeKill" && my_fullness() == fullness_limit() && get_property("_pantsgivingFullness").to_int() < 2)
-        //stashgrab($item[pantsgiving]);
+//    if (get_property("script") == "FreeKill" && my_fullness() == fullness_limit() && get_property("_pantsgivingFullness").to_int() < 2)
+//        stashgrab($item[pantsgiving]);
+    if (get_property("script") == "FreeKill"){
     // ── Familiar selection ────────────────────────────────────────────────────
         if (my_familiar() != $familiar[stooper]){
-            if (famOvr != "")
+            if (famOvr != "") {
                 use_familiar(famOvr.to_familiar());
+            }
     //        else if (have_effect($effect[Citizen of a Zone]) == 0 && get_property("screechCombats").to_int() > 0)
        //         use_familiar($familiar[patriotic eagle]);
             else if ($familiar[chest mimic].experience < 900){
@@ -123,8 +125,8 @@ void preAdv(){
             else if (have_familiar($familiar[robortender]))
                 use_familiar($familiar[robortender]);
             else
-//                use_familiar($familiar[comma chameleon]);
-                use_familiar($familiar[Jill-of-All-Trades]);
+                use_familiar($familiar[Jill-of-All-Trades]);  //changed from comma cham
+            }
         }
 
     // ── Familiar equip helper ─────────────────────────────────────────────────
@@ -167,7 +169,7 @@ void preAdv(){
     boolean dartReady = have_effect($effect[everything looks red]) == 0;
     boolean greenReady = have_effect($effect[everything looks green]) == 0;
     boolean yellowReady = have_effect($effect[everything looks yellow]) == 0;
-    boolean bcz = (my_basestat($stat[submoxie]) - 118881) > BCZcost("SweatBullets");
+    boolean bcz = (my_basestat($stat[submoxie]) - 118881) > BCZcost("SweatBulletsCasts");
     boolean vote = item_amount($item[&quot;I Voted!&quot; sticker]) > 0 && total_turns_played()%11 == 1 && get_property("_voteFreeFights").to_int() < 3;
     boolean sheriff = get_property("_assertYourAuthorityCast").to_int() < 3 && item_amount($item[Sheriff pistol]) >= 1 && !clubEmReady;
 
@@ -200,7 +202,7 @@ void preAdv(){
         else if (yellowReady && !freeSomething)  append(maximize, ", equip jurassic parka");
         else if (!freeSomething)                 append(maximize, ", equip chamoisole");
 
-        if ((my_basestat($stat[submoxie]) - 62500) > BCZcost("SweatBullets") && !freeSomething)
+        if ((my_basestat($stat[submoxie]) - 62500) > BCZcost("SweatBulletsCasts") && !freeSomething)
             append(maximize, ", equip blood cubic zirconia");
         else if (dartReady && !freeSomething)    append(maximize, ", equip everfull dart holster");
         if (avalancheReady)                      append(maximize, ", equip mchugelarge left ski");
@@ -256,7 +258,7 @@ void preAdv(){
         else if (get_property("acc3Override") != "")
             append(maximize, get_property("acc3Override"));
         // Fam equip
-        if (get_property("backOverride") != "")
+        if (get_property("famEquipOverride") != "")
             append(maximize, get_property("famEquipOverride"));
     } else {
         if (get_property("unconditionalOverride") == ""){
@@ -374,8 +376,10 @@ void preAdv(){
     }
     }
 
-    if (!maximize(maximize.to_string(), false))
-        abort();
+    if (!maximize(maximize.to_string(), false)) {
+        print("MAXIMIZE STRING: " + maximize.to_string(), "red");
+        abort("preAdv maximize() failed: " + maximize.to_string());
+    }
 
     // Sheriff override — only in non-slime non-angelbone-totem context
     if (get_property("script") != "slime" && sheriff && !have_equipped($item[angelbone totem]) && get_property("script") != "coat" && get_property("script") != "stick" && get_property("script") != "FreeKill" && get_property("script") != "farto")
