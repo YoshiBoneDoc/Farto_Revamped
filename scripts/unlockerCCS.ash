@@ -265,6 +265,9 @@ void main(int round, monster mob, string page_text) {
             use_skill($skill[spring kick]);
             use_skill($skill[spring away]);
         }
+        if (last_monster() == $monster[pygmy janitor]){
+            use_skill($skill[Throw Latte on Opponent]);
+        }
     }
 
     phylum [location] ScreechCheck = {

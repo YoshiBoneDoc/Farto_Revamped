@@ -405,9 +405,11 @@
             case 1: substatBase = 23; break;
             case 2: substatBase = 37; break;
         }
+        int cost = substatBase * 10 ** ((cast < 12 || (cast > 12 && castMathModulo == 0))
+                ? castMathFloor : castMathFloor + 1);
         // Pattern: 11, 23, 37, 110, 230, 370, ... 13th cast handled separately but unreachable
-        return substatBase * 10 ** ((cast < 12 || (cast > 12 && castMathModulo == 0))
-            ? castMathFloor : castMathFloor + 1);
+        print(BCZskill+ " cost after " + cast + " casts is " + cost,"green");
+        return cost;
     }
 
     // ── The Eternity Codpiece ────────────────────────────────────────────────────
@@ -669,8 +671,8 @@
             use_familiar(fam);
             set_property("famOverride",fam.to_string());
         } else {
-            use_familiar($familiar[Jill-of-All-Trades]);
-            set_property("famOverride","Jill-of-All-Trades");
+            use_familiar($familiar[Cooler Yeti]);
+            set_property("famOverride","Cooler Yeti");
 /*
             use_familiar($familiar[comma chameleon]);
             if (chameleon() != fam){

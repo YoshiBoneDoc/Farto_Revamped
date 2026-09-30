@@ -163,6 +163,10 @@ void prepBuffs(){
         if (have_effect(ef) > 0)
             cli_execute("uneffect " + ef);
     }
+    foreach ef in my_effects(){
+        if (numeric_modifier(ef, "Thorns") != 0)
+            cli_execute("uneffect " + ef);
+    }
     //fam weight
     //cli_execute("hatter reinforced beaded headband");   <-- this is not working in hatpath
     //also buffs only for sea: Greased-Up Familiar
@@ -554,6 +558,18 @@ void feedCandy(){
     }
 }
 
+void goodies() {
+    setClan("VIP");
+    create($item[Sheriff pistol]);
+    create($item[Sheriff badge]);
+    create($item[Sheriff moustache]);
+
+    cli_execute("aprilband item quad tom");
+    cli_execute("aprilband item sax");
+    setClan("stash");
+}
+
+
 void FKPrep(){
     // TO DO: Implement differet dieting plans (at eod, beginning, etc)
 
@@ -571,8 +587,12 @@ void FKPrep(){
     }
     if (get_auto_attack() == 0)
         aa("facsimile");
-	if (get_property("_shadowAffinityToday") == "false")
-		use($item[closed-circuit pay phone]);
+//	if (get_property("_shadowAffinityToday") == "false")
+//		use($item[closed-circuit pay phone]);
+
+    // Get daily goodies (Sheriff gear, Marching Band stuff)
+    step("phase: FKPrep getting sheriff and band goodies");
+    goodies();
 
 	step("phase: FKPrep dieting");
 	if (my_inebriety() < inebriety_limit()){
@@ -937,34 +957,54 @@ void MobiusMaybe(){
 }
 void uneffectBuff(){
     float [stat] adjBase_Stat = {
-        $stat[muscle]:30,
-        $stat[mysticality]:50,
-        $stat[moxie]:30
+            $stat[muscle]:30,
+            $stat[mysticality]:50,
+            $stat[moxie]:30
     };
+
     stat st = $stat[muscle];
     foreach sta in $stats[mysticality, moxie]{
         if (my_buffedstat(sta) > my_buffedstat(st))
             st = sta;
     }
+
     effect toRemove;
     int statBuff;
-    foreach ef in my_effects( ){
-        if ((numeric_modifier(ef, to_string(st) + " Percent")/100)*adjBase_Stat[st] > statBuff){
-            statBuff = (numeric_modifier(ef, to_string(st) + " Percent")/100)*adjBase_Stat[st];
+
+    foreach ef in my_effects(){
+        // Don't remove valuable farming/familiar buffs
+        if (numeric_modifier(ef, "Item Drop") != 0
+                || numeric_modifier(ef, "Meat Drop") != 0
+                || numeric_modifier(ef, "Familiar Weight") != 0)
+            continue;
+
+        if ((numeric_modifier(ef, to_string(st) + " Percent") / 100)
+                * adjBase_Stat[st] > statBuff){
+            statBuff = (numeric_modifier(ef, to_string(st) + " Percent") / 100)
+                    * adjBase_Stat[st];
             toRemove = ef;
         }
+
     }
-    foreach ef in my_effects( ){
+    foreach ef in my_effects(){
+        // Same protection when checking flat-stat buffs
+        if (numeric_modifier(ef, "Item Drop") != 0
+                || numeric_modifier(ef, "Meat Drop") != 0
+                || numeric_modifier(ef, "Familiar Weight") != 0)
+            continue;
+
         if (numeric_modifier(ef, to_string(st)) > statBuff){
             statBuff = numeric_modifier(ef, to_string(st));
             toRemove = ef;
         }
     }
+
     cli_execute("uneffect " + toRemove);
 }
+
 boolean looseFK(){
     set_property("maxOverride","familiar weight, equip eternity codpiece");
-    if ((my_basestat($stat[submoxie]) - 62500) > BCZcost("SweatBullets") && get_property("_bczSweatBulletsCasts").to_int() < 13){
+    if ((my_basestat($stat[submoxie]) - 62500) > BCZcost("SweatBulletsCasts") && get_property("_bczSweatBulletsCasts").to_int() < 13){
         set_property("maxOverride","familiar weight, equip eternity codpiece");
         print ("FK is sweat");
         return true;
@@ -1735,7 +1775,7 @@ void nonlocationBasedWeakMonsters(){
 // True while weakMonsters() still has something to do -- gates the call in
 // bulkFK(). Mirrors fightPicker()'s availability checks (minus the HP math).
 boolean weakMonstersLeft(){
-    if (to_int(get_property("_gingerbreadCityTurns")) < 20) return true;
+    if (to_int(get_property("_gingerbreadCityTurns")) < 21) return true;
     if (to_int(get_property("_leafMonstersFought")) < 5) return true;
     if (get_property("_tiedUpFlamingLeafletFought") == "false") return true;
     if (to_int(get_property("_brickoFights")) < 10) return true;
@@ -1977,20 +2017,20 @@ void bulkFKD2(){
         run_choice(1);
         main@postadventure();
     }
+    // use NC forces at end so we dont waste effect turns meant for FKs when getting reward
+    step("phase: bulkFK NC force");
+    while (get_property("encountersUntilSRChoice").to_int() == 0 || NCforce(false)){
+        shadowRealmFK();
+    }
 //    stashreturn($item[pantsgiving]);
     if (!contains_text(get_property("thoth19_event_list"),"postFKD2"))
         cli_execute("ptrack add postFKD2");
     codpiece("none");
 
-// use NC forces at end so we dont waste effect turns meant for FKs when getting reward
-    step("phase: bulkFK NC force");
-    while (get_property("encountersUntilSRChoice").to_int() == 0 || NCforce(false)){
-        shadowRealmFK();
-    }
     embezzler();
 }
 void locationBasedAdventuring(){
-    miscellaneousFams();
+    //miscellaneousFams();   -- too poor
     step ("phase: use up hidden city");
     restOfHiddenCity();
     step("phase: bulkFK habitat recall");

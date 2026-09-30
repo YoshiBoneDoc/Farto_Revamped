@@ -385,7 +385,7 @@ void drunkPygmy(){
             if (get_property("screechCombats").to_int() > 0)
                 set_property("famOverride","patriotic eagle");
             else
-                set_property("famOverride","comma chameleon");
+                set_property("famOverride","stocking mimic");
         }
         if (!contains_text(get_property("banishedMonsters"),"pygmy bowler")){
             set_property("acc3Override",", equip mafia middle finger ring");
@@ -398,9 +398,9 @@ void drunkPygmy(){
             set_property("acc2Override","");
         }
         if (!contains_text(get_property("banishedMonsters"),"pygmy janitor")){
-            set_property("mainOverride",", equip Monodent of the Sea");
+            set_property("offOverride",", equip latte lovers member's mug");
         } else {
-            set_property("mainOverride","");
+            set_property("offOverride","");
         }
         cli_execute("closet put * bowling ball");
         adv1($location[The Hidden Bowling Alley]);
