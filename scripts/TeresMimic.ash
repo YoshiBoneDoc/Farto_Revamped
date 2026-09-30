@@ -7,7 +7,6 @@ string highStat = "";
 string lowStat = "";
 int [string] chibiStats;
 
-
 record choicePair {
     int first;
     int second;
@@ -1804,21 +1803,6 @@ boolean weakMonstersLeft(){
     return false;
 }
 
-void embezzler(){
-    set_property("script","embezzler");
-    altFam($familiar[Jill-of-All-Trades]);
-    //maximize once to save time
-    cli_execute("maximize meat drop");
-    if (dayType() == 1){
-        while(getLucky()){
-            // Equip wings directly instead of triggering another maximize
-            if (get_property("_batWingsFreeFights").to_int() < 5)
-                equip($item[bat wings]);
-            adv1($location[Cobb's knob treasury]);
-        }
-    }
-}
-
 void restOfHiddenCity(){
     if (!can_adventure($location[An Overgrown Shrine (Southeast)]) || (get_property("zigguratLianas") > 0 && to_int(get_property("_drunkPygmyBanishes")) >= 11))
         return;
@@ -2015,9 +1999,22 @@ void bulkFKD2(){
 //    stashreturn($item[pantsgiving]);
     if (!contains_text(get_property("thoth19_event_list"),"postFKD2"))
         cli_execute("ptrack add postFKD2");
-    codpiece("none");
 
-    embezzler();
+    step("phase: bulkFK set fire to embezzler with Lucky! sources");
+    set_property("script","embezzler");
+    altFam($familiar[Jill-of-All-Trades]);
+    codpiece("none");
+    cli_execute("maximize meat drop");    //maximize once to save time
+    while(getLucky()){
+        // Equip wings directly instead of triggering another maximize
+        if (get_property("_batWingsFreeFights").to_int() < 5)
+            equip($item[bat wings]);
+        adv1($location[Cobb's knob treasury]);
+    }
+
+    // TODO: Track actual fights, split into free vs turn-consuming
+    // string confirmedFK = "";
+    print("We made it through all the Free Kill sources for the day! YAY!", "blue");
 }
 
 void locationBasedAdventuring(){

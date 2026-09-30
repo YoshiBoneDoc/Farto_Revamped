@@ -867,7 +867,7 @@ boolean getLucky() {
     }
     // No lucky sources and Lucky! not active
     if (have_effect($effect[lucky!]) == 0){
-        print("Did not acquire Lucky! ... We're out of sources!","blue");
+        print("Did not acquire Lucky! ... We're out of sources!","green");
         return false;
     }
     else {
