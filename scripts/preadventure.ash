@@ -1,6 +1,8 @@
 import iotm.ash;
 import postadventure.ash;
-
+// ----
+// This function doesn't seem to be used for Mimic Farming Script
+// ----
 void mood(string function){
     if (get_property("script") == "6-kiss"){
         foreach ef in $effects[Troubled Waters, Pride of the Puffin, Ur-Kel's Aria of Annoyance, Drescher's Annoying Noise, Let's Go Shopping!]
@@ -89,6 +91,34 @@ void mood(string function){
                 cli_execute("gain spooky res 100 maxmeatspent");
             break;
     }}
+
+
+// ---- HELPERS FOR MIMIC FARMING SCRIPT -----
+void cheapFamXP(){
+    if (have_effect($effect[heart of white]) == 0)
+    use($item[white candy heart]);
+    if (have_effect($effect[Candied Devil]) == 0)
+    use($item[deviled candy egg]);
+    while (have_effect($effect[Curiosity of Br'er Tarrypin]) < 30)
+        use_skill($skill[Curiosity of Br'er Tarrypin]);
+    while (have_effect($effect[Blue Swayed]) < 55)
+        use($item[pulled blue taffy]);
+    }
+}
+
+// Mimic Mood for FreeKill mimic script
+void stockingMimicMood(){
+    // only set this mood if we are using mimic
+    if (my_familiar() != $familiar[stocking mimic])
+    return;
+    // Maintain Stocking Mimic combat buffs (2x acting for now); short potions frequency buff doesn't stack
+    foreach ef in $effects[Shortly Wired]{
+        if (have_effect(ef) == 0)
+            cli_execute(ef.default);
+    }
+}
+
+
 void preAdv(){
     string famOvr = get_property("famOverride");
     string maxOvr = get_property("maxOverride");
@@ -100,19 +130,13 @@ void preAdv(){
             if (famOvr != "") {
                 use_familiar(famOvr.to_familiar());
             }
-    //        else if (have_effect($effect[Citizen of a Zone]) == 0 && get_property("screechCombats").to_int() > 0)
-       //         use_familiar($familiar[patriotic eagle]);
             else if ($familiar[chest mimic].experience < 900){
                 use_familiar($familiar[chest mimic]);
-                if (have_effect($effect[heart of white]) == 0)
-                    use($item[white candy heart]);
+                cheapFamXP();
             }
-//            else if (numeric_modifier("familiar weight") > 49){
-//                use_familiar($familiar[comma chameleon]);
-            else if ($familiar[cooler yeti].experience < 400 && get_property("_coolerYetiAdventures") == "false" && (dayType() == 0 || inebriety_limit() - 4 > my_inebriety())){
+            else if ($familiar[cooler yeti].experience < 625 && get_property("_coolerYetiAdventures") == "false" && (dayType() == 0 || inebriety_limit() - 4 > my_inebriety())){
                 use_familiar($familiar[cooler yeti]);
-                if (have_effect($effect[heart of white]) == 0)
-                    use($item[white candy heart]);
+                cheapFamXP();
             }
 //            else if (get_property("_knuckleboneDrops").to_int() < 100 && my_name().to_lower_case() == "fart scauce" && my_location().environment != "underwater")
 //                use_familiar($familiar[skeleton of crimbo past]);
@@ -419,7 +443,7 @@ void preAdv(){
             if (dayType() == 0 && contains_text(get_property("lastEncounter"),"gingerbread")){
                 use_skill($skill[Sea *dent: Summon a Wave]);
             }
-// --dont flood the wave in hat path
+// --dont flood the shadow realm in hat path
 //            else if (dayType() == 1 && contains_text(get_property("lastEncounter"),"shadow")){
 //                use_skill($skill[Sea *dent: Summon a Wave]);
 //            }
@@ -492,6 +516,7 @@ void preAdv(){
     if (item_amount($item[Arr\, M80]) < 60)
         retrieve_item(70,$item[Arr\, M80]);
 }
+
 
 void main(){
     string boof = get_property("betweenBattleScript");
