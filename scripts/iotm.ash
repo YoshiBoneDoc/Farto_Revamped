@@ -824,29 +824,56 @@ boolean delay(){
     return false;
 }
 
-void getLucky() {
+boolean EmbezBetter(){
+    int n = mall_price($item[11-leaf clover])/700;
+    if (n < (numeric_modifier($modifier[meat drop])/100 + 1))
+        return true;
+    return false;
+}
+
+// returns True if Lucky! is active/acquired
+// returns False if no source is available
+boolean getLucky() {
     if (have_effect($effect[Lucky!]) > 0)
-        return;
+        return true;
+    // August Sceptre
     if (have_skill($skill[Aug. 2nd: Find an Eleven-Leaf Clover Day])
         && get_property("_aug2Cast") == "false"
-        && to_int(get_property("_augSkillsCast")) < 5) {
+        && to_int(get_property("_augSkillsCast")) < 5){
         use_skill($skill[Aug. 2nd: Find an Eleven-Leaf Clover Day]);
         if (have_effect($effect[Lucky!]) > 0)
-            return;
+            return true;
     }
+    // Heartstone
     if (available_amount($item[heartstone]) > 0 && get_property("heartstoneLuckUnlocked") == true && get_property("_heartstoneLuckUsed") == false) {
         use_skill($skill[Heartstone: %luck]);
         if (have_effect($effect[Lucky!]) > 0)
-            return;
+            return true;
     }
-    if (item_amount($item[apriling band saxophone]) > 0 && get_property("_aprilBandSaxophoneUses").to_int() < 3)
-        cli_execute("aprilband play saxophone");
-    if (numeric_modifier("Meat drop") > 4400){
+    // April Band Sax
+    if (get_property("_aprilBandSaxophoneUses").to_int() < 3){
+        if (item_amount($item[apriling band saxophone]) == 0
+                && get_property("_aprilBandInstruments").to_int() < 2)
+        cli_execute("aprilband item sax");
+        if (item_amount($item[apriling band saxophone]) > 0){
+            cli_execute("aprilband play saxophone");
+            return true;
+        }
+    }
+    // Clover if profitable
+    if (EmbezBetter()){
         use($item[11-leaf clover]);
-        return;
+        return true;
     }
-    if (have_effect($effect[lucky!]) == 0)
-        abort("Did not acquire lucky");
+    // No lucky sources and Lucky! not active
+    if (have_effect($effect[lucky!]) == 0){
+        print("Did not acquire Lucky! ... We're out of sources!","blue");
+        return false;
+    }
+    else {
+        abort("getLucky() failed: Something wrong happened while trying to get Lucky!");
+        return false;
+    }
 }
 
 // ─── 7. UNBLEMISHED PEARLS ───────────────────────────────────────────────────

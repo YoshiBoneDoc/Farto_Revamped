@@ -567,7 +567,7 @@ void goodies() {
     create($item[Sheriff moustache]);
 
     cli_execute("aprilband item quad tom");
-    cli_execute("aprilband item sax");
+//    cli_execute("aprilband item sax");    -- moved this to inside embezzler(), now done with getLucky()
     setClan("stash");
 }
 
@@ -576,6 +576,7 @@ void FKPrep(){
     // TO DO: Implement differet dieting plans (at eod, beginning, etc)
 
 	step("phase: FKPrep start");
+    set_property("autoSatisfyWithStash", "true");
 	starter();
 	// Combat runs off the player's saved combat macro (id in the combatMacroID
 	// pref) as the native KoL auto-attack -- round 0 only works when the macro is
@@ -828,6 +829,7 @@ void cyberzone() {
 void shadowBoss(){
     cli_execute("cast Carol of the Hells");
     if (get_property("rufusQuestTarget") == "shadow scythe") {
+        use($item[scroll of drastic healing]);
         set_property("hpAutoRecovery", 1.0);
         set_property("hpAutoRecoveryTarget", 1.0);
         set_property("maxOverride", "familiar weight, equip congressional medal of insanity");
@@ -1246,7 +1248,7 @@ void faxing(){
 }
 void reminisce() {
     while (get_property("_locketMonstersFought").split_string(",").count() < 3){
-        foreach mon in $monsters[black crayon golem, black crayon spiraling shape]{
+        foreach mon in $monsters[black crayon golem, black crayon spiraling shape,Black Crayon Flower]{
             if (get_property("_locketMonstersFought").contains_text(mon.to_int()))
                 continue;
             mimicPrep();
@@ -1802,33 +1804,18 @@ boolean weakMonstersLeft(){
     return false;
 }
 
-boolean EmbezBetter(){
-    int n = mall_price($item[11-leaf clover])/700;
-    if (n < (numeric_modifier($modifier[meat drop])/100 + 1))
-        return true;
-    return false;
-}
-
 void embezzler(){
-    while ((get_property("_aprilBandSaxophoneUses").to_int() < 3 || EmbezBetter()) && dayType() == 1){
-        abort("maximize meat drop");
-        altFam($familiar[Jill-of-All-Trades]);
-/*        if (get_property("_roboDrinks") != "drive-by shooting"){
-            retrieve_item($item[drive-by shooting]);
-            visit_url("inventory.php?action=robooze&which=1&whichitem=9396"); }
-*/
-        set_property("script","embezzler");
-        if (get_property("_batWingsFreeFights").to_int() < 5){
-            //add 'equip mafia pointer finger' when less poor
-            set_property("unconditionalOverride","meat drop; equip bat wings");
-        } else {
-            //add 'equip mafia pointer finger' when less poor
-            set_property("unconditionalOverride","meat drop");
+    set_property("script","embezzler");
+    altFam($familiar[Jill-of-All-Trades]);
+    //maximize once to save time
+    cli_execute("maximize meat drop");
+    if (dayType() == 1){
+        while(getLucky()){
+            // Equip wings directly instead of triggering another maximize
+            if (get_property("_batWingsFreeFights").to_int() < 5)
+                equip($item[bat wings]);
+            adv1($location[Cobb's knob treasury]);
         }
-        if (have_effect($effect[Lucky!]) == 0){
-            getLucky();
-        }
-        adv1($location[Cobb's knob treasury]);
     }
 }
 
@@ -1990,6 +1977,7 @@ void bulkFKD2(){
     }
     set_property("hatOverride","");
     step("phase: bulkFK god lobster");
+    setClan("stash");
     while (get_property("_godLobsterFights").to_int() < 3){
         use($item[dish of clarified butter]);
     }
@@ -2031,6 +2019,7 @@ void bulkFKD2(){
 
     embezzler();
 }
+
 void locationBasedAdventuring(){
     //miscellaneousFams();   -- too poor
     step ("phase: use up hidden city");
