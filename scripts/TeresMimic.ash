@@ -804,11 +804,17 @@ void cyberzone() {
         }
     }}
 void shadowBoss(){
-    if (get_property("rufusQuestTarget") == "shadow scythe")
-        abort("Shadow scythe, kill manually");
+    cli_execute("cast Carol of the Hells");
+    if (get_property("rufusQuestTarget") == "shadow scythe") {
+        set_property("hpAutoRecovery", 1.0);
+        set_property("hpAutoRecoveryTarget", 1.0);
+        set_property("maxOverride", "familiar weight, equip congressional medal of insanity");
+    }
+    //abort("Shadow scythe, kill manually");
     else if (get_property("rufusQuestTarget") == "shadow orrery"){
         set_property("maxOverride","familiar weight");
         set_property("shirtOverride",", equip ultracolor");
+        set_property("mainOverride",", equip june cleaver");
     } else if (get_property("rufusQuestTarget") == "shadow spire"){
         set_property("hpAutoRecovery",0.36);
         set_property("hpAutoRecoveryTarget",0.36);
@@ -816,20 +822,23 @@ void shadowBoss(){
         if (have_item($item[petrified wood wizard's pouch]))
             set_property("maxOverride","familiar weight, equip petrified wood wizard's pouch");
         else
-            set_property("maxOverride","familiar weight, equip congressional medal of insanity");
+        set_property("maxOverride","familiar weight, equip congressional medal of insanity");
     }
 }
 void shadowRealmFK(){
+    //prep
     cli_execute("uneffect coldform");
     equipStockingMimic();
     if (get_auto_attack() == 0)
         aa("facsimile");
     if (!contains_text(get_property("maxOverride"),"familiar"))
         set_property("maxOverride","familiar weight, equip eternity codpiece");
+    //We finished the last quest ->  collect reward -> cash in reward
     if (get_property("questRufus") == "step1") {
         use($item[closed-circuit pay phone]);
         adv1($location[Shadow Rift (The Misspelled Cemetary)]);
     }
+    // Shadow Affinity has not been obtained today and a Rufus quest is already active
     if (get_property("_shadowAffinityToday") == false && get_property("questRufus") != "unstarted"){
         if (get_property("rufusQuestType") == "entity")
             shadowBoss();
@@ -837,6 +846,7 @@ void shadowRealmFK(){
             abort("script out non entity case");
         }
     }
+    // Dealing with high resistance
     if ($monster[shadow slab].elemental_resistance > 85){
         if (have_item($item[petrified wood wizard's pouch]))
             set_property("acc3Override",",equip petrified wood wizard's pouch");
@@ -845,8 +855,10 @@ void shadowRealmFK(){
     } else {
         set_property("acc3Override","");
     }
+    // Use Bat Wing Swoops
     if (to_int(get_property("_batWingsSwoopUsed")) < 11 && dayType() == 0)
         set_property("backOverride",", equip bat wings");
+    // make sure quest is started
     if (get_property("questRufus") == "unstarted")
         use($item[closed-circuit pay phone]);
     if (get_property("questRufus") == "started" && get_property("rufusQuestType") == "items"){
@@ -854,32 +866,42 @@ void shadowRealmFK(){
     } else if (have_effect($effect[shadow affinity]) > 0){
         adv1($location[Shadow Rift (The Misspelled Cemetary)]);
     } else {
+        // use any free NC's or gear for free in-combat skills forcing NC's -> adv
         NCforce(false);
         if (get_property("rufusQuestType") == "entity"){
+            // Parka NCs
             if (to_int(get_property("_spikolodonSpikeUses")) < 5 && have_effect($effect[everything looks yellow]) == 0){
                 set_property("shirtOverride",", equip jurassic parka (spikolodon)");
             } else {
                 set_property("shirtOverride","");
             }
+            // Ski NCs
             if (to_int(get_property("_mcHugeLargeAvalancheUses")) < 3)
                 set_property("offOverride",", equip mchugelarge left ski");
             else
                 set_property("offOverride","");
+
             if (get_property("noncombatForcerActive") == "true" || get_property("encountersUntilSRChoice").to_int() == 0){
+//                set_auto_attack(0);     --I think this needs to not be here but idk
                 shadowBoss();
             }
         }
         adv1($location[Shadow Rift (The Misspelled Cemetary)]);
     }
+    // Previous Rufus quest is complete -> turn it in and collect the reward
     if (get_property("questRufus") == "step1") {
         use($item[closed-circuit pay phone]);
         adv1($location[Shadow Rift (The Misspelled Cemetary)]);
     }
+    // Start a new quest and get Shadow Affinity for today
     if (get_property("_shadowAffinityToday") == false)
         use($item[closed-circuit pay phone]);
+    //reset overrides
     set_property("shirtOverride","");
     set_property("backOverride","");
+    set_property("mainOverride","");
 }
+
 void sandworm(){
     mimicPrep();
     if (get_property("_aprilBandTomUses").to_int() < 3){
@@ -942,7 +964,7 @@ void uneffectBuff(){
 }
 boolean looseFK(){
     set_property("maxOverride","familiar weight, equip eternity codpiece");
-    if ((my_basestat($stat[submoxie]) - 62500) > BCZcost("SweatBulletsCasts") && get_property("_bczSweatBulletsCasts").to_int() < 13){
+    if ((my_basestat($stat[submoxie]) - 62500) > BCZcost("SweatBullets") && get_property("_bczSweatBulletsCasts").to_int() < 13){
         set_property("maxOverride","familiar weight, equip eternity codpiece");
         print ("FK is sweat");
         return true;
@@ -1794,9 +1816,9 @@ void restOfHiddenCity(){
 
 void miscellaneousFams(){
     step("phase: miscellaneous fams");
-    if (get_property("_machineTunnelsAdv").to_int() < 5 && have_familiar($familiar[Machine Elf])){
+    if (get_property("_machineTunnelsAdv").to_int() < 5){
         if (have_effect($effect[Inside The Snowglobe]) == 0)
-            use($item[Deep Machine Tunnels snowglobe]);
+        use($item[Deep Machine Tunnels snowglobe]);
         while (get_property("_machineTunnelsAdv").to_int() < 5 && mall_price($item[self-dribbling basketball]) <= 5000){
             altFam($familiar[machine elf]);
             set_property("subscript","NonSMFK");
@@ -1806,22 +1828,32 @@ void miscellaneousFams(){
         set_property("subscript","");
         set_property("maxOverride","familiar weight");
     }
-    //replace with Professor familiar code when less poor
-    if ((get_property("_locketMonstersFought").split_string(",").count() < 3) && dayType() == 1){
-        mimicPrep();
+    if (get_property("_pocketProfessorLectures").to_int() == 0 && get_property("_locketMonstersFought").split_string(",").count() < 3 && dayType() == 1){
+        set_property("maxOverride","familiar weight");
+        set_property("famOverride","comma Chameleon");
+        set_property("pantsOverride",", equip tearaway Pants");
+        set_property("offOverride", ", equip kol con snowglobe");
+        set_property("acc1Override", ", equip Mr. Cheeng's spectacles");
+        set_property("acc2Override", ", equip Lucky gold ring");
+        set_property("acc3Override", ", equip Portable Laughing Stock");
+        altFam($familiar[Pocket Professor]);
         main@preadventure();
         cli_execute("reminisce Black Crayon Flower");
         while (get_property("_chainedRelativityMonster") == "Black Crayon Flower")
             run_combat();
+        set_property("pantsOverride","");
+        set_property("offOverride", "");
+        set_property("acc1Override", "");
+        set_property("acc2Override", "");
+        set_property("offOverride", "");
     }
-/*  TOO POOR
     if (get_property("_banderRunaways").to_int() < 20){
         set_auto_attack(0);
         if (have_effect($effect[Apriling Band Battle Cadence]) == 0 && total_turns_played() >= get_property("nextAprilBandTurn").to_int())
-            cli_execute("aprilband effect c");
+        cli_execute("aprilband effect c");
         while (get_property("_banderRunaways").to_int() < (my_familiar().familiar_weight() + weight_adjustment( ))/5){
             if ($location[Cobb's Knob Treasury].combat_percent < 100)
-                cli_execute("gain 15 combat");
+            cli_execute("gain 15 combat");
             set_property("subscript","stompingBoots");
             set_property("maxOverride","familiar weight");
             if (get_property("_banderRunaways").to_int() < ((my_familiar().familiar_weight() + weight_adjustment( ))/5 - 3)){
@@ -1850,7 +1882,6 @@ void miscellaneousFams(){
             aa("facsimile");
         set_property("pantsOverride","");
     }
- */
 }
 
 void bulkFKD2(){
@@ -1904,13 +1935,8 @@ void bulkFKD2(){
         shadowRealmFK();
     }
     set_property("subscript","");
-    step("phase: bulkFK NC force");
-    NCforce(false);
-    while (get_property("noncombatForcerActive") == true || get_property("encountersUntilSRChoice").to_int() == 0){
-        shadowRealmFK();
-        NCforce(false);
-    }
-    miscellaneousFams();
+
+//    miscellaneousFams();      --- ADD WHEN LESS POOR
     step("phase: bulkFK reminisce");
     reminisce();
     step("phase: bulkFK glitch monster");
