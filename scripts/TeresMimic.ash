@@ -1194,6 +1194,7 @@ void faxing(){
         setClan("VIP");
         visit_url("clan_viplounge.php?action=faxmachine&whichfloor=2");
         visit_url("clan_viplounge.php?preaction=receivefax&whichfloor=2");
+        setClan("stash");
         if (item_amount($item[photocopied monster]) > 0){
             mimicPrep();
             main@preadventure( );
@@ -1769,11 +1770,11 @@ boolean EmbezBetter(){
 void embezzler(){
     while ((get_property("_aprilBandSaxophoneUses").to_int() < 3 || EmbezBetter()) && dayType() == 1){
         abort("maximize meat drop");
-        altFam($familiar[robortender]);
-        if (get_property("_roboDrinks") != "drive-by shooting"){
+        altFam($familiar[Jill-of-All-Trades]);
+/*        if (get_property("_roboDrinks") != "drive-by shooting"){
             retrieve_item($item[drive-by shooting]);
-            visit_url("inventory.php?action=robooze&which=1&whichitem=9396");
-        }
+            visit_url("inventory.php?action=robooze&which=1&whichitem=9396"); }
+*/
         set_property("script","embezzler");
         if (get_property("_batWingsFreeFights").to_int() < 5){
             //add 'equip mafia pointer finger' when less poor
@@ -1936,7 +1937,7 @@ void bulkFKD2(){
     }
     set_property("subscript","");
 
-//    miscellaneousFams();      --- ADD WHEN LESS POOR
+//    miscellaneousFams();      --- ADD BACK WHEN LESS POOR
     step("phase: bulkFK reminisce");
     reminisce();
     step("phase: bulkFK glitch monster");
@@ -1976,10 +1977,16 @@ void bulkFKD2(){
         run_choice(1);
         main@postadventure();
     }
-    stashreturn($item[pantsgiving]);
+//    stashreturn($item[pantsgiving]);
     if (!contains_text(get_property("thoth19_event_list"),"postFKD2"))
         cli_execute("ptrack add postFKD2");
     codpiece("none");
+
+// use NC forces at end so we dont waste effect turns meant for FKs when getting reward
+    step("phase: bulkFK NC force");
+    while (get_property("encountersUntilSRChoice").to_int() == 0 || NCforce(false)){
+        shadowRealmFK();
+    }
     embezzler();
 }
 void locationBasedAdventuring(){

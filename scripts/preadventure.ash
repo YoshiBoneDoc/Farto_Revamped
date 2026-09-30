@@ -47,7 +47,7 @@ void mood(string function){
                 continue;
             } else if (ef == $effect[The Ballad of Richie Thingfinder] && get_property("_thingfinderCasts") == 10){
                 continue;
-            } else if (ef == $effect[sweat equity] && ((my_basestat($stat[submoxie]) - 118881) < BCZcost("SweatEquityCasts"))){
+            } else if (ef == $effect[sweat equity] && ((my_basestat($stat[submoxie]) - 118881) < BCZcost("SweatEquity"))){
                 continue;
             } else if (ef == $effect[Legendary Pasta Eyeball] && my_class() == $class[pastamancer]){
                 continue;

@@ -669,6 +669,9 @@
             use_familiar(fam);
             set_property("famOverride",fam.to_string());
         } else {
+            use_familiar($familiar[Jill-of-All-Trades]);
+            set_property("famOverride","Jill-of-All-Trades");
+/*
             use_familiar($familiar[comma chameleon]);
             if (chameleon() != fam){
                 retrieve_item(familiar_equipment(fam));
@@ -678,6 +681,7 @@
                 set_property("commaFamiliar",fam.to_string());
             }
             set_property("famOverride","comma chameleon");
+ */
         }
     }
 
