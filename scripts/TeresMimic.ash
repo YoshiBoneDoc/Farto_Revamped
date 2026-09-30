@@ -1991,16 +1991,8 @@ void bulkFKD2(){
         run_choice(1);
         main@postadventure();
     }
-    // use NC forces at end so we dont waste effect turns meant for FKs when getting reward
-    step("phase: bulkFK NC force");
-    while (get_property("encountersUntilSRChoice").to_int() == 0 || NCforce(false)){
-        shadowRealmFK();
-    }
-//    stashreturn($item[pantsgiving]);
-    if (!contains_text(get_property("thoth19_event_list"),"postFKD2"))
-        cli_execute("ptrack add postFKD2");
 
-    step("phase: bulkFK set fire to embezzler with Lucky! sources");
+    step("phase: bulkFK set fire to embezzlers with ~ Lucky! ~ sources");
     set_property("script","embezzler");
     altFam($familiar[Jill-of-All-Trades]);
     codpiece("none");
@@ -2012,9 +2004,23 @@ void bulkFKD2(){
         adv1($location[Cobb's knob treasury]);
     }
 
-    // TODO: Track actual fights, split into free vs turn-consuming
-    // string confirmedFK = "";
+    // use NC forces at end so we dont waste effect turns meant for FKs when getting reward
+    step("phase: bulkFK NC force in Shadow Rift");
+    while (get_property("encountersUntilSRChoice").to_int() == 0 || NCforce(false)){
+        shadowRealmFK();
+    }
+//    stashreturn($item[pantsgiving]);
+    if (!contains_text(get_property("thoth19_event_list"),"postFKD2"))
+        cli_execute("ptrack add postFKD2");
+
     print("We made it through all the Free Kill sources for the day! YAY!", "blue");
+
+// string confirmedFK = "";
+// TODO:
+//  - Track actual fights, split into free vs turn-consuming
+//  - Refract + YR uses
+//  - Burn mana on Libram between adventures
+
 }
 
 void locationBasedAdventuring(){

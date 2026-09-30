@@ -1,19 +1,36 @@
-// Script: postgarbo1
-// Purpose: Run after garbo finishes on day 1
+/**
+ *          ~ teresBARF.ash ~
+ * Turn-burning script for BARF Mountain.
+ * Hat Path has no Sea access, so remaining turns are spent at BARF.
+ *
+ * - Currently designed for Hat Path aftercore
+ * - Run after bulkFKD1() in TeresMimic.ash
+ */
 
 
-// =================  Helper Functions =================
+//  ---- HELPER FUNCTIONS ----
 
+// Template
+function downUse(consumable: string, amount: number): void {
+    let consume: Item = Item.get(consumable);
+    if (itemAmount(consume) < 1) retrieveItem(consume, 1);
+    use(consume, amount); //  +1 full cap 60k
+}
 
-
-void someHelperFunction()
-{
-    //this is where a helper function would go in the future (ex. below)
-    print("Ready for bed!", "green");
+// Template
+function downDrink(consumable: string, amount: number): void {
+    let consume: Item = Item.get(consumable);
+    if (itemAmount(consume) < 1) retrieveItem(consume, 1);
+    drink(consume, amount); //  +1 full cap 60k
 }
 
 
-void main() {
+// ---- MAIN EXPORT FUNCTION ----
+export function garboDiet() {
+
+
+
+/*  run plan? kind of
 
     //cli_execute("garbo quick");
 
@@ -84,5 +101,6 @@ void main() {
     cli_execute("wear ratskin pants");
 
     someHelperFunction();
-}
+*/
 
+}
