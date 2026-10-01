@@ -7,30 +7,97 @@
  * - Run after bulkFKD1() in TeresMimic.ash
  */
 
+import TeresMimic.ash;
 
 //  ---- HELPER FUNCTIONS ----
 
 // Template
-function downUse(consumable: string, amount: number): void {
-    let consume: Item = Item.get(consumable);
-    if (itemAmount(consume) < 1) retrieveItem(consume, 1);
-    use(consume, amount); //  +1 full cap 60k
+void dailyMoodAndNightcap(){
+/*        TEMPLATE
+    cli_execute("mood apathetic; uneffect cletus");
+    if (get_property("lawOfAveragesAvailable") == true)
+        use($item[law of averages]);
+    use_familiar($familiar[Stooper]);
+    equip($item[devilbone rosary]);
+    equip($item[angelbone dice]);
+    cli_execute("CONSUME NIGHTCAP");
+    */
 }
 
 // Template
-function downDrink(consumable: string, amount: number): void {
-    let consume: Item = Item.get(consumable);
-    if (itemAmount(consume) < 1) retrieveItem(consume, 1);
-    drink(consume, amount); //  +1 full cap 60k
+void BARFprep(){
+
+
+
+/*
+        -vip clan
+        1. drink 1 TRIO with paw(1) + yeti
+        2. get carpe
+        3. get 2002 stuff
+        4.
+
+
+
+
+
+                TEMPLATE
+    cli_execute("mood apathetic; uneffect cletus");
+    if (get_property("lawOfAveragesAvailable") == true)
+        use($item[law of averages]);
+    use_familiar($familiar[Stooper]);
+    equip($item[devilbone rosary]);
+    equip($item[angelbone dice]);
+    cli_execute("CONSUME NIGHTCAP");
+    */
 }
+
 
 
 // ---- MAIN EXPORT FUNCTION ----
 export function garboDiet() {
 
+/*
+    _______ Working Blueprint ________
+    1. daily chores - BARFprep()
+
+        - buff keep
+        - DRINKS:
+            - stillsuit (calculations below)
+            - 5 beers + 5 paws + Yetis ("TRIO cup of beer" looks like best option): 11.5/drunk ~ 6-7 (TRIO) + 4-6 (Salty Mouth)
+                cli:    - monkeypaw effect Salty Mouth
+                        - yeti cool
+            - Gets-You-Drunk: 8/drunk ~ 2 booze for 16-20 adv (8-10 plus another 8-10 after 4 combats)
+        - mall check
+        - burn bcz
+        - bird a day
+        - blue rocket or candle shit
+        - sweatpants
+        - maybe gets-you-drunk
+        - pasta
+        - 5 knucklebones from rests
+        - trick or treat
+        - amulet coin
+    - possibly some dieting at end of free kills
+    - save room to drink while adventuring with sweatsuit + paw wishes for beer + yeti
+    - burn pvp adventures before next step
+    - at the end use extra diet from ascension rewards for +LB buffs (possibly, unless we are way over rollover adventures
+    - use up batwing flaps mp
+    - shrunken head (see preAdv)
+    - 1 zap with wand maybe
+    - free mining
+    - law of averages?
+    -  use Jerks' Health™ Magazine for pvp fights
+    - spelunky?
 
 
-/*  run plan? kind of
+    stillsuit calculations:
+        Adv/Drunk: Avg turns needed to produce - [range in calculation shown]
+        10: 152.5 - (279+357/2)/3
+        11: 197   - (358+448/2)/3
+        12: 241.8 - (449+553/2)/3
+
+
+ ========= old run plan backbone ========-
 
     //cli_execute("garbo quick");
 

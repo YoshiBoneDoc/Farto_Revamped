@@ -293,7 +293,7 @@ int [string] freeKillCap = {
     "_aprilBandTomUses": 3,
     "_glitchMonsterFights": 1,
     "_shadowBricksUsed": 13,
-    "_gingerbreadCityTurns": 20,
+    "_gingerbreadCityTurns": 30,
     "_leafMonstersFought": 5,
     "_tiedUpFlamingLeafletFought": 1,
     "_brickoFights": 10,
@@ -303,6 +303,7 @@ int [string] freeKillCap = {
     "_archSpadeDigs": 11,
     "_photocopyUsed": 1,
     "_molehillMountainUsed": 1
+    //add NEP
 };
 // Possession/class gate for the entries above that need one -- anything missing here is
 // treated as always available (matches how weakMonstersLeft() doesn't gate those either).
@@ -321,6 +322,7 @@ boolean [string] freeKillGate = {
     "_glitchMonsterFights": have_item($item[\[glitch season reward name\]]),
     "_cargoPocketEmptied": have_item($item[Cargo Cultist Shorts]),
     "_speakeasyFreeFights": have_item($item[deed to Oliver's Place])
+    //add NEP
 };
 
 // Preliminary estimate of remaining free kills for the given leg ("leg1", "leg2", or "both"),
@@ -1166,7 +1168,7 @@ void gingerbread(){
             use($item[counterfeit city]);
     }
     retrieve_item(29,$item[gingerbread cigarette]);
-    if (get_property("_gingerbreadCityTurns").to_int() < 20){
+    if (get_property("_gingerbreadCityTurns").to_int() < 30){
         mimicPrep();
         adv1($location[Gingerbread Upscale Retail District]);
     }
@@ -1468,10 +1470,8 @@ string fightPicker(){
     string pick = pickWeakling(true);
     if (pick != "done")
         return pick;
-
-    if (to_int(get_property("_gingerbreadCityTurns")) < 20)
+    if (to_int(get_property("_gingerbreadCityTurns")) < 30)
         return "gingerbread";
-
     return pickWeakling(false);
 }
 
@@ -1641,7 +1641,7 @@ void locationBasedWeakMonsters(){
         use($item[phial of coldness]);
     equip($slot[acc3],$item[Time Bandit Badge of Courage]);
     step("phase: weakMonsters gingerbread");
-    while (to_int(get_property("_gingerbreadCityTurns")) < 20){
+    while (to_int(get_property("_gingerbreadCityTurns")) < 30){
         LBMWPrep (false);
         gingerbread();
     }
@@ -1778,7 +1778,7 @@ void nonlocationBasedWeakMonsters(){
 // True while weakMonsters() still has something to do -- gates the call in
 // bulkFK(). Mirrors fightPicker()'s availability checks (minus the HP math).
 boolean weakMonstersLeft(){
-    if (to_int(get_property("_gingerbreadCityTurns")) < 21) return true;
+    if (to_int(get_property("_gingerbreadCityTurns")) < 30) return true;
     if (to_int(get_property("_leafMonstersFought")) < 5) return true;
     if (get_property("_tiedUpFlamingLeafletFought") == "false") return true;
     if (to_int(get_property("_brickoFights")) < 10) return true;
@@ -1828,76 +1828,7 @@ void restOfHiddenCity(){
     }
 }
 
-void miscellaneousFams(){
-    step("phase: miscellaneous fams");
-    if (get_property("_machineTunnelsAdv").to_int() < 5){
-        if (have_effect($effect[Inside The Snowglobe]) == 0)
-        use($item[Deep Machine Tunnels snowglobe]);
-        while (get_property("_machineTunnelsAdv").to_int() < 5 && mall_price($item[self-dribbling basketball]) <= 5000){
-            altFam($familiar[machine elf]);
-            set_property("subscript","NonSMFK");
-            set_property("maxOverride","item drop");
-            adv1($location[The Deep Machine Tunnels]);
-        }
-        set_property("subscript","");
-        set_property("maxOverride","familiar weight");
-    }
-    if (get_property("_pocketProfessorLectures").to_int() == 0 && get_property("_locketMonstersFought").split_string(",").count() < 3 && dayType() == 1){
-        set_property("maxOverride","familiar weight");
-        set_property("famOverride","comma Chameleon");
-        set_property("pantsOverride",", equip tearaway Pants");
-        set_property("offOverride", ", equip kol con snowglobe");
-        set_property("acc1Override", ", equip Mr. Cheeng's spectacles");
-        set_property("acc2Override", ", equip Lucky gold ring");
-        set_property("acc3Override", ", equip Portable Laughing Stock");
-        altFam($familiar[Pocket Professor]);
-        main@preadventure();
-        cli_execute("reminisce Black Crayon Flower");
-        while (get_property("_chainedRelativityMonster") == "Black Crayon Flower")
-            run_combat();
-        set_property("pantsOverride","");
-        set_property("offOverride", "");
-        set_property("acc1Override", "");
-        set_property("acc2Override", "");
-        set_property("offOverride", "");
-    }
-    if (get_property("_banderRunaways").to_int() < 20){
-        set_auto_attack(0);
-        if (have_effect($effect[Apriling Band Battle Cadence]) == 0 && total_turns_played() >= get_property("nextAprilBandTurn").to_int())
-        cli_execute("aprilband effect c");
-        while (get_property("_banderRunaways").to_int() < (my_familiar().familiar_weight() + weight_adjustment( ))/5){
-            if ($location[Cobb's Knob Treasury].combat_percent < 100)
-            cli_execute("gain 15 combat");
-            set_property("subscript","stompingBoots");
-            set_property("maxOverride","familiar weight");
-            if (get_property("_banderRunaways").to_int() < ((my_familiar().familiar_weight() + weight_adjustment( ))/5 - 3)){
-                set_property("offOverride",", equip rake");
-                set_property("mainOverride",", equip june cleaver");
-                set_property("acc1Override",", equip spring shoes");
-            } else {
-                set_property("offOverride","");
-                set_property("mainOverride","");
-                set_property("acc1Override","");
-            }
-            altFam($familiar[Pair of Stomping Boots]);
-            if (get_property("_pantsgivingCount").to_int() < 50){
-                if (item_amount($item[pantsgiving]) == 0)
-                    stashgrab($item[pantsgiving]);
-                if (item_amount($item[pantsgiving]) > 0)
-                    set_property("pantsOverride",", equip pantsgiving");
-            } else if (get_property("sweat").to_int() < 90)
-                set_property("pantsOverride",", equip designer sweatpants");
-            else
-                set_property("pantsOverride","");
-            adv1($location[Cobb's Knob Treasury]);
-        }
-        set_property("subscript","");
-        if (get_auto_attack() == 0)
-            aa("facsimile");
-        set_property("pantsOverride","");
-    }
-}
-
+// Essentially main function for Hat Path aftercore
 void bulkFKD2(){
     step("phase: bulkFK start");
     set_property("inSpendAdv","true");
@@ -2015,12 +1946,16 @@ void bulkFKD2(){
 
     print("We made it through all the Free Kill sources for the day! YAY!", "blue");
 
+    // DIGGING SKELETONS WITH ARCHEOLOGY NOT WORKING MAYBE?
 // string confirmedFK = "";
 // TODO:
 //  - Track actual fights, split into free vs turn-consuming
 //  - Refract + YR uses
 //  - Burn mana on Libram between adventures
-
+//  - use legendary beat and other temporary +item on sandworms
+    // - fix shadow boss killing
+    // party FKs not working
+    //
 }
 
 void locationBasedAdventuring(){
