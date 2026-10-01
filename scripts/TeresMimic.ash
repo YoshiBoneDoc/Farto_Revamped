@@ -159,7 +159,7 @@ void chibiHandling(){
 void prepBuffs(){
     setClan("stash");
     // effects that interfere with other buffs we need
-    foreach ef in $effects[Busker Do,Swimming Head,Ode to Booze,The Moxious Madrigal,The Magical Mojomuscular Melody,Cletus's Canticle of Celerity,Power Ballad of the Arrowsmith,Jackasses' Symphony of Destruction,Brawnee's Anthem of Absorption,Psalm of Pointiness,Stevedave's Shanty of Superiority,Aloysius' Antiphon of Aptitude,The Sonata of Sneakiness,Carlweather's Cantata of Confrontation,Ur-Kel's Aria of Annoyance,Dirge of Dreadfulness,Benetton's Medley of Diversity,Elron's Explosive Etude,Prelude of Precision,Donho's Bubbly Ballad,Cringle's Curative Carol,Inigo's Incantation of Inspiration]{
+    foreach ef in $effects[Ode to Booze,The Moxious Madrigal,The Magical Mojomuscular Melody,Cletus's Canticle of Celerity,Power Ballad of the Arrowsmith,Jackasses' Symphony of Destruction,Brawnee's Anthem of Absorption,Psalm of Pointiness,Stevedave's Shanty of Superiority,Aloysius' Antiphon of Aptitude,The Sonata of Sneakiness,Carlweather's Cantata of Confrontation,Ur-Kel's Aria of Annoyance,Dirge of Dreadfulness,Benetton's Medley of Diversity,Elron's Explosive Etude,Prelude of Precision,Donho's Bubbly Ballad,Cringle's Curative Carol,Inigo's Incantation of Inspiration]{
         if (have_effect(ef) > 0)
             cli_execute("uneffect " + ef);
     }
