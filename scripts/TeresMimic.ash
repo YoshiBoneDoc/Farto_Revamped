@@ -156,10 +156,15 @@ void chibiHandling(){
         set_property("chibiChoice2","0");
     }
 }
+
+
 void prepBuffs(){
     setClan("stash");
+    use($item[yam battery]);
     // effects that interfere with other buffs we need
-    foreach ef in $effects[Ode to Booze,The Moxious Madrigal,The Magical Mojomuscular Melody,Cletus's Canticle of Celerity,Power Ballad of the Arrowsmith,Jackasses' Symphony of Destruction,Brawnee's Anthem of Absorption,Psalm of Pointiness,Stevedave's Shanty of Superiority,Aloysius' Antiphon of Aptitude,The Sonata of Sneakiness,Carlweather's Cantata of Confrontation,Ur-Kel's Aria of Annoyance,Dirge of Dreadfulness,Benetton's Medley of Diversity,Elron's Explosive Etude,Prelude of Precision,Donho's Bubbly Ballad,Cringle's Curative Carol,Inigo's Incantation of Inspiration]{
+    string [int] songEffects = {"Ode to Booze", "The Moxious Madrigal", "The Magical Mojomuscular Melody", "Cletus's Canticle of Celerity", "Power Ballad of the Arrowsmith", "Jackasses' Symphony of Destruction", "Brawnee's Anthem of Absorption", "Psalm of Pointiness", "Stevedave's Shanty of Superiority", "Aloysius' Antiphon of Aptitude", "The Sonata of Sneakiness", "Carlweather's Cantata of Confrontation", "Ur-Kel's Aria of Annoyance", "Dirge of Dreadfulness", "Benetton's Medley of Diversity", "Elron's Explosive Etude", "Prelude of Precision", "Donho's Bubbly Ballad", "Cringle's Curative Carol", "Inigo's Incantation of Inspiration"};
+    foreach i, effectName in songEffects {
+        effect ef = to_effect(effectName);
         if (have_effect(ef) > 0)
             cli_execute("uneffect " + ef);
     }
@@ -169,44 +174,47 @@ void prepBuffs(){
             cli_execute("uneffect " + ef);
     }
     //fam weight
-    //cli_execute("hatter reinforced beaded headband");   <-- this is not working in hatpath
+    // cli_execute("hatter reinforced beaded headband");   <-- this is not working in hatpath
     //also buffs only for sea: Greased-Up Familiar
     //'Adobe Ayam Subscription' buff only for hat path
-    foreach ef in $effects[Adobe Ayam Subscription,Adobe Adze Subscription,Robot Friends,Healthy Green Glow,Chorale of Companionship,Human-Fish Hybrid,Whole Latte Love,Shortly Stacked,Thoughtful Empathy,Leash of Linguini,blood bond,Empathy,Black Tongue,Man\'s Worst Enemy,Kindly Resolve,Human-Machine Hybrid,Shrimpin' Ain't Easy,Over-Familiar With Dactyls,Loyal Tea,Warm Shoulders,One Foot Heavier,Work For Hours a Week,Panna Consideration,Loyal as a Rock,Candied Devil,Wildsun Boon,Only Dogs Love a Drunken Sailor,Best Pals,Heart of Green,Bestial Sympathy,Herder\, Bitter\, Fester\, Stranger,Party Soundtrack,Shortly Wired,Crocodile Tear,Spiced Out,offhand remarkable,Crocodile Tear,Billiards Belligerence,A Girl Named Sue]{
+    string [int] famWeightEffects = {"Adobe Ayam Subscription", "Adobe Adze Subscription", "Robot Friends", "Healthy Green Glow", "Chorale of Companionship", "Human-Fish Hybrid", "Whole Latte Love", "Shortly Stacked", "Thoughtful Empathy", "Leash of Linguini", "blood bond", "Empathy", "Black Tongue", "Man's Worst Enemy", "Kindly Resolve", "Human-Machine Hybrid", "Shrimpin' Ain't Easy", "Over-Familiar With Dactyls", "Loyal Tea", "Warm Shoulders", "One Foot Heavier", "Work For Hours a Week", "Panna Consideration", "Loyal as a Rock", "Candied Devil", "Wildsun Boon", "Only Dogs Love a Drunken Sailor", "Best Pals", "Heart of Green", "Bestial Sympathy", "Herder, Bitter, Fester, Stranger", "Party Soundtrack", "Shortly Wired", "Crocodile Tear", "Spiced Out", "offhand remarkable", "Billiards Belligerence", "A Girl Named Sue"};
+    foreach i, effectName in famWeightEffects {
+        effect ef = to_effect(effectName);
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]) && ef.attributes != "nohookah")
             continue;
         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)))
             continue;
-        if (ef == $effect[Billiards Belligerence] || ef == $effect[A Girl Named Sue])
+        if (ef == to_effect("Billiards Belligerence") || to_effect("A Girl Named Sue"))
             setClan("VIP");
         if (have_effect(ef) == 0)
             cli_execute(ef.default);
     }
-
-    setClan("radio");
+    setClan("stash");
     if (have_effect($effect[Happy Salamander]) == 0){
         visit_url("clan_rumpus.php?action=click&spot=4&furni=1");
     }
-    setClan("stash");
-    while (have_effect($effect[blue swayed]) < 50){
+    while (have_effect($effect[blue swayed]) < 60){
         use($item[pulled blue taffy]);
     }
-    while (have_effect($effect[She Ate Too Much Candy]) < 25){
+    while (have_effect($effect[She Ate Too Much Candy]) < 30){
         use($item[Prunets]);
     }
     while (have_effect($effect[Cold Hearted]) < 25){
         use($item[love song of icy revenge]);
     }
-//meat drop
-    foreach ef in $effects[Incredibly Well Lit,Loded,Tubes of Universal Meat,Holiday Bliss,So You Can Work More...,Legendary Pasta Eyeball,Polka of Plenty,Meet the Meat]{
+    // meat drop
+    string [int] meatDropEffects = {"Incredibly Well Lit", "Loded", "Tubes of Universal Meat", "Holiday Bliss", "So You Can Work More...", "Legendary Pasta Eyeball", "Polka of Plenty", "Meet the Meat"};
+    foreach i, effectName in meatDropEffects {
+        effect ef = to_effect(effectName);
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]))
             continue;
         if (ef == $effect[Incredibly Well Lit] && dayType() == 0)
             continue;
         if (ef == $effect[Meet the Meat]){
             if (get_property("_clanFortuneBuffUsed") == "true")
-            continue;
-            else setClan("VIP");
+                continue;
+            else
+                setClan("VIP");
         }
         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)))
             continue;
@@ -215,22 +223,24 @@ void prepBuffs(){
     }
     setClan("stash");
     //item drop
-    foreach ef in $effects[Steely-Eyed Squint,Spookyravin',Unbarking Dogs,One Very Clear Eye,Materiel Intel,Spitting Rhymes,Joyful Resolve,Lubricating Sauce]{
+    string [int] itemDropEffects = {"Steely-Eyed Squint", "Spookyravin'", "Unbarking Dogs", "One Very Clear Eye", "Materiel Intel", "Spitting Rhymes", "Joyful Resolve", "Lubricating Sauce"};
+    foreach i, effectName in itemDropEffects {
+        effect ef = to_effect(effectName);
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]))
-            continue;
-        if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)) && ef != $effect[Steely-Eyed Squint])
+        continue;
+        if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)) && ef != to_effect("Steely-Eyed Squint"))
             continue;
         if (have_effect(ef) == 0)
             cli_execute(ef.default);
     }
-    foreach ef in $effects[Bow-Legged Swagger,null afternoon]{
+    string [int] otherItemDropEffects = {"Bow-Legged Swagger", "null afternoon"};
+    foreach i, effectName in otherItemDropEffects {
+        effect ef = to_effect(effectName);
         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)) && to_skill(ef) != $skill[Bow-Legged Swagger])
-            continue;
+        continue;
         if (have_effect(ef) == 0)
             cli_execute(ef.default);
     }
-// uncomment for fish path
-    // use ($item[fishy pipe]);
 }
 
 // ─── FREE-KILL PREP ──────────────────────────────────────────────────────────
@@ -651,7 +661,7 @@ void FKPrep(){
     }
 
 	prepBuffs();
-	//monkeypaw("familiar weight");
+	monkeypaw("familiar weight");
 
 	step("phase: FKPrep ChibiBuddy");
 	// ChibiBuddy: wake it, chat once, then hand off to farto's chibiHandling.
@@ -990,6 +1000,7 @@ void uneffectBuff(){
             toRemove = ef;
         }
 
+
     }
     foreach ef in my_effects(){
         // Same protection when checking flat-stat buffs
@@ -1183,7 +1194,7 @@ void habitatRecall(){
         if (to_int(get_property("_monsterHabitatsFightsLeft")) == 0 && to_int(get_property("_monsterHabitatsRecalled")) < 3){
             mimicPrep();
             main@preadventure();
-            cli_execute("reminisce black crayon mer-kin");
+            cli_execute("reminisce sausage goblin");
             main@postadventure();
         }
         while (to_int(get_property("_monsterHabitatsFightsLeft")) > 0 || get_property("beGregariousFightsLeft").to_int() > 0){
@@ -1229,7 +1240,7 @@ void mimicEgg(){
     while (item_amount($item[mimic egg]) > 0 && dayType() == 1){
         mimicPrep();
         main@preadventure( );
-        cli_execute("c2t_megg fight Black Crayon Mer-kin");
+        cli_execute("c2t_megg fight sausage goblin");
         run_combat();
         cli_execute("postadventure");
     }
@@ -1249,7 +1260,7 @@ void faxing(){
 }
 void reminisce() {
     while (get_property("_locketMonstersFought").split_string(",").count() < 3){
-        foreach mon in $monsters[black crayon golem, black crayon spiraling shape,Black Crayon Flower]{
+        foreach mon in $monsters[black crayon golem, black crayon spiraling shape]{
             if (get_property("_locketMonstersFought").contains_text(mon.to_int()))
                 continue;
             mimicPrep();
@@ -1440,7 +1451,7 @@ string pickWeakling(boolean checkHP){
         return "shorts";
     if (to_int(get_property("_speakeasyFreeFights")) < 3
         && (!checkHP || safeToFK(to_monster("traveling hobo")))
-        && (have_item($item[deed to Oliver's Place])))
+        && (have_item($item[11001]))) //deed to Oliver's Place
     return "speakeasy";
     if (to_int(get_property("_brickoFights")) < 10
         && (!checkHP || safeToFK($monster[BRICKO ooze])))
@@ -1955,7 +1966,9 @@ void bulkFKD2(){
 //  - use legendary beat and other temporary +item on sandworms
     // - fix shadow boss killing
     // party FKs not working
-    //
+    // shield maiden at zeppelin?
+    //vhs tape sausage goblins
+    //moleman hill (free fight?) check
 }
 
 void locationBasedAdventuring(){
@@ -1973,94 +1986,6 @@ void locationBasedAdventuring(){
     }
     locationBasedWeakMonsters();
 }
-void bulkFKD1(){
-    set_property("inSpendAdv","true");
-    set_property("script","FreeKill");
-    equip($slot[acc3],$item[Time Bandit Badge of Courage]);
-    buffML($monster[Flaming leaflet]);
-    locationBasedAdventuring();
-    if (my_spleen_use() < 10){
-        abort("What happened with the totem exploit?");
-        use_familiar($familiar[stooper]);
-        equip($item[devilbone greaves]);
-        equip($slot[acc1],$item[angelbone dice]);
-        equip($slot[acc2],$item[devilbone rosary]);
-        doSpleen();
-        if (my_inebriety() <= inebriety_limit()){
-            if (my_inebriety() == inebriety_limit()-3)
-                drink($item[amnesiac ale]);
-            if (my_inebriety() == inebriety_limit()-1)
-                drink($item[friendly turkey]);
-            if (my_inebriety() == inebriety_limit())
-                drink($item[vintage smart drink]);
-        }
-        if (my_spleen_use() < spleen_limit()){
-            int toChew = floor((spleen_limit()-my_spleen_use())/2);
-            chew (toChew,$item[Extrovermectin&trade;]);
-            int mojo = 3-get_property("currentMojoFilters").to_int();
-            use(mojo,$item[mojo filter]);
-            toChew = floor((spleen_limit()-my_spleen_use())/2);
-            chew (toChew,$item[Extrovermectin&trade;]);
-        }
-        use_familiar($familiar[Jill-of-All-Trades]);
-        cli_execute("maximize familiar weight");
-    }
-    nonlocationBasedWeakMonsters();
-    step("phase: August Golem");
-    augustGolem();
-        step("phase: bulkFK reminisce");
-    reminisce();
-    step("phase: bulkFK glitch monster");
-    if (get_property("_glitchMonsterFights") == 0 && have_item($item[\[glitch season reward name\]])){
-        mimicPrep();
-        main@preadventure( );
-        eat($item[[glitch season reward name]]);
-    }
-    set_property("hatOverride","");
-    step("phase: bulkFK god lobster");
-    while (get_property("_godLobsterFights").to_int() < 3){
-        use($item[dish of clarified butter]);
-    }
-    if (get_property("_molehillMountainUsed") == false)
-        use($item[molehill mountain]);
-    step("phase: bulkFK mimic egg");
-    mimicEgg();
-    step("phase: bulkFK faxing");
-    faxing();
-    if (item_amount($item[shaking 4-D camera]) > 0){
-        mimicPrep();
-        main@preadventure( );
-        use($item[shaking 4-D camera]);
-    }
-    if (item_amount($item[envyfish egg]) > 0){
-        mimicPrep();
-        main@preadventure( );
-        use($item[envyfish egg]);
-    }
-    if (my_class() == $class[seal clubber]){
-        if (dayType() == 0 && fullness_limit() - my_fullness() >= 1){
-            equip($item[devilbone corset]);
-            equip($slot[acc3],$item[angelbone chopsticks]);
-            if (fullness_limit() - my_fullness() >= 3)
-                eat($item[eldritch mushroom pizza]);
-            cli_execute("unequip devilbone corset; unequip angelbone chopsticks");
-            cli_execute("ash import dinner;heavyWeightBooze()");
-            cli_execute("unequip devilbone rosary;unequip angelbone dice;unequip devilbone greaves;unequip angelbone totem; familiar Jill-of-All-Trades");
-        }
-        step("phase: bulkFK seals");
-        seals();
-    }
-    if (get_property("eldritchTentaclesFought").to_int() < 11 && get_property("_eldritchTentacleFought") == "false"){
-        main@preadventure();
-        visit_url("place.php?whichplace=forestvillage&action=fv_scientist");
-        run_choice(1);
-        main@postadventure();
-    }
-//    stashreturn($item[pantsgiving]);
-    if (!contains_text(get_property("thoth19_event_list"),"postFKD1"))
-        cli_execute("ptrack add postFKD1");
-    codpiece("none");
-}
 
 // ─── ENTRY ───────────────────────────────────────────────────────────────────
 
@@ -2076,8 +2001,8 @@ void main(){
 //      cli_execute("mallcheck");
         starter();
 
-        if(false){   //for debug only
-//        if (get_property("expressCardUsed") == "false"){
+//        if(false){   //for debug only
+        if (get_property("expressCardUsed") == "false"){
             if (get_property("prusias_profitTracking_date") != today_to_string( ))
                 cli_execute("ptrack add preprepD2");
             else if (!contains_text(get_property("thoth19_event_list"),"preprepD1") && dayType() == 0)
