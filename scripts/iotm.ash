@@ -438,11 +438,18 @@ void codpiece(string input) {
             visit_url("choice.php?whichchoice=1588&option=1&which=" + (num + 1)
                 + "&iid=" + to_int(to_item(slots[num])));
         }
-        // Verify all slots mounted correctly
-        string verify = visit_url("inventory.php?action=docodpiece");
+        // Refresh the codpiece page, then verify KoLmafia's equipment state.
+        visit_url("inventory.php?action=docodpiece");
         foreach num in slots {
-            if (!contains_text(verify, to_item(slots[num]) + " mounted in slot #" + (num + 1)))
-                abort("Codpiece slot incorrect");
+            if (slots[num] == "")
+                continue;
+
+            item expected = to_item(slots[num]);
+            slot target = to_slot("codpiece" + (num + 1));
+            item actual = equipped_item(target);
+
+            if (actual != expected)
+                abort(target + ": expected " + expected + ", got " + actual);
         }
     }
     cli_execute("refresh inv");
