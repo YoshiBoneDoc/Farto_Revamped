@@ -550,11 +550,17 @@ void feedCandy(){
 
 void goodies() {
     setClan("VIP");
-    create($item[Sheriff pistol]);
-    create($item[Sheriff badge]);
-    create($item[Sheriff moustache]);
+    // Photo Booth allows three props per day. Check before each request.
+    foreach prop in $items[Sheriff pistol, Sheriff badge, Sheriff moustache] {
+        if (available_amount(prop) == 0 && get_property("_photoBoothEquipment").to_int() < 3)
+            create(prop);
+    }
 
-    cli_execute("aprilband item quad tom");
+    // Only request a missing instrument while a daily selection remains.
+    if (available_amount($item[Apriling band quad tom]) == 0
+        && get_property("_aprilBandInstruments").to_int() < 2
+        && (item_amount($item[Apriling band helmet]) > 0 || have_equipped($item[Apriling band helmet])))
+        cli_execute("aprilband item quad tom");
 //    cli_execute("aprilband item sax");    -- moved this to inside embezzler(), now done with getLucky()
     setClan("stash");
 }
