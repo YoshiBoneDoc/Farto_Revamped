@@ -27,10 +27,6 @@ void setClan(string clanType){
         if (get_clan_name() != "Soup Clan")
             cli_execute("/whitelist Soup Clan");
     }
-    else if (clanType == "radio") {
-        if (get_clan_name() != "White Knight's District")
-            cli_execute("/whitelist White Knight's District");
-    }
     return;
 }
 
@@ -156,8 +152,6 @@ void chibiHandling(){
         set_property("chibiChoice2","0");
     }
 }
-
-
 void prepBuffs(){
     setClan("stash");
     use($item[yam battery]);
@@ -208,8 +202,6 @@ void prepBuffs(){
         effect ef = to_effect(effectName);
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]))
             continue;
-        if (ef == $effect[Incredibly Well Lit] && dayType() == 0)
-            continue;
         if (ef == $effect[Meet the Meat]){
             if (get_property("_clanFortuneBuffUsed") == "true")
                 continue;
@@ -247,8 +239,9 @@ void prepBuffs(){
 
 void doSpleen(){
     setClan("stash");
-    foreach spl in $items[medicinal gruel, psilocyber mushroom, gleaming oyster egg,
-        Party-in-a-Can&trade;, body spradium, Crimbeau de toilette]{
+    string [int] spleenItems = {"medicinal gruel", "psilocyber mushroom", "gleaming oyster egg", "Party-in-a-Can&trade;", "body spradium", "Crimbeau de toilette"};
+    foreach i, itemName in spleenItems {
+        item spl = to_item(itemName);
         if (my_spleen_use() >= 3)
             return;
         if (spl == $item[body spradium] && item_amount($item[body spradium]) == 0)
@@ -262,7 +255,9 @@ void doSpleen(){
 item cheapestPasta(){
     setClan("stash");
     int [item] pasta_prices;
-    foreach it in $items[Frutti di Scatoletta,Pesto alla Marziano,Arrattabbattabiata,Orzo di Riso,Pasta Grimavera,Linguini Ubriacapa,Gnocci Domani,Formica e Pepe,Tubetto Gelatto]{
+    string [int] pastaItems = {"Gnocci Domani", "Formica e Pepe", "Tubetto Gelatto"};
+    foreach i, itemName in pastaItems {
+        item it = to_item(itemName);
         pasta_prices[it] = mall_price(it);
     }
     item cheap_pasta;
@@ -324,14 +319,14 @@ boolean [string] freeKillGate = {
     "_bczSweatBulletsCasts": have_skill($skill[BCZ: Sweat Bullets]),
     "_gingerbreadMobHitUsed": have_skill($skill[Gingerbread Mob Hit]),
     "_shatteringPunchUsed": have_skill($skill[Shattering Punch]),
-    "_firedJokestersGun": have_item($item[The Jokester's gun]),
+    "_firedJokestersGun": have_item(to_item("The Jokester's gun")),
     "_assertYourAuthorityCast": have_skill($skill[Assert Your Authority]),
     "_clubEmTimeUsed": have_item($item[legendary seal-clubbing club]),
     "_interestingCoinHeads": have_item($item[interesting coin]),
     "_aprilBandTomUses": have_item($item[Apriling band quad tom]),
     "_glitchMonsterFights": have_item($item[\[glitch season reward name\]]),
     "_cargoPocketEmptied": have_item($item[Cargo Cultist Shorts]),
-    "_speakeasyFreeFights": have_item($item[deed to Oliver's Place])
+    "_speakeasyFreeFights": have_item(to_item("deed to Oliver's Place"))
     //add NEP
 };
 
@@ -340,87 +335,60 @@ boolean [string] freeKillGate = {
 // adventures (embezzler/bander runaways), Black Crayon Flower (chained relativity/Pocket
 // Professor), and The Deep Machine Tunnels (machine elf) are real fights, not free kills, so
 // they're deliberately left out of the tally.
-int freeKillCount(string leg){
+// --- function modified for hat path aftercore, no longer accepts string param for leg
+int freeKillCount(){
     int n;
-    switch (leg) {
-        case "both":
-            if (dayType() == 1)
-                break;
-            foreach pref, cap in freeKillCap {
-                if (freeKillGate contains pref && !freeKillGate[pref])
-                    continue;
-                n += cap;
-            }
-            if (have_skill($skill[just the facts]))
-                n += 15; // habitat recall + be gregarious, full-day guess
-            if (have_item($item[combat lover's locket]))
-                n += 3;
-            n += have_effect($effect[shadow affinity]) + 15;
-            n += 27; // gregarious
-            if (have_item($item[Everfull Dart Holster]))
-                n += 1;
-            if (have_item($item[jurassic parka]))
-                n += 1;
-            n += 5;  // trick-or-treat kid
-            if (can_adventure($location[A Mob of Zeppelin Protesters]))
-                n += 5; // red zeppelin (glark cable)
-            n += 2;  // tied-up flaming monstera / leaviathan (mall-price gated)
-            n += 2;  // august cat day skills
-            n += 1;  // paranormal ghost (rough -- can recur through the day)
-            n += 1;  // eldritch tentacles
-            if (have_item($item[envyfish egg]))
-                n += 1;
-            if (have_item($item[shaking 4-D camera]))
-                n += 1;
-            n += item_amount($item[mimic egg]); // dayType() == 1 only
-        case "currentLeg":
-            foreach pref, cap in freeKillCap {
-                if (freeKillGate contains pref && !freeKillGate[pref])
-                    continue;
-                n += prefFreeKillsLeft(pref, cap);
-            }
-            if (have_skill($skill[just the facts]))
-                n += ((3 - to_int(get_property("_monsterHabitatsRecalled"))) * 5) + to_int(get_property("_monsterHabitatsFightsLeft"));
-            n += to_int(get_property("beGregariousFightsLeft"));
-            if (have_item($item[combat lover's locket]))
-                n += max(0, 3 - get_property("_locketMonstersFought").split_string(",").count());
-            if (dayType() == 1)
-                n += have_effect($effect[shadow affinity]);
-            if (have_item($item[Everfull Dart Holster]) && have_effect($effect[everything looks red]) == 0)
-                n += 1;
-            if (have_item($item[jurassic parka]) && have_effect($effect[everything looks yellow]) == 0)
-                n += 1;
-            if (contains_text(get_property("_trickOrTreatBlock"), "D"))
-                n += 1;
-            if (can_adventure($location[A Mob of Zeppelin Protesters]))
-                n += max(0, 5 - to_int(get_property("_glarkCableUses")));
-            if (get_property("_tiedUpFlamingMonsteraFought") == "false" && mall_price($item[tied-up flaming monstera]) < 15000)
-                n += 1;
-            if (get_property("_tiedUpLeaviathanFought") == "false" && mall_price($item[tied-up leaviathan]) < 15000)
-                n += 1;
-            if (get_property("_aug8Cast") == "false")
-                n += max(0, 4 - to_int(get_property("_augSkillsCast")));
-            if (get_property("questPAGhost") == "started"
-                || (get_property("questPAGhost") == "unstarted"
-                    && total_turns_played() >= to_int(get_property("nextParanormalActivity"))
-                    && item_amount($item[almost-dead walkie-talkie]) > 0))
-                n += 1;
-            //changed 11 to 1 because im poor
-            if (get_property("_eldritchTentacleFought") == "false" && to_int(get_property("eldritchTentaclesFought")) < 1)
-                n += 1;
-            if (item_amount($item[envyfish egg]) > 0)
-                n += 1;
-            if (item_amount($item[shaking 4-D camera]) > 0)
-                n += 1;
-            if (dayType() == 1)
-                n += item_amount($item[mimic egg]);
+    foreach pref, cap in freeKillCap {
+        if (freeKillGate contains pref && !freeKillGate[pref])
+            continue;
+        n += prefFreeKillsLeft(pref, cap);
     }
+    if (have_skill($skill[just the facts]))
+        n += ((3 - to_int(get_property("_monsterHabitatsRecalled"))) * 5)
+            + to_int(get_property("_monsterHabitatsFightsLeft"));
+    n += to_int(get_property("beGregariousFightsLeft"));
+    if (have_item(to_item("combat lover's locket")))
+        n += max(0, 3 - get_property("_locketMonstersFought").split_string(",").count());
+    if (get_property("_shadowAffinityToday") == false){
+        n += 11;
+    } else if (get_property("_shadowAffinityToday") == true)
+        n += have_effect($effect[shadow affinity]);
+    if (have_item($item[Everfull Dart Holster]) && have_effect($effect[everything looks red]) == 0)
+        n += 1;
+    if (have_item($item[jurassic parka]) && have_effect($effect[everything looks yellow]) == 0)
+        n += 1;
+    if (contains_text(get_property("_trickOrTreatBlock"), "D"))
+        n += 1;
+    if (can_adventure($location[A Mob of Zeppelin Protesters]))
+        n += max(0, 5 - to_int(get_property("_glarkCableUses")));
+    if (get_property("_tiedUpFlamingMonsteraFought") == "false"
+        && mall_price($item[tied-up flaming monstera]) < 15000)
+        n += 1;
+    if (get_property("_tiedUpLeaviathanFought") == "false"
+        && mall_price($item[tied-up leaviathan]) < 15000)
+        n += 1;
+    if (get_property("_aug8Cast") == "false")
+        n += max(0, 4 - to_int(get_property("_augSkillsCast")));
+    if (get_property("questPAGhost") == "started"
+        || (get_property("questPAGhost") == "unstarted"
+            && total_turns_played() >= to_int(get_property("nextParanormalActivity"))
+            && item_amount($item[almost-dead walkie-talkie]) > 0))
+        n += 1;
+    if (get_property("_eldritchTentacleFought") == "false"
+        && to_int(get_property("eldritchTentaclesFought")) < 11)
+        n += 1;
+   // if (item_amount($item[envyfish egg]) > 0)
+   //     n += 1;
+    if (item_amount($item[shaking 4-D camera]) > 0)
+        n += 1;
+    n += item_amount($item[mimic egg]);
     return n;
 }
 
 int valueOfOrgan(string organ){
     if (organ == "stomach"){
         //based off of baked veggie ricotta casserole
+//not sure this is correct
         return (8*get_property("valueOfAdventure").to_int()) - mall_price($item[baked veggie ricotta casserole]);
     } else if (organ == "liver"){
         //based off of  Sacramento wine
@@ -437,9 +405,9 @@ int valueOfOrgan(string organ){
 int valueOfFamPot(item it) {
     int n;
     if (it == $item[Black and White Apron Meal Kit]){
-        n = (10*27*freeKillCount("currentLeg") + (12 * get_property("valueOfAdventure").to_int()))/3 - mall_price(it);
+        n = (10*27*freeKillCount() + (12 * get_property("valueOfAdventure").to_int()))/3 - mall_price(it);
     } else {
-        n = (numeric_modifier(itemEffectNotes(it).ef,"familiar weight")*27*freeKillCount("currentLeg") + (averageAdventures(it) * get_property("valueOfAdventure").to_int()))/organSpace(it) - mall_price(it);
+        n = (numeric_modifier(itemEffectNotes(it).ef,"familiar weight")*27*freeKillCount() + (averageAdventures(it) * get_property("valueOfAdventure").to_int()))/organSpace(it) - mall_price(it);
     }
     return n;
 }
@@ -510,13 +478,20 @@ void dieting(){
     // Farming DayType (1) Logic
 	} else {
         if (get_property("_cupOf13sJewels") == 13){
-            if (item_amount($item[asbestos meat stack]) < 4)
-                cli_execute("make 4 asbestos meat stack");
-            cli_execute("acquire 4 asbestos meat stack; acquire tombstone-shaped Crimboween cookie; acquire grease gun");
-            visit_url("inventory.php?action=cupof13s");
-            visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=376&whichitem2=2200&whichitem3=1708");
-            visit_url("inventory.php?action=cupof13s");
-            visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=376&whichitem2=376&whichitem3=376");
+            cli_execute("acquire tombstone-shaped Crimboween cookie; acquire grease gun");
+            if(mall_price($item[Affirmation Cookie]<6000)){
+                cli_execute("acquire 4 Affirmation Cookie");
+                visit_url("inventory.php?action=cupof13s");
+                visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=9486&whichitem2=2200&whichitem3=1708");
+                visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=9486&whichitem2=9486&whichitem3=9486");
+            } else {
+                if (item_amount($item[asbestos meat stack]) < 4)
+                    cli_execute("make 4 asbestos meat stack");
+                cli_execute("acquire 4 asbestos meat stack");
+                visit_url("inventory.php?action=cupof13s");
+                visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=376&whichitem2=376&whichitem3=376");
+                visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=376&whichitem2=2200&whichitem3=1708");
+            }
         }
         // END OF DAY DIET BUFFING SHOULD GO HERE - eodDiet();
 	}
@@ -534,7 +509,7 @@ void useMayamRings(){
 
 float optimalCandy(){
     float perCandyPrice = 100.0;
-    float perPound = 27.0 * freeKillCount("both");
+    float perPound = 27.0 * freeKillCount();
     int pounds = floor(perPound / (2.0 * perCandyPrice)) - 5;
     return pounds * pounds;
 }
@@ -581,7 +556,6 @@ void goodies() {
 //    cli_execute("aprilband item sax");    -- moved this to inside embezzler(), now done with getLucky()
     setClan("stash");
 }
-
 
 void FKPrep(){
     // TO DO: Implement differet dieting plans (at eod, beginning, etc)
@@ -707,7 +681,7 @@ void FKPrep(){
         foreach ef in $effects[familiar.enq]{
             if (have_effect(ef) > 0)
                 continue;
-            if (numeric_modifier(ef,"familiar weight") * 27 * freeKillCount("both") > mall_price($item[pocket wish])){
+            if (numeric_modifier(ef,"familiar weight") * 27 * freeKillCount() > mall_price($item[pocket wish])){
                 cli_execute("genie effect " + ef);
             }
         }
@@ -747,7 +721,7 @@ void equipStockingMimic(){
     if (have_familiar($familiar[stocking mimic]))
         set_property("famOverride","stocking mimic");
     else
-        set_property("famOverride","Jill-of-All-Trades");
+        set_property("famOverride","Skeleton of Crimbo Past");
 }
 
 void mimicPrep(string extraMax){
@@ -839,13 +813,15 @@ void cyberzone() {
     }}
 void shadowBoss(){
     cli_execute("cast Carol of the Hells");
+    cli_execute("use scroll of drastic healing");
+    // 1st round atks for 90% of max hp
     if (get_property("rufusQuestTarget") == "shadow scythe") {
         use($item[scroll of drastic healing]);
         set_property("hpAutoRecovery", 1.0);
         set_property("hpAutoRecoveryTarget", 1.0);
         set_property("maxOverride", "familiar weight, equip congressional medal of insanity");
     }
-    //abort("Shadow scythe, kill manually");
+    // reflects spells, has more elemental resist
     else if (get_property("rufusQuestTarget") == "shadow orrery"){
         set_property("maxOverride","familiar weight");
         set_property("shirtOverride",", equip ultracolor");
@@ -860,18 +836,18 @@ void shadowBoss(){
         set_property("maxOverride","familiar weight, equip congressional medal of insanity");
     }
 }
+
+/*
 void shadowRealmFK(){
     //prep
     cli_execute("uneffect coldform");
     equipStockingMimic();
-    if (get_auto_attack() == 0)
-        aa("facsimile");
     if (!contains_text(get_property("maxOverride"),"familiar"))
         set_property("maxOverride","familiar weight, equip eternity codpiece");
-    //We finished the last quest ->  collect reward -> cash in reward
+    // If we finished the last quest ->  collect reward -> cash in reward
     if (get_property("questRufus") == "step1") {
-        use($item[closed-circuit pay phone]);
-        adv1($location[Shadow Rift (The Misspelled Cemetary)]);
+        use($item[closed-circuit pay phone]);  // collect
+        adv1($location[Shadow Rift (The Misspelled Cemetary)]); // cash in (no turn spent)
     }
     // Shadow Affinity has not been obtained today and a Rufus quest is already active
     if (get_property("_shadowAffinityToday") == false && get_property("questRufus") != "unstarted"){
@@ -881,17 +857,14 @@ void shadowRealmFK(){
             abort("script out non entity case");
         }
     }
-    // Dealing with high resistance
-    if ($monster[shadow slab].elemental_resistance > 85){
-        if (have_item($item[petrified wood wizard's pouch]))
-            set_property("acc3Override",",equip petrified wood wizard's pouch");
-        else
-            set_property("acc3Override",",equip congressional medal of insanity");
-    } else {
+    // Dealing with scaling high resistance
+    if ($monster[shadow slab].elemental_resistance > 85)
+        set_property("acc3Override",",equip congressional medal of insanity");
+    else
         set_property("acc3Override","");
-    }
-    // Use Bat Wing Swoops
-    if (to_int(get_property("_batWingsSwoopUsed")) < 11 && dayType() == 0)
+
+    // Use Bat Wing Swoops if entering non-free shadow fight
+    if (to_int(get_property("_batWingsSwoopUsed")) < 11 && (have_effect($effect[shadow affinity]) == 0))
         set_property("backOverride",", equip bat wings");
     // make sure quest is started
     if (get_property("questRufus") == "unstarted")
@@ -936,6 +909,191 @@ void shadowRealmFK(){
     set_property("backOverride","");
     set_property("mainOverride","");
 }
+*/
+
+    // SHADOW REALM REWORK -----------------------
+// Turn in completed quests, redeem lodestones, and optionally start an entity quest.
+void settleRufusRewards(boolean startQuest) {
+    location rift = $location[Shadow Rift (The Misspelled Cemetary)];
+    item phone = $item[closed-circuit pay phone];
+    item lodestone = $item[Rufus's shadow lodestone];
+    string[string] saved;
+    foreach pref in $strings[choiceAdventureScript, choiceAdventure1497, choiceAdventure1498, choiceAdventure1500]
+        saved[pref] = get_property(pref);
+
+    try {
+        // Handle phone choices explicitly instead of using generalChoice's policy.
+        set_property("choiceAdventureScript", "");
+        set_property("choiceAdventure1497", "0");
+        set_property("choiceAdventure1498", "0");
+
+        if (get_property("questRufus") == "step1") {
+            visit_url("inv_use.php?whichitem=" + to_int(phone) + "&pwd=" + my_hash());
+            if (!handling_choice() || last_choice() != 1498)
+                abort("Rufus: expected the quest turn-in choice.");
+            run_choice(1);
+            if (get_property("questRufus") != "unstarted")
+                abort("Rufus: quest turn-in did not finish.");
+        }
+
+        // Inventory matters even when yesterday's quest was already turned in.
+        int rewardRetries = 0;
+        while (item_amount(lodestone) > 0) {
+            int stonesBefore = item_amount(lodestone);
+            int turnsBefore = total_turns_played();
+            // 3 = forest items once per day; 2 = Shadow Waters afterward.
+            set_property("choiceAdventure1500",
+                get_property("_shadowForestLooted").to_boolean() ? "2" : "3");
+            if (!adv1(rift))
+                abort("Rufus: could not redeem the lodestone.");
+            if (total_turns_played() != turnsBefore)
+                abort("Rufus: lodestone redemption unexpectedly spent a turn.");
+            // A different free encounter can interrupt reward redemption.
+            // Keep trying while the lodestone is still in inventory.
+            if (item_amount(lodestone) < stonesBefore)
+                rewardRetries = 0;
+            else if (++rewardRetries >= 20)
+                abort("Rufus: lodestone still unredeemed after 20 attempts; inspect the encounter.");
+        }
+
+        if (startQuest && get_property("questRufus") == "unstarted") {
+            visit_url("inv_use.php?whichitem=" + to_int(phone) + "&pwd=" + my_hash());
+            if (!handling_choice() || last_choice() != 1497)
+                abort("Rufus: expected the quest selection choice.");
+            run_choice(1); // Entity quest.
+            if (get_property("questRufus") != "started" || get_property("rufusQuestType") != "entity")
+                abort("Rufus: entity quest was not accepted.");
+        }
+    } finally {
+        foreach pref, value in saved
+            set_property(pref, value);
+    }
+}
+
+// Morning: acquire today's Affinity, then adventure until it runs out.
+// Leave quest turn-ins and remaining rewards to shadowRiftForcers().
+void shadowRiftMorning() {
+    location rift = $location[Shadow Rift (The Misspelled Cemetary)];
+    string[string] saved;
+    foreach pref in $strings[script, subscript, inSpendAdv, maxOverride, famOverride, shirtOverride, backOverride, mainOverride, offOverride, acc3Override, hpAutoRecovery, hpAutoRecoveryTarget]
+        saved[pref] = get_property(pref);
+
+    try {
+        set_auto_attack(0);
+        set_property("script", "FreeKill");
+        set_property("subscript", "");
+        set_property("inSpendAdv", "true");
+        cli_execute("uneffect coldform");
+
+        settleRufusRewards(false);
+        if (!get_property("_shadowAffinityToday").to_boolean()) {
+            if (get_property("questRufus") != "unstarted")
+                abort("Rufus: an unfinished quest blocks accepting today's Affinity quest.");
+            settleRufusRewards(true);
+            if (have_effect($effect[Shadow Affinity]) == 0)
+                abort("Rufus: today's quest did not grant Shadow Affinity.");
+        }
+
+        int freeInterruptions = 0;
+        while (have_effect($effect[Shadow Affinity]) > 0) {
+            foreach pref in $strings[shirtOverride, backOverride, mainOverride, offOverride, acc3Override]
+                set_property(pref, "");
+            set_property("hpAutoRecovery", saved["hpAutoRecovery"]);
+            set_property("hpAutoRecoveryTarget", saved["hpAutoRecoveryTarget"]);
+            mimicPrep();
+            if ($monster[shadow slab].elemental_resistance > 85)
+                set_property("acc3Override", ", equip congressional medal of insanity");
+            if (get_property("questRufus") == "started" && get_property("rufusQuestType") == "entity"
+                && (get_property("encountersUntilSRChoice").to_int() == 0 || get_property("noncombatForcerActive").to_boolean()))
+                shadowBoss();
+
+            int affinityBefore = have_effect($effect[Shadow Affinity]);
+            int turnsBefore = total_turns_played();
+            if (!adv1(rift))
+                abort("Morning Rift adventure failed.");
+            if (total_turns_played() != turnsBefore)
+                abort("Morning Rift unexpectedly spent a turn.");
+            // Free noncombats may leave Affinity unchanged. Allow them and retry.
+            if (have_effect($effect[Shadow Affinity]) < affinityBefore)
+                freeInterruptions = 0;
+            else if (++freeInterruptions >= 20)
+                abort("Morning Rift: 20 encounters without consuming Affinity; inspect the encounter.");
+        }
+    } finally {
+        foreach pref, value in saved
+            set_property(pref, value);
+    }
+}
+
+// Evening: fight bosses already due, then use the remaining free NC forces.
+void shadowRiftForcers() {
+    location rift = $location[Shadow Rift (The Misspelled Cemetary)];
+    string[string] saved;
+    foreach pref in $strings[script, subscript, inSpendAdv, maxOverride, famOverride, shirtOverride, backOverride, mainOverride, offOverride, acc3Override, hpAutoRecovery, hpAutoRecoveryTarget]
+        saved[pref] = get_property(pref);
+
+    try {
+        set_auto_attack(0);
+        set_property("script", "FreeKill");
+        set_property("subscript", "");
+        set_property("inSpendAdv", "true");
+        cli_execute("uneffect coldform");
+        if (have_effect($effect[Shadow Affinity]) > 0)
+            abort("Use shadowRiftMorning() to finish Affinity before spending NC forces.");
+
+        while (true) {
+            settleRufusRewards(false);
+            if (get_property("questRufus") == "started" && get_property("rufusQuestType") != "entity")
+                abort("Evening Rift routine expects an entity quest.");
+
+            boolean bossDue = get_property("encountersUntilSRChoice").to_int() == 0;
+            if (!bossDue && !get_property("noncombatForcerActive").to_boolean()) {
+                if (item_amount($item[Apriling band tuba]) > 0 && available_amount($item[Apriling band helmet]) > 0 && get_property("_aprilBandTubaUses").to_int() < 3) {
+                    cli_execute("aprilband play tuba");
+                } else if (item_amount($item[Clara's bell]) > 0 && !get_property("_claraBellUsed").to_boolean()) {
+                    use($item[Clara's bell]);
+                } else if (available_amount($item[Cincho de Mayo]) > 0) {
+                    // The helmet can provide extra free rests.
+                    if (get_property("_cinchUsed").to_int() > 40 && available_amount($item[Apriling band helmet]) > 0)
+                        equip($slot[hat], $item[Apriling band helmet]);
+                    while (get_property("_cinchUsed").to_int() > 40 && get_property("timesRested").to_int() < total_free_rests()) {
+                        int restsBefore = get_property("timesRested").to_int();
+                        if (!cli_execute("camp rest free") || get_property("timesRested").to_int() <= restsBefore)
+                            abort("Could not recharge cinch with a free rest.");
+                    }
+                    if (get_property("_cinchUsed").to_int() <= 40) {
+                        if (!equip($slot[acc3], $item[Cincho de Mayo]))
+                            abort("Could not equip Cincho de Mayo.");
+                        use_skill($skill[Cincho: Fiesta Exit]);
+                    }
+                }
+                if (!get_property("noncombatForcerActive").to_boolean())
+                    break; // No free force available: do not enter a paid fight.
+            }
+
+            settleRufusRewards(true);
+            foreach pref in $strings[shirtOverride, backOverride, mainOverride, offOverride, acc3Override]
+                set_property(pref, "");
+            set_property("hpAutoRecovery", saved["hpAutoRecovery"]);
+            set_property("hpAutoRecoveryTarget", saved["hpAutoRecoveryTarget"]);
+            mimicPrep();
+            shadowBoss();
+
+            int turnsBefore = total_turns_played();
+            if (!adv1(rift))
+                abort("Evening Rift boss encounter failed.");
+            if (total_turns_played() != turnsBefore)
+                abort("Evening Rift unexpectedly spent a turn.");
+            if (get_property("questRufus") != "step1")
+                abort("Expected a completed boss quest; inspect the encounter.");
+            settleRufusRewards(false);
+        }
+    } finally {
+        foreach pref, value in saved
+            set_property(pref, value);
+    }
+}
+
 
 void sandworm(){
     mimicPrep();
@@ -1332,7 +1490,9 @@ boolean buffML(monster m){
     int currentML = numeric_modifier("Monster level");
     int targetML = currentML + (lowHPTarget()-m.base_hp);
     //Monster level. Needs reconsidering to work with weakMonsters()
-    foreach ef in $effects[Ur-Kel's Aria of Annoyance,Pride of the Puffin,Bloodbathed,Misplaced Rage,Manbait,Sweetbreads Flamb&eacute;,Red Lettered,Spangled Star,Tortious,Litterbug,Not Sharing,Para-lyzed Jaw,Contemptible Emanations,Lapdog,Ashen Burps,Gelded,Mysteriously Handsome,Eau D\'enmity,Mediocri Tea,Patent Sallowness,Yoloswagyoloswag]{
+    string [int] mlEffects = {"Ur-Kel's Aria of Annoyance", "Pride of the Puffin", "Bloodbathed", "Misplaced Rage", "Manbait", "Sweetbreads Flamb&eacute;", "Red Lettered", "Spangled Star", "Tortious", "Litterbug", "Not Sharing", "Para-lyzed Jaw", "Contemptible Emanations", "Lapdog", "Ashen Burps", "Gelded", "Mysteriously Handsome", "Eau D'enmity", "Mediocri Tea", "Patent Sallowness", "Yoloswagyoloswag"};
+    foreach i, effectName in mlEffects {
+        effect ef = to_effect(effectName);
         targetML = currentML + (lowHPTarget()-m.base_hp) + 100; //padding this with extra ML cause im slaughtering too hard
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]))
             continue;
@@ -1845,11 +2005,15 @@ void bulkFKD2(){
     set_property("inSpendAdv","true");
     set_property("script","FreeKill");
     mimicPrep();
-    // Arm the player's combat macro as the native auto-attack so a standalone
+    // starter() to set the consult script to unlockerCCS.ash
     // bulkFK() run (FKPrep skipped because the express card is already used) still fights.
     starter();
-    if (get_auto_attack() == 0)
-        aa("facsimile");
+//    if (get_auto_attack() == 0)
+//        aa("facsimile");
+
+    step("phase: bulkFK initial shadow rift - Affinity Charges");
+    shadowRiftMorning();
+
     if (weakMonstersLeft())
         weakMonsters();
     step("phase: August Golem");
@@ -1872,15 +2036,10 @@ void bulkFKD2(){
     backup();
     step("phase: bulkFK cyberzone");
     while (get_property("_cyberFreeFights").to_int() < 10){
+        cli_execute("use digital honeypot");
         constructBanish();
         mimicPrep();
         cyberzone();
-    }
-    step("phase: bulkFK shadow rift");
-    if (get_property("_shadowAffinityToday") == "false")
-        shadowRealmFK();
-    while (have_effect($effect[shadow affinity]) > 0){
-        shadowRealmFK();
     }
     step("phase: bulkFK loose FK");
     while (looseFK()){
@@ -1943,34 +2102,37 @@ void bulkFKD2(){
         // Equip wings directly instead of triggering another maximize
         if (get_property("_batWingsFreeFights").to_int() < 5)
             equip($item[bat wings]);
-        adv1($location[Cobb's knob treasury]);
+        adv1(to_location("Cobb's knob treasury"));
     }
 
     // use NC forces at end so we dont waste effect turns meant for FKs when getting reward
     step("phase: bulkFK NC force in Shadow Rift");
-    while (get_property("encountersUntilSRChoice").to_int() == 0 || NCforce(false)){
-        shadowRealmFK();
-    }
+    shadowRiftForcers();
 //    stashreturn($item[pantsgiving]);
     if (!contains_text(get_property("thoth19_event_list"),"postFKD2"))
         cli_execute("ptrack add postFKD2");
 
     print("We made it through all the Free Kill sources for the day! YAY!", "blue");
 
-    // DIGGING SKELETONS WITH ARCHEOLOGY NOT WORKING MAYBE?
-// string confirmedFK = "";
-// TODO:
-//  - Track actual fights, split into free vs turn-consuming
-//  - Refract + YR uses
-//  - Burn mana on Libram between adventures
-//  - use legendary beat and other temporary +item on sandworms
+/*
+     DIGGING SKELETONS WITH ARCHEOLOGY NOT WORKING MAYBE?
+ string confirmedFK = "";
+ TODO:
+  - Track actual fights, split into free vs turn-consuming
+  - Refract + YR uses
+  - Burn mana on Libram between adventures
+  - use legendary beat and other temporary +item on sandworms
     // - fix shadow boss killing
     // party FKs not working
     // shield maiden at zeppelin?
     //vhs tape sausage goblins
     //moleman hill (free fight?) check
-}
+    //envyfish egg on sausage goblin in a flooded zone? - and uncomment envyfish egg under
+*/
 
+}
+// add support for Opponent HP: X
+// in the CCS facsimile - monsterhpbelow doesnt work without monster manual
 void locationBasedAdventuring(){
     //miscellaneousFams();   -- too poor
     step ("phase: use up hidden city");
@@ -1993,6 +2155,7 @@ void locationBasedAdventuring(){
 // then bulkFK. Individual phases are still reachable as `call StockingMimic.ash
 // FKPrep` / `bulkFK`. Wrapped in try/finally so finisher() restores the account's
 // mafia hooks / CCS / auto-recovery even if a phase aborts partway.
+/*
 void main(){
     try {
 //UNCOMMENT ON FINAL RELEASE
@@ -2019,6 +2182,45 @@ void main(){
             bulkFKD1();
         if (dayType() == 1)
             bulkFKD2();
+    } finally {
+        finisher();
+    }
+}
+*/
+
+void main(string phase) {
+    try {
+        starter();
+        set_property("script", "FreeKill");
+        set_property("subscript", "");
+        set_property("inSpendAdv", "true");
+        set_property("LastFKTurn", total_turns_played());
+        mimicPrep();
+
+        switch (phase) {
+            case "prep":
+                FKPrep();
+                break;
+            case "shadow":
+                shadowRiftMorning();
+                break;
+
+            case "weak":
+                if (weakMonstersLeft())
+                    weakMonsters();
+                break;
+
+            case "golem":
+                augustGolem();
+                break;
+
+            case "forcers":
+                shadowRiftForcers();
+                break;
+
+            default:
+                abort("Unknown phase: " + phase);
+        }
     } finally {
         finisher();
     }

@@ -6,7 +6,10 @@ void sauce(int n) { for i from 1 to n { use_skill($skill[saucegeyser]); } }
 void attack(int n)   { for i from 1 to n { attack(); } }
 void hurt(int n)  { for i from 1 to n { throw_items($item[new age hurting crystal],$item[new age hurting crystal]); } }
 void heal_hurt()  { throw_items($item[new age healing crystal],$item[new age hurting crystal]); }
+
+//dart stuff
 skill butts(){
+// +30% item drop
     int butts_int;
     matcher butts_matcher = create_matcher("(\\d+):butt", get_property("_currentDartboard"));
     if (butts_matcher.find()){
@@ -16,16 +19,23 @@ skill butts(){
     }
     return to_skill(butts_int);
 }
+skill meatDart(){
+    // +5X% Meat Drop, where X = min(11, dart level).
+    matcher meat_matcher = create_matcher("(\\d+):(branch|door|foot|pseudopod|thorax|torso)\\b", get_property("_currentDartboard"));
+    if (meat_matcher.find())
+        return to_skill(meat_matcher.group(1).to_int());
+    return $skill[none];
+}
 void dart() {
     while (to_int(get_property("_dartsLeft")) > 0 && current_round() > 0 && have_equipped($item[everfull dart holster])) {
         if (have_effect($effect[everything looks red]) == 0 && my_adventures() > 40)
             use_skill($skill[Darts: Aim for the Bullseye]);
         else if (have_skill(butts()))
             use_skill(butts());
+        else if (have_skill(meatDart()))
+            use_skill(meatDart());
         else
             use_skill($skill[Darts: Throw at %part1]);
-        if (get_property("script") == "6-kiss")
-            return;
     }
 }
 
@@ -116,6 +126,34 @@ string [item] basePairs = {
     $item[memory of an AT base pair]: "more aggressive",
     $item[memory of an AG base pair]: "faster"
 };
+
+// Lowest toy space helmet HP estimate seen in the current fight.
+// Missing readings keep the saved value; -1 means no reading yet.
+int helmetHP(string page_text) {
+    if (current_round() == 0)
+        return -1;
+
+    string fightKey = get_property("_lastCombatStarted") + ":" + to_int(last_monster());
+    int savedHP = -1;
+    if (get_property("teresHelmetFightKey") == fightKey && get_property("teresHelmetLowestHP") != "")
+        savedHP = get_property("teresHelmetLowestHP").to_int();
+
+    string text = replace_all(create_matcher("<[^>]*>", page_text), " ");
+    text = to_string(replace_string(text, "&nbsp;", " "));
+    matcher hp_match = create_matcher("Opponent\\s+HP\\s*:\\s*([0-9][0-9,]*)", text);
+    while (hp_match.find()) {
+        int reading = to_int(to_string(replace_string(hp_match.group(1), ",", "")));
+        if (savedHP < 0 || reading < savedHP)
+            savedHP = reading;
+    }
+
+    // Keep the cache across consult calls; a new fight/opponent resets it.
+    set_property("teresHelmetFightKey", fightKey);
+    set_property("teresHelmetLowestHP", savedHP);
+    // Debug: uncomment to show the saved HP each time this function is called.
+    // print("Helmet HP -- round " + current_round() + ": " + savedHP, "blue");
+    return savedHP;
+}
 
 // ─── CATEGORY SETS ────────────────────────────────────────────────────────────
 // To add a new zone/monster to a category, just add it to the relevant set.
@@ -232,21 +270,24 @@ boolean [monster] hurtMobs = {
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 
 void main(int round, monster mob, string page_text) {
+    int opponentHP = helmetHP(page_text);
+    // print("Lowest helmet HP seen: " + opponentHP, "blue");
+
     print ("monster hp is " + last_monster().base_hp);
     print ("monster level is "+ numeric_modifier("monster level"));
     print ("high stat is " + max(my_buffedstat($stat[muscle]),my_buffedstat($stat[mysticality]),my_buffedstat($stat[moxie])));
-    if (last_monster() == $monster[black crayon mer-kin]){
+    if (last_monster() == $monster[sausage goblin]){
         if (get_property("_monsterHabitatsFightsLeft") == 0 && to_int(get_property("_monsterHabitatsRecalled")) < 3){
             use_skill($skill[RECALL FACTS: MONSTER HABITATS]);
         } else if (get_property("_monsterHabitatsFightsLeft") == 0 && get_property("beGregariousFightsLeft").to_int() == 0 && get_property("beGregariousCharges").to_int() > 0 && dayType() == 1){
             use_skill($skill[Be Gregarious]);
-        } else if (get_property("commaFamiliar") == "Reanimated Reanimator" && get_property("_badlyRomanticArrows") == "0"){
-            use_skill($skill[Wink at]);
         }
-        if (get_property("_circadianRhythmsRecalled") == "false")
-            use_skill($skill[RECALL FACTS: %PHYLUM CIRCADIAN RHYTHMS]);
         if (have_equipped($item[roman candelabra]))
             use_skill($skill[blow the purple candle!]);
+    }
+    if ($locations[Shadow Rift (The Misspelled Cemetary)] contains my_location()){
+        if (get_property("_circadianRhythmsRecalled") == "false")
+            use_skill($skill[RECALL FACTS: %PHYLUM CIRCADIAN RHYTHMS]);
     }
     if ($locations[cyberzone 1,cyberzone 2,cyberzone 3] contains my_location()){
         if (last_monster().phylum == $phylum[construct]){
