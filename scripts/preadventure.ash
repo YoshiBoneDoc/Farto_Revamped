@@ -423,7 +423,7 @@ void preAdv(){
             codpiece("peridot of peril,blood cubic zirconia,baseball diamond,massive gemstone,massive gemstone");
         if (get_property("_seadentWaveUsed") == "false") {
             if (dayType() == 0 && contains_text(get_property("lastEncounter"), "gingerbread")) {
-                use_skill($skill[Sea *dent:Summon a Wave]);
+                use_skill($skill[Sea *dent: Summon a Wave]);
             }
         }
 // --dont flood the shadow realm in hat path

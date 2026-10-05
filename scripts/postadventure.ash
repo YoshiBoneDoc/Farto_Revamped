@@ -769,6 +769,7 @@ void azazelUnicornQuest(){
                     swordPrep();
                     adv1(friarItemLocations[friarItem],0,"");
                 }
+            }
         }
         if (get_property("questL06Friar") == "step2")
             visit_url("friars.php?action=ritual");

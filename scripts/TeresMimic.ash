@@ -178,7 +178,7 @@ void prepBuffs(){
             continue;
         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)))
             continue;
-        if (ef == to_effect("Billiards Belligerence") || to_effect("A Girl Named Sue"))
+        if (ef == to_effect("Billiards Belligerence") || ef == to_effect("A Girl Named Sue"))
             setClan("VIP");
         if (have_effect(ef) == 0)
             cli_execute(ef.default);
@@ -479,7 +479,7 @@ void dieting(){
 	} else {
         if (get_property("_cupOf13sJewels") == 13){
             cli_execute("acquire tombstone-shaped Crimboween cookie; acquire grease gun");
-            if(mall_price($item[Affirmation Cookie]<6000)){
+            if (mall_price($item[Affirmation Cookie]) < 6000){
                 cli_execute("acquire 4 Affirmation Cookie");
                 visit_url("inventory.php?action=cupof13s");
                 visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=9486&whichitem2=2200&whichitem3=1708");
@@ -837,7 +837,7 @@ void shadowBoss(){
     }
 }
 
-/*
+// Legacy helper still used by the looseFK phase.
 void shadowRealmFK(){
     //prep
     cli_execute("uneffect coldform");
@@ -909,7 +909,6 @@ void shadowRealmFK(){
     set_property("backOverride","");
     set_property("mainOverride","");
 }
-*/
 
     // SHADOW REALM REWORK -----------------------
 // Turn in completed quests, redeem lodestones, and optionally start an entity quest.
