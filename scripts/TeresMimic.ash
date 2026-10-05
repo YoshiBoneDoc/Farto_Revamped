@@ -483,6 +483,7 @@ void dieting(){
                 cli_execute("acquire 4 Affirmation Cookie");
                 visit_url("inventory.php?action=cupof13s");
                 visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=9486&whichitem2=2200&whichitem3=1708");
+                visit_url("inventory.php?action=cupof13s");
                 visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=9486&whichitem2=9486&whichitem3=9486");
             } else {
                 if (item_amount($item[asbestos meat stack]) < 4)
@@ -490,6 +491,7 @@ void dieting(){
                 cli_execute("acquire 4 asbestos meat stack");
                 visit_url("inventory.php?action=cupof13s");
                 visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=376&whichitem2=376&whichitem3=376");
+                visit_url("inventory.php?action=cupof13s");
                 visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=376&whichitem2=2200&whichitem3=1708");
             }
         }
