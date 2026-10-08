@@ -455,40 +455,64 @@ void main(int whichchoice, string page) {
                 run_choice(2);
             }
             break;
-        case 1562:
-            if (whichchoice == 1562){
-                string [int] choices = available_choice_options();
-                foreach num, choice_text in choices {
-                    if (contains_text(choice_text,"investment tips")){
-                        run_choice(num);
-                        exit;
-                    }
-                    if (dayType() == 0){
-                        foreach str in $strings[Stop your arch-nemesis as a baby,Take the long odds on the trifecta,Hey, free gun!,Borrow meat from your future,Draw a goatee on yourself,Plant some seeds in the distant past,Peek in on your future,Plant some trees and harvest them in the future,Steal a cupcake from young Susie,Borrow a cup of sugar from yourself,Steal a club from the past,Go back and write a best-seller,Go back and take a 20-year-long nap]{
-                            foreach num, choice_text in choices {
-                                if (contains_text(choice_text,str)){
-                                    run_choice(num);
-                                    exit;
-                                }
-                            }
-                        }
-                    } else {
-                        foreach num, choice_text in choices {
-                            if (contains_text(choice_text,"Steal from your future self")){
-                                run_choice(num);
-                                exit;
-                            }
-                        }
-                    }
+        case 1562: {
+            // First available entry wins. Keep separate lists so each script can be tuned.
+            string[int] priorities;
+            if (get_property("script") == "FreeKill") {
+                priorities = {
+                    "Fix your parents' relationship",
+                    "Repay yourself in the past",
+                    "Let yourself get lifted up by your bootstraps",
+                    "Take the long odds on the trifecta",
+                    "Fix the race and also fix the race"
+                };
+            } else if (get_property("script") == "BARF") {
+                priorities = {
+                    "Meet your parents when they were young",
+                    "Borrow meat from your future",
+                    "Lift yourself up by your bootstraps",
+                    "Take the long odds on the trifecta",
+                    "Fix the race and also fix the race"
+                };
+            }
+
+            // Use this list when the script's preferred choices aren't offered,
+            // or when another script reaches this choice. Preserve the original list order.
+            string[int] fallbackPriorities = {
+                "Go back and set an alarm",
+                "Go back and take a 20-year-long nap"
+            };
+            string[int] choices = available_choice_options();
+            int selectedOption = 0;
+            for pass from 1 to 2 {
+                if (pass == 2)
+                    priorities = fallbackPriorities;
+                foreach rank, preferred in priorities {
                     foreach num, choice_text in choices {
-                        if (contains_text(choice_text,"Steal from your future self")){
-                            run_choice(num);
-                            exit;
+                        if (contains_text(choice_text, preferred)) {
+                            selectedOption = num;
+                            break;
                         }
                     }
+                    if (selectedOption != 0)
+                        break;
                 }
+                if (selectedOption != 0)
+                    break;
+            }
+            if (selectedOption == 0) {
+                print("[DEBUG] No listed Mobius ring choice is available; choose manually.", "red");
+                break;
+            }
+            run_choice(selectedOption);
+            if (have_effect($effect[Marked by the Don]) > 0) {
+                if (!handling_choice() && have_skill($skill[Disco Nap]))
+                    use_skill(1, $skill[Disco Nap]);
+                if (have_effect($effect[Marked by the Don]) > 0)
+                    print("[DEBUG] Could not clear Marked by the Don with Disco Nap.", "red");
             }
             break;
+        }
         case 1596:
             set_property("NCtoC","true");
             run_choice(3);

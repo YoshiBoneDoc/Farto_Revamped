@@ -27,7 +27,10 @@ void dailyMoodAndNightcap(){
 // Template
 void BARFprep(){
 
-
+    //vykea lamp for +40 meat cli: 'create level 5 lightening couch'
+    //start with patriot eagle , pledge allegiance to the zone (+50% meat in barf)
+    //              use_skill($skill[%fn, Release the Patriotic Screech!]);   <-- replace with pledge
+    //              free_run(page_text);
 
 /*
         -vip clan

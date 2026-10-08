@@ -1,5 +1,5 @@
 // ═══ iotm.ash ═══════════════════════════════════════════════════════════════
-// Shared helpers for the farto / free-kill environment.
+// Shared helpers for FreeKill and the other calling scripts.
 //   1. Globals
 //   2. General utilities
 //   3. Banish utilities
@@ -11,7 +11,7 @@
 //  10. Script lifecycle
 
 // ─── 1. GLOBALS ──────────────────────────────────────────────────────────────
-int uniInt, uniAdv, pearlsDoneToday;
+int uniInt, uniAdv;
 string clan = get_clan_name();
 int estimatedTurns;
 boolean [monster] haveLocketMonster = get_locket_monsters();
@@ -24,7 +24,7 @@ boolean [monster] haveLocketMonster = get_locket_monsters();
 // even on an account with no garbo install.
 string ccsStorage                   = get_property("customCombatScript");
 string battleActionStorage          = get_property("battleAction");
-string autoAttackStorage            = get_property("defaultAutoAttack");
+int autoAttackStorage               = get_auto_attack();
 string betweenBattleScriptStorage   = get_property("betweenBattleScript");
 string afterAdventureScriptStorage  = get_property("afterAdventureScript");
 string choiceAdventureScriptStorage = get_property("choiceAdventureScript");
@@ -178,20 +178,10 @@ int effectDuration(effect ef){
     return 0;
 }
 
-// 1 on a farming / aftercore day, 0 mid-ascension. This replaced the old
-// get_property("ascensionsToday") checks and is the INVERSE polarity: where
-// those read "0" this reads 1, where they read "1" this reads 0.
+// This project uses the beginning-of-day FreeKill routine (type 1).
+// Keep the helper for existing callers; the old type-0 routine is unused.
 int dayType(){
-    if (my_daycount() == 1){
-        return 0;
-    } else if (my_daycount() == 2){
-        return 1;
-    }
-    if (get_property("dayTypeCheck") != today_to_string( )){
-        set_property("dayType",user_prompt("Type 0 for freekills at the end of the day, type 1 for free kills at the beginning of the day"));
-        set_property("dayTypeCheck",today_to_string( ));
-    }
-    return get_property("dayType").to_int();
+    return 1;
 }
 
 // ─── 3. BANISH UTILITIES ─────────────────────────────────────────────────────
@@ -203,7 +193,7 @@ record ban {
 
 ban [item] banMap = {
     $item[spring shoes]:        new ban("Spring Kick",           $skill[spring kick]),
-    $item[monodent of the sea]: new ban("Sea \\*dent",           $skill[Sea *dent: Throw a Lightning Bolt]),
+    $item[monodent of the sea]: new ban("Sea *dent",             $skill[Sea *dent: Throw a Lightning Bolt]),
     $item[Heartstone]:          new ban("Heartstone %banish",    $skill[Heartstone: %banish]),
     $item[none]:                new ban("snokebomb",             $skill[snokebomb]),
 };
@@ -219,7 +209,7 @@ location [int] monster_found_in(monster m) {
 
 // Returns the monster currently banished by a given banisher string
 monster banished(string banisher) {
-    matcher m = create_matcher("([^:]+):\\Q" + banisher,
+    matcher m = create_matcher("(?:^|:)([^:]+):\\Q" + banisher + "\\E:-?\\d+(?=:|$)",
         get_property("banishedMonsters")
     );
     return m.find() ? to_monster(m.group(1)) : $monster[none];
@@ -271,33 +261,7 @@ skill combatBan() {
     return $skill[none];
 }
 
-int patrioticDelays(){
-    int delay;
-    if (can_adventure($location[the hidden bowling alley])){
-        int n = 11 - get_property("_drunkPygmyBanishes").to_int();
-        delay += n;
-    }
-    if (get_property("zigguratLianas") == 0)
-        delay += 10;
-    return delay;
-}
-
 // ─── 4. CLAN & INSTANCE ACCESS ───────────────────────────────────────────────
-
-int [string] clan_to_ID {
-    "Hyrule" : 72876,
-    "Dread and Final" : 2047010985,
-    "Dread Mart" : 2047010683,
-    "Dread Outlet Bargain Market" : 2047010572,
-    "Dreadleys" : 2047010988,
-    "DreadNugget" : 2047010986,
-    "Dreadway" : 2047010667,
-    "Fart Sauce Annex" : 2047010939
-};
-
-void whitelist(string clan){
-    visit_url("showclan.php?whichclan="+clan_to_ID[clan]+"&action=joinclan&confirm=on");
-}
 
 // stashgrab / stashreturn hop to a specific shared-stash clan (2047009940) and
 // back. Only Fart Scauce is whitelisted there and wants this side effect, so
@@ -320,32 +284,6 @@ void stashreturn(item it){
     if (available_amount(it) > 0)
         put_stash(it, 1 );
     visit_url("showclan.php?whichclan=" + get_property("homeClanID").to_int() + "&action=joinclan&confirm=on");}
-
-// Returns the number of chamois available in the clan slime tube
-int chamoixAmount() {
-    matcher m = create_matcher("There are (\\d+) chamoi", visit_url("clan_slimetube.php?action=bucket"));
-    return m.find() ? to_int(m.group(1)) : 0;
-}
-
-void camo() {
-    if (chamoixAmount() < 1) {
-        string current_clan = get_clan_id();
-        try {
-            foreach str in $strings[2046992052,2047010985,2047010683,2047010572,2047010988,2047010986,2047010667]{
-                visit_url("showclan.php?whichclan="+ str +"&action=joinclan&confirm=on");
-                if (chamoixAmount() >= 1)
-                    break;
-                if (str == 2047010667)
-                    abort("out of chamoix");
-            }
-            visit_url("clan_slimetube.php?action=chamois");
-        } finally {
-            visit_url("showclan.php?whichclan=" + current_clan + "&action=joinclan&confirm=on");
-        }
-    } else {
-        visit_url("clan_slimetube.php?action=chamois");
-    }
-}
 
 // Clan fortune-teller onlyfax for the day's 3 free consults (needs a clan
 // with a fortune teller; 90485 is a public one -- see the config note above).
@@ -411,6 +349,13 @@ int BCZcost(string BCZskill) {
     // Pattern: 11, 23, 37, 110, 230, 370, ... 13th cast handled separately but unreachable
     print(BCZskill+ " cost after " + cast + " casts is " + cost,"green");
     return cost;
+}
+
+// Check the script's cast limit and next cost; callers check skill/equipment separately.
+boolean sweatBulletsReady(int moxieReserve) {
+    if (get_property("_bczSweatBulletsCasts").to_int() >= 13)
+        return false;
+    return (my_basestat($stat[submoxie]) - moxieReserve) > BCZcost("SweatBulletsCasts");
 }
 
 // ── The Eternity Codpiece ────────────────────────────────────────────────────
@@ -579,6 +524,22 @@ int locketAvailable(){
     return n;
 }
 
+// Fill spleen with Extrovermectin, using remaining daily filters, then refill.
+// dailyFKs calls this immediately before the morning Shadow Rift routine.
+void extrovermectinPrep(){
+    if (current_round() > 0)
+        return;
+    int toChew = max(0, (spleen_limit() - my_spleen_use()) / 2);
+    if (toChew > 0 && !chew(toChew, $item[Extrovermectin&trade;]))
+        abort("Could not chew Extrovermectin.");
+    int mojo = min(max(0, 3 - get_property("currentMojoFilters").to_int()), my_spleen_use());
+    if (mojo > 0 && !use(mojo, $item[mojo filter]))
+        abort("Could not use mojo filters for Extrovermectin.");
+    toChew = max(0, (spleen_limit() - my_spleen_use()) / 2);
+    if (toChew > 0 && !chew(toChew, $item[Extrovermectin&trade;]))
+        abort("Could not refill spleen with Extrovermectin.");
+}
+
 // ── Leprecondo ───────────────────────────────────────────────────────────────
 
 string [int] lepRoomToNum = {
@@ -602,24 +563,31 @@ void leprecondo(string input) {
     string [int] rooms = split_string(input, ",");
     int [int] lepRoom;
     int count;
+    string discovered = "," + get_property("leprecondoDiscovered") + ",";
     foreach num in rooms {
         int val = to_int(rooms[num]);
-        string discovered = get_property("leprecondoDiscovered");
-        // Two-digit room numbers need a plain contains; single-digit need comma guards
-        // to avoid matching "1" inside "10", "11", etc.
-        boolean found = (val >= 10)
-            ? contains_text(discovered, rooms[num])
-            : contains_text(discovered, "," + rooms[num] + ",");
-        if (found) {
+        // Match whole furniture IDs, including the first and last entries.
+        if (contains_text(discovered, "," + val + ",") && lepRoomToNum contains val) {
             lepRoom[count] = val;
             count += 1;
+            if (count == 4)
+                break;
         }
     }
+    if (count < 4) {
+        print("[DEBUG] Not enough requested Leprecondo furniture is discovered; skipping furnishing.", "blue");
+        return;
+    }
+    // Preserve the requested slot order in both the comparison and command.
+    string installed = lepRoom[0] + "," + lepRoom[1] + "," + lepRoom[2] + "," + lepRoom[3];
+    if (get_property("leprecondoInstalled") == installed
+        || get_property("_leprecondoRearrangements").to_int() >= 3)
+        return;
     cli_execute("leprecondo furnish "
-        + lepRoomToNum[lepRoom[3]] + ","
-        + lepRoomToNum[lepRoom[2]] + ","
+        + lepRoomToNum[lepRoom[0]] + ","
         + lepRoomToNum[lepRoom[1]] + ","
-        + lepRoomToNum[lepRoom[0]]);
+        + lepRoomToNum[lepRoom[2]] + ","
+        + lepRoomToNum[lepRoom[3]]);
 }
 
 // ── Möbius Ring ──────────────────────────────────────────────────────────────
@@ -665,15 +633,7 @@ void aprilBand(){
         cli_execute("aprilband item saxophone");
 }
 
-// ── Comma Chameleon ──────────────────────────────────────────────────────────
-
-familiar chameleon(){
-    matcher m = create_matcher("<b>\\d+</b> pound ([^,]+), Chameleon", visit_url("charpane.php"));
-    if (m.find())
-        return to_familiar(m.group(1));
-    return $familiar[none];
-}
-
+// Familiar selection with a Cooler Yeti fallback.
 void altFam(familiar fam){
     if (have_familiar(fam)){
         use_familiar(fam);
@@ -681,17 +641,6 @@ void altFam(familiar fam){
     } else {
         use_familiar($familiar[Cooler Yeti]);
         set_property("famOverride","Cooler Yeti");
-/*
-        use_familiar($familiar[comma chameleon]);
-        if (chameleon() != fam){
-            retrieve_item(familiar_equipment(fam));
-            visit_url("inv_equip.php?which=2&action=equip&whichitem=" + familiar_equipment(fam).to_int());
-            if (chameleon() != fam)
-                abort();
-            set_property("commaFamiliar",fam.to_string());
-        }
-        set_property("famOverride","comma chameleon");
-*/
     }
 }
 
@@ -751,7 +700,7 @@ float redTaffyValue() {
 // ─── 6. ADVENTURING-STATE CHECKS ─────────────────────────────────────────────
 
 // stack == false: pre-charge NC-forcing resources before a forcer is active (the
-// original call sites' behavior). stack == true: forceNoncombats() wants to spend
+// original call sites' behavior). stack == true: spend
 // an additional resource to stack another forced NC on top of one already active.
 // Loops -- spending one resource per pass -- until noncombatForcerActive no longer
 // matches stack or today's free rests run out; a normal day can legitimately take
@@ -791,44 +740,6 @@ boolean NCforce(boolean stack) {
         }
     }
     return get_property("noncombatForcerActive").to_boolean();
-}
-
-// Returns true if there are free-run resources available to burn for delay.
-boolean free_Run() {
-    if (to_int(get_property("_snokebombUsed")) < 3)
-        return true;
-    if (have_effect($effect[everything looks green]) == 0 && my_adventures() > 60)
-        return true;
-    return false;
-}
-
-boolean free_Kill(){
-    if (have_effect($effect[everything looks red]) == 0 && bullseyeReady() && my_adventures() > 30)
-        return true;
-    if (have_effect($effect[everything looks yellow]) == 0 && my_adventures() > 100)
-        return true;
-    return false;
-}
-
-boolean wanderer() {
-    if (total_turns_played() >= to_int(get_property("clubEmNextWeekMonsterTurn")) + 8
-        && get_property("clubEmNextWeekMonster") != "")
-        return true;
-    // Fixed: was incorrectly checking clubEmNextWeekMonster for the VHS tape condition
-    if (total_turns_played() >= to_int(get_property("spookyVHSTapeMonsterTurn")) + 8
-        && get_property("spookyVHSTapeMonster") != "")
-        return true;
-        if (item_amount($item[&quot;I Voted!&quot; sticker]) > 0
-        && total_turns_played() % 11 == 1
-        && to_int(get_property("_voteFreeFights")) < 3)
-        return true;
-    return false;
-}
-
-boolean delay(){
-    if (wanderer() || free_Run())
-        return true;
-    return false;
 }
 
 boolean EmbezBetter(){
@@ -1248,8 +1159,8 @@ void starter(){
 }
 
 // finisher(): undo everything starter() changed. Restores the hooks, CCS,
-// battle action and auto-recovery levels captured at import, drops the native
-// auto-attack, and clears this environment's own scratch properties (script /
+// battle action, auto-recovery levels and auto-attack captured at import, and
+// clears this environment's own scratch properties (script /
 // subscript / inSpendAdv / every *Override).
 void finisher() {
     set_property("script", "");
@@ -1262,17 +1173,9 @@ void finisher() {
     set_property("hpAutoRecoveryTarget",  hpAutoRecoveryTargetStorage);
     set_property("mpAutoRecovery",        mpAutoRecoveryStorage);
     set_property("mpAutoRecoveryTarget",  mpAutoRecoveryTargetStorage);
-    // Numeric macro ids go through the int overload; a skill-name auto-attack
-    // (to_int == 0) goes through the string one; empty / "0" just clears it.
-    if (autoAttackStorage == "" || autoAttackStorage == "0")
-        set_auto_attack(0);
-    else if (autoAttackStorage.to_int() > 0)
-        set_auto_attack(autoAttackStorage.to_int());
-    else
-        set_auto_attack(autoAttackStorage);
+    set_auto_attack(autoAttackStorage);
     foreach slotName in $strings[unconditional, max, fam, hat, main, weapon, off, back, shirt, pants, acc1, acc2, acc3, famEquip] {
         set_property(slotName + "Override", "");
     }
-    stashreturn($item[pantsgiving]);
     set_property("inSpendAdv","false");
 }

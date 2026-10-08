@@ -1,9 +1,54 @@
 import iotm.ash;
 
+// ─── COMBAT RESOURCE FLAGS ─────────────────────────────────────────────────────
+// A resource can have several flags. These describe capabilities, not readiness:
+// equipment, charges, cooldowns, target restrictions and success still need checking.
+// freeRun: ends combat without a kill or a spent adventure.
+// freeKill: kills without spending an adventure; yellowRay: forces eligible item drops.
+// banish: excludes a monster/phylum; it does not necessarily end combat or save a turn.
+record combatResourceFlags {
+    boolean freeRun;
+    boolean banish;
+    boolean freeKill;
+    boolean yellowRay;
+};
+
+// Constructor order:                                      freeRun, banish, freeKill, yellowRay
+combatResourceFlags[skill] skillResourceFlags = {
+    $skill[Spit Jurassic Acid]:            new combatResourceFlags(false, false, true,  true),
+    $skill[Darts: Aim for the Bullseye]:    new combatResourceFlags(false, false, true,  false),
+    $skill[Assert your Authority]:         new combatResourceFlags(false, false, true,  false),
+    $skill[Fire the Jokester's Gun]:        new combatResourceFlags(false, false, true,  false),
+    $skill[BCZ: Sweat Bullets]:             new combatResourceFlags(false, false, true,  false),
+    $skill[Shattering Punch]:              new combatResourceFlags(false, false, true,  false),
+    $skill[Gingerbread Mob Hit]:           new combatResourceFlags(false, false, true,  false),
+    $skill[Club 'Em Back in Time]:         new combatResourceFlags(false, false, true,  false),
+    $skill[Spring Away]:                   new combatResourceFlags(true,  false, false, false),
+    $skill[Snokebomb]:                     new combatResourceFlags(true,  true,  false, false),
+    $skill[Spring Kick]:                   new combatResourceFlags(true,  true,  false, false),
+    $skill[Throw Latte on Opponent]:       new combatResourceFlags(true,  true,  false, false),
+    $skill[Monkey Slap]:                   new combatResourceFlags(false, true,  false, false),
+    $skill[%fn, Release the Patriotic Screech!]: new combatResourceFlags(false, true, false, false),
+    $skill[Sea *dent: Throw a Lightning Bolt]:   new combatResourceFlags(false, true, false, false),
+    $skill[Heartstone: %banish]:            new combatResourceFlags(false, true,  false, false)
+};
+combatResourceFlags[item] itemResourceFlags = {
+    $item[spitball]:                       new combatResourceFlags(false, false, true,  true),
+    $item[peppermint parasol]:             new combatResourceFlags(true,  false, false, false),
+    $item[stuffed yam stinkbomb]:          new combatResourceFlags(true,  true,  false, false),
+    $item[divine champagne popper]:        new combatResourceFlags(true,  true,  false, false),
+    $item[interesting coin]:               new combatResourceFlags(false, false, true,  false),
+    $item[shadow brick]:                   new combatResourceFlags(false, false, true,  false)
+};
+
+// Examples: skillResourceFlags[$skill[Spit Jurassic Acid]].freeKill
+//           skillResourceFlags[$skill[Spit Jurassic Acid]].yellowRay
+//           itemResourceFlags[$item[stuffed yam stinkbomb]].banish
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
-void sauce(int n) { for i from 1 to n { use_skill($skill[saucegeyser]); } }
-void attack(int n)   { for i from 1 to n { attack(); } }
+void sauce(int n) { for i from 1 to n { if (current_round() == 0) return; use_skill($skill[saucegeyser]); } }
+void attack(int n) { for i from 1 to n { if (current_round() == 0) return; attack(); } }
 void hurt(int n)  { for i from 1 to n { throw_items($item[new age hurting crystal],$item[new age hurting crystal]); } }
 void heal_hurt()  { throw_items($item[new age healing crystal],$item[new age hurting crystal]); }
 
@@ -66,9 +111,13 @@ void free_kill(string ptext) {
     foreach sk in $skills[Assert your Authority, Fire the Jokester's Gun,
         BCZ: Sweat Bullets, Shattering Punch,
         Gingerbread Mob Hit, Club 'Em Back in Time] {
+        if (sk == $skill[Fire the Jokester's Gun] && get_property("_firedJokestersGun").to_boolean())
+            continue;
+        if (sk == $skill[Assert your Authority] && get_property("_assertYourAuthorityCast").to_int() >= 3)
+            continue;
         if (my_location() == $location[hobopolis town square] && sk == $skill[Club 'Em Back in Time])
             continue;
-        if (sk == $skill[BCZ: Sweat Bullets] && ((my_basestat($stat[submoxie]) - 62500) <= BCZcost("SweatBulletsCasts") || get_property("_bczSweatBulletsCasts").to_int() >= 13))
+        if (sk == $skill[BCZ: Sweat Bullets] && !sweatBulletsReady(62500))
             continue;
         if (contains_text(ptext, to_string(sk))) {
             use_skill(sk);
@@ -83,19 +132,40 @@ void free_kill(string ptext) {
 }
 
 void free_run(string ptext) {
+    if (current_round() == 0)
+        return;
     if (last_monster() == $monster[Knob Goblin Embezzler])
         abort("Trying to run from an embezzler");
     foreach sk in $skills[spring away, snokebomb] {
+        if (current_round() == 0)
+            return;
         if (contains_text(ptext, to_string(sk))) {
-            if (my_location() == $location[hobopolis town square] && sk == $skill[snokebomb]) continue;
+            if (sk == $skill[snokebomb] && get_property("_snokebombUsed").to_int() >= 3) continue;
             if (sk == $skill[spring away] && my_adventures() < 30) continue;
             use_skill(sk);
         }
     }
-    if (my_familiar() == $familiar[pair of stomping boots] || ((my_familiar() == $familiar[comma chameleon] && get_property("commaFamiliar") == "Pair of Stomping Boots"))){
-        print("HELLO WORLD");
-        runaway();
+    // Parasol, navel ring, and GAP share this counter: only the first 3 are guaranteed.
+    if (current_round() > 0 && get_property("_navelRunaways").to_int() < 3
+        && item_amount($item[peppermint parasol]) > 0){
+        throw_item($item[peppermint parasol]);
+        if (current_round() > 0)
+            print("[DEBUG] Peppermint parasol did not end combat; continuing.", "red");
     }
+    // stuffed yam stinkbomb
+    if (current_round() > 0 && item_amount($item[stuffed yam stinkbomb]) > 0){
+        throw_item($item[stuffed yam stinkbomb]);
+        if (current_round() > 0)
+            print("[DEBUG] Stuffed yam stinkbomb did not end combat; continuing.", "red");
+    }
+    // divine champagne popper
+    if (current_round() > 0 && item_amount($item[divine champagne popper]) > 0){
+        throw_item($item[divine champagne popper]);
+        if (current_round() > 0)
+            print("[DEBUG] Divine champagne popper did not end combat.", "red");
+    }
+    if (current_round() > 0)
+        abort("We ran out of free run sources. Aborting.");
 }
 
 void insta_kill(string ptext) {
@@ -109,6 +179,7 @@ void insta_kill(string ptext) {
         if (contains_text(ptext, to_string(sk))) use_skill(sk);
     }
 }
+
 
 skill [element] elementBonus = {
     $element[hot]:    $skill[Eggsplosion],
@@ -254,778 +325,675 @@ boolean free_monster() {
         slime blob,government bureaucrat,Moleman, giant sandworm] contains last_monster();
 }
 
-// Zones where the entire combat is just hurt(n) — new age hurting crystals
-boolean [location] hurtLocs = {
-    $location[the cursed village]: true
-};
+// Copy the requested monster with mimic/4-d/green taffy.
+void copyMonster(monster target){
+    if (last_monster() != target || current_round() == 0)
+        return;
+        // Green taffy can create an envyfish egg only during an underwater fight.
+    if (my_location().environment == "underwater" && !get_property("_envyfishEggUsed").to_boolean()
+        && item_amount($item[envyfish egg]) == 0 && item_amount($item[pulled green taffy]) > 0){
+        throw_item($item[pulled green taffy]);
+        if (item_amount($item[envyfish egg]) == 0)
+            print("[DEBUG] Could not copy " + target + " with green taffy.", "red");
+    }
+        // 4-D camera
+    if (!get_property("_cameraUsed").to_boolean() && item_amount($item[shaking 4-D camera]) == 0
+        && item_amount($item[4-D camera]) > 0){
+        throw_item($item[4-D camera]);
+        if (item_amount($item[shaking 4-D camera]) == 0)
+            print("[DEBUG] Could not copy " + target + " with the 4-D camera.", "red");
+    }
+        // Mimic eggs
+    while (current_round() > 0 && my_familiar() == $familiar[chest mimic]
+        && get_property("_mimicEggsObtained").to_int() < 10
+        && $familiar[chest mimic].experience > 100){
+        int eggsBefore = get_property("_mimicEggsObtained").to_int();
+        use_skill($skill[%fn, lay an egg]);
+        if (get_property("_mimicEggsObtained").to_int() <= eggsBefore){
+            print("[DEBUG] Could not collect a mimic egg from " + target + "; continuing combat.", "red");
+            break;
+        }
+    }
+}
 
-// Monsters where combat is just hurt(n)
-boolean [monster] hurtMobs = {
-    $monster[Beast with X Ears]: true,
-    $monster[Beast with X Eyes]: true,
-    $monster[X Bottles of Beer on a Golem]: true,
-    $monster[Pharaoh Amoon-Ra Cowtep]:      true
-};
-
-// ─── MAIN ─────────────────────────────────────────────────────────────────────
-
-void main(int round, monster mob, string page_text) {
-    int opponentHP = helmetHP(page_text);
-    // print("Lowest helmet HP seen: " + opponentHP, "blue");
-
-    print ("monster hp is " + last_monster().base_hp);
-    print ("monster level is "+ numeric_modifier("monster level"));
-    print ("high stat is " + max(my_buffedstat($stat[muscle]),my_buffedstat($stat[mysticality]),my_buffedstat($stat[moxie])));
-    if (last_monster() == $monster[sausage goblin]){
-        if (get_property("_monsterHabitatsFightsLeft") == 0 && to_int(get_property("_monsterHabitatsRecalled")) < 3){
+// Schedule roaming goblins with Habitat recalls first, then Be Gregarious.
+void chainRoamingMonster(monster target){
+    if (last_monster() != target || current_round() == 0)
+        return;
+    // Do not replace an existing Habitat or Gregarious chain.
+    if (current_round() > 0
+        && get_property("_monsterHabitatsFightsLeft").to_int() == 0
+        && get_property("beGregariousFightsLeft").to_int() == 0){
+        if (have_skill($skill[RECALL FACTS: MONSTER HABITATS])
+            && get_property("_monsterHabitatsRecalled").to_int() < 3){
             use_skill($skill[RECALL FACTS: MONSTER HABITATS]);
-        } else if (get_property("_monsterHabitatsFightsLeft") == 0 && get_property("beGregariousFightsLeft").to_int() == 0 && get_property("beGregariousCharges").to_int() > 0 && dayType() == 1){
+            if (get_property("_monsterHabitatsFightsLeft").to_int() == 0)
+                print("[DEBUG] Could not schedule Habitat roaming copies of " + target + ".", "red");
+        } else if (target == $monster[sausage goblin] && have_skill($skill[Be Gregarious])
+            && get_property("beGregariousCharges").to_int() > 0){
+            int chargesBefore = get_property("beGregariousCharges").to_int();
             use_skill($skill[Be Gregarious]);
-        }
-        if (have_equipped($item[roman candelabra]))
-            use_skill($skill[blow the purple candle!]);
-    }
-    if ($locations[Shadow Rift (The Misspelled Cemetary)] contains my_location()){
-        if (get_property("_circadianRhythmsRecalled") == "false")
-            use_skill($skill[RECALL FACTS: %PHYLUM CIRCADIAN RHYTHMS]);
-    }
-    if ($locations[cyberzone 1,cyberzone 2,cyberzone 3] contains my_location()){
-        if (last_monster().phylum == $phylum[construct]){
-            while (current_round() > 0 && current_round() < 10 && my_hp( ) > my_maxhp()/10)
-                use_skill($skill[throw cyber rock]);
-            if ($monsters[ICE barrier,corruption quarantine,parental controls,null container] contains last_monster())
-                use_skill($skill[deploy glitched malware]);
-            use_skill($skill[Launch Logic Grenade]);
+            // Validate the saved result even when combat ends on the casting round.
+            if (get_property("beGregariousMonster").to_monster() != target
+                || get_property("beGregariousCharges").to_int() >= chargesBefore)
+                print("[DEBUG] Could not schedule Gregarious roaming copies of " + target + ".", "red");
         }
     }
-    if ($location[The Hidden Bowling Alley] == my_location()){
-        if (last_monster() == $monster[pygmy bowler]){
-            use_skill($skill[Show them your ring]);
-        }
-        if (last_monster() == $monster[pygmy orderlies]){
-            use_skill($skill[spring kick]);
-            use_skill($skill[spring away]);
-        }
-        if (last_monster() == $monster[pygmy janitor]){
-            use_skill($skill[Throw Latte on Opponent]);
-        }
-    }
+}
 
-    phylum [location] ScreechCheck = {
-        $location[the briniest deepests]:$phylum[fish],
-        $location[madness bakery]:$phylum[construct]
-    };
-
-    if (get_property("subscript") == "screech" && last_monster().phylum == ScreechCheck[my_location()]){
-        if (contains_text(last_monster().attributes,"WANDERER"))
-            abort("wanderer");
-        use_skill($skill[%fn, Release the Patriotic Screech!]);
-        print("Ya boi");
-        if (dayType() == 1){
-            print("Ya boi1");
-            if (get_property("_snokebombUsed").to_int() < 3)
-                use_skill($skill[snokebomb]);
-            else
-                throw_item($item[peppermint parasol]);
-        } else {
-            throw_item($item[stuffed yam stinkbomb]);
+// Return true when a shadow boss was handled so main skips other combat actions.
+boolean handleShadowRiftBoss(){
+    // Handle these bosses before any free kills, runaways, or other combat actions.
+    if ($monsters[shadow scythe, shadow spire] contains last_monster()) {
+        while (current_round() > 0) {
+            int roundBefore = current_round();
+            use_skill($skill[Weapon of the Pastalord]);
+            if (current_round() == roundBefore)
+                abort("Weapon of the Pastalord failed against " + last_monster());
         }
-        if (get_property("script") == "FreeKill") {
-            free_run(page_text);
-            if (current_round() > 0)
-                abort("use free run");
-        }
-    }
-    if (get_property("subscript") == "stompingBoots"){
-        if (last_monster() == $monster[infinite meat bug])
-            abort();
-        runaway();
-    }
-
-    if (last_monster() == $monster[shadow spire]){
-        if (current_round() > 0)
-            use_skill($skill[saucegeyser]);
+        return true;
     }
     if (last_monster() == $monster[shadow orrery]){
-        attack(30);
+        while (current_round() > 0){
+            int roundBefore = current_round();
+            attack();
+            if (current_round() == roundBefore)
+                abort("Weapon attack failed against shadow orrery.");
+        }
+        return true;
     }
 
-    // ── Group: comma chameleon / stocking mimic, subscript "weakling", script "FreeKill" ──
-    // The generic pre-combat buffs (avalanche/spikolodon/reanimate/bowling-ball/kill-a-lot)
-    // are kept ahead of this whole group so they still apply before every branch in it, same
-    // as they did before this section existed as its own block.
-    if (last_monster() != $monster[shadow scythe] && last_monster() != $monster[shadow spire] && last_monster() != $monster[Guard turtle]) {
-        if (have_skill($skill[McHugeLarge Avalanche]))         use_skill($skill[McHugeLarge Avalanche]);
-        if (have_skill($skill[Launch spikolodon spikes]))      use_skill($skill[Launch spikolodon spikes]);
-        if (have_skill($skill[Prepare to reanimate your Foe])) use_skill($skill[Prepare to reanimate your Foe]);
-        if (item_amount($item[cosmic bowling ball]) > 0){
-            use_skill($skill[Bowl Straight Up]);
+    return false;
+}
+
+// Standard mimic stall: use only the dictionary until round 10.
+// The caller chooses when to stall and how to finish combat afterward.
+void standardMimicStall(){
+    while (current_round() > 0 && current_round() < 10){
+        int roundBefore = current_round();
+        throw_item($item[facsimile dictionary]);
+        if (current_round() == roundBefore){
+            print("[DEBUG] Could not stall " + last_monster() + " with the facsimile dictionary; continuing combat.", "red");
+            break;
         }
-        if (to_int(last_monster()) == to_int(get_property("killThisGuy")) && get_property("swordSniff") == true)
+    }
+}
+
+// ─── FREEKILL: COMMON COMBAT ACTIONS ───────────────────────────────────────────
+
+void prepareFreeKillCombat(){
+    if (current_round() == 0)
+        return;
+    else {
+        if (have_skill($skill[McHugeLarge Avalanche])) use_skill($skill[McHugeLarge Avalanche]);
+        if (current_round() > 0 && have_skill($skill[Launch spikolodon spikes])) use_skill($skill[Launch spikolodon spikes]);
+        if (current_round() > 0 && have_skill($skill[Prepare to reanimate your Foe])) use_skill($skill[Prepare to reanimate your Foe]);
+        if (current_round() > 0 && item_amount($item[cosmic bowling ball]) > 0)
+            use_skill($skill[Bowl Straight Up]);
+        if (current_round() > 0 && last_monster() == get_property("killThisGuy").to_monster()
+            && get_property("swordSniff").to_boolean())
             use_skill($skill[%fn, kill a lot of these guys]);
     }
-
-    if (get_property("script") == "FreeKill" && have_equipped($item[backup camera]) && get_property("lastCopyableMonster") == "Black Crayon Mer-kin"){
-        use_skill($skill[BACK-UP TO YOUR LAST ENEMY]);
-        if (last_monster() == $monster[black crayon mer-kin]){
-            while (my_familiar() == $familiar[chest mimic] && to_int(get_property("_mimicEggsObtained")) < 11 && $familiar[chest mimic].experience > 50){
-                use_skill($skill[%FN, LAY AN EGG]);
-            }
-        }
-    }
-
-    if (get_property("script") == "FreeKill")
+    if (current_round() > 0 && have_skill($skill[Steal Monster's Heart]))
         use_skill($skill[Steal Monster's Heart]);
+}
 
-    if ((my_familiar() == $familiar[comma chameleon] || my_familiar() == $familiar[stocking mimic]) && (last_monster() == $monster[flaming monstera] || last_monster() == $monster[leaviathan])){
-        while (current_round() > 0 && current_round() < 10 && monster_hp() > 9)
-            throw_item($item[facsimile dictionary]);
-        throw_items($item[lit leaf lasso],$item[lit leaf lasso]);
-        if (current_round() > 0)
-            abort();
-    }
-
-    if (get_property("subscript") == "weakling"){
-        if (have_skill($skill[Prepare to reanimate your Foe])) use_skill($skill[Prepare to reanimate your Foe]);
-        while (current_round() > 0 && current_round() < 30 && monster_hp() > 9){
-            if (have_equipped($item[april shower thoughts shield]))
-                use_skill($skill[shieldbutt]);
-            else{
-                throw_item($item[facsimile dictionary]);
-                if (current_round() > 10)
-                    break;
-            }
-            if (my_hp() < 100)
-                throw_items($item[new age healing crystal],$item[new age healing crystal]);
-        }
-        if (last_monster() == $monster[eldritch tentacle])
-            sauce(4);
-        if (last_monster() == $monster[flaming leaflet])
-            throw_items($item[lit leaf lasso],$item[lit leaf lasso]);
-        if (last_monster() == $monster[Ron "The Weasel" Copperhead]){
-            use_skill($skill[Club 'Em Back in Time]);
-            while (current_round() > 0 && current_round() < 30){
-                attack();
-            }
-        }
-        if (my_location() == $location[the red zeppelin] && get_property("_glarkCableUses").to_int() < 5 && get_property("NCtoC") == "false")
-            throw_item($item[glark cable]);
-        if (my_location() == $location[Gingerbread Upscale Retail District] || my_location() == $location[Gingerbread civic center]){
-            if (last_monster().phylum == $phylum[dude])
-                throw_item($item[gingerbread cigarette]);
-            else if (last_monster() == $monster[eldritch tentacle]){
-                while (current_round() > 0 && current_round() < 30)
-                    use_skill($skill[shieldbutt]);
-            }
-        }
-        if (have_equipped($item[congressional medal of insanity]))
-            use_skill($skill[saucegeyser]);
-        while (current_round() > 0 && current_round() < 30 && monster_hp() > 9){
-            if (have_equipped($item[april shower thoughts shield]))
-                use_skill($skill[shieldbutt]);
-            else
-                attack();
-        }
-        while (current_round() < 30 && current_round() > 0){
-            throw_item($item[facsimile dictionary]);
-        }
-        if (item_amount($item[dry noodles]) > 0)
-            use_skill($skill[carbohydrate cudgel]);
-        else
-            abort();
-        return;
-    }
-
-    if ((my_familiar() == $familiar[comma chameleon] || my_familiar() == $familiar[stocking mimic]) && last_monster() == $monster[black crayon flower]){
-        use_skill($skill[lecture on relativity]);
+// Stocking Mimic preparation shared by its normal fights and location handlers.
+void prepareStockingMimicCombat(){
+    // Plants tear-away
+    if (current_round() > 0 && last_monster() == $monster[black crayon flower]
+        && have_skill($skill[Tear Away your Pants!]))
         use_skill($skill[Tear Away your Pants!]);
-        if (dayType() == 1)
-            use_skill($skill[deliver your thesis!]);
-        if (my_hp() < 500)
-            throw_items($item[new age healing crystal],$item[new age healing crystal]);
-        sauce(3);
-        return;
+    // Reanimate
+    if (current_round() > 0 && have_skill($skill[Prepare to reanimate your Foe]))
+        use_skill($skill[Prepare to reanimate your Foe]);
+    // red taffy if underwater or flooded  -- maybe move this somewhere global in the future so we can just do this regardless of familiar
+    if (current_round() > 0 && my_location() != $location[none]
+        && (my_location().environment == "underwater"
+        || my_location() == to_location(get_property("_seadentWaveZone")))
+        && !contains_text(get_property("_lastCombatActions"), "it6367")
+        && item_amount($item[pulled red taffy]) > 0)
+        throw_item($item[pulled red taffy]);
+    // Stall with facsimile
+    int stallUntil = last_monster() == $monster[sausage goblin] ? 11 : 10;
+    while (current_round() > 0 && current_round() < stallUntil){
+        int roundBefore = current_round();
+        throw_item($item[facsimile dictionary]);
+        if (current_round() == roundBefore){
+            print("[DEBUG] Could not stall Stocking Mimic with the dictionary; continuing combat.", "red");
+            break;
+        }
+        if (current_round() > 0 && my_hp() < 200)
+            throw_items($item[new age healing crystal], $item[new age healing crystal]);
     }
+}
 
-    if ((my_familiar() == $familiar[comma chameleon] || my_familiar() == $familiar[stocking mimic]) && get_property("script") == "FreeKill"){
-        if (my_location().zone == "Shadow Rift")
-            use_skill($skill[swoop like a bat]);
-        while (current_round() > 0 && current_round() < 30 && monster_hp() > 9 && have_equipped($item[april shower thoughts shield])){
-            if (have_equipped($item[april shower thoughts shield]))
-                use_skill($skill[shieldbutt]);
-            if (my_hp() < 100)
-                throw_items($item[new age healing crystal],$item[new age healing crystal]);
-        }
-        if (have_skill($skill[Prepare to reanimate your Foe])) use_skill($skill[Prepare to reanimate your Foe]);
-        while (current_round() > 0 && current_round() < 10){
-            throw_item($item[facsimile dictionary]);
-            if (have_effect($effect[everything looks purple]) == 0 && have_equipped($item[roman candelabra]))
-                use_skill($skill[blow the purple candle!]);
-            if (last_monster() == $monster[black crayon mer-kin]){
-                if (item_amount($item[pulled green taffy]) > 0 && item_amount($item[envyfish egg]) == 0 && get_property("_envyfishEggUsed") == "false")
-                    throw_item($item[pulled green taffy]);
-                if (item_amount($item[4-d camera]) > 0 && item_amount($item[shaking 4-d camera]) == 0 && get_property("_cameraUsed") == "false")
-                    throw_item($item[4-d camera]);
-            }
-            if ((my_location().environment == "underwater" || my_location() == to_location(get_property("_seadentWaveZone"))) && !contains_text(get_property("_lastCombatActions"),"it6367")){
-                if (item_amount($item[pulled red taffy]) > 0)
-                    throw_item($item[pulled red taffy]);
-            }
-            if (my_hp() < 200)
-                throw_items($item[new age healing crystal],$item[new age healing crystal]);
-        }
-        if (my_location() == $location[Gingerbread Civic Center])
-            throw_item($item[gingerbread cigarette]);
-        if ((my_basestat($stat[submysticality]) - 62500) > BCZcost("GazeCasts") && last_monster() == $monster[shadow guy])
-            use_skill($skill[BCZ: Refracted Gaze]);
-        else if (last_monster() == $monster[shadow guy])
-            waffleShadowGuy();
-        if (get_property("subscript") == "looseFK" && have_equipped($item[mafia pointer finger ring]) && current_round() < 28)
+// Free-kill resources and the final attack, after any location-specific actions.
+void finishStockingMimicCombat(string page_text, boolean requireFreeKill){
+    if (current_round() == 0)
+        return;
+    boolean isLooseFK = get_property("subscript") == "looseFK";
+    if (isLooseFK){
+        if (have_equipped($item[mafia pointer finger ring]) && current_round() < 28)
             attack();
-        if (get_property("subscript") == "looseFK" && (get_property("_curveballMonster").to_monster() != last_monster() || get_property("_curveballFightsLeft").to_int() == 0) && last_monster().boss == false)
+        if (current_round() > 0 && !last_monster().boss
+            && (get_property("_curveballMonster").to_monster() != last_monster()
+                || get_property("_curveballFightsLeft").to_int() == 0))
             free_kill(page_text);
-        if (get_property("_curveballMonster").to_monster() == last_monster() && get_property("_curveballFightsLeft").to_int() > 0){
-            sauce(5);
+    }
+    // Curveball finishing also applies outside looseFK.
+    if (current_round() > 0 && get_property("_curveballMonster").to_monster() == last_monster()
+        && get_property("_curveballFightsLeft").to_int() > 0){
+        sauce(5);
+        if (current_round() > 0)
             use_skill($skill[carbohydrate cudgel]);
-        }
-        if (get_property("subscript") == "looseFK" && current_round() > 0 && last_monster().boss == false &&(my_location() != $location[Shadow Rift (The Misspelled Cemetary)] || have_effect($effect[shadow affinity]) == 0))
-            abort();
-        if (current_round() > 0 && current_round() < 10)
-            abort();
-        if (last_monster() == $monster[spawn of wally])
-            attack(10);
-        sauce(20);
-        return;
     }
-    if (last_monster() == $monster[witchess bishop] || last_monster() == $monster[sausage goblin] || last_monster() == $monster[witchess rook] || last_monster() == $monster[witchess pawn] || last_monster() == $monster[witchess knight]) {
-        if (have_effect($effect[everything looks purple]) == 0) use_skill($skill[Blow the Purple Candle!]);
-        use_skill($skill[Club 'Em Into Next Week]); sauce(2); attack(5); return;
-    }
-
-    // ── Category: pure sauce locations ────────────────────────────────────────
-    if (sauceLocs[my_location()] || sauceMobs[last_monster()]) {
-        if (!free_monster() && !free_location()){
-            free_run(page_text);
-        }
-        if (my_location() == $location[The Laugh Floor] || my_location() == $location[Infernal Rackets Backstage]){
-            if (dayType() == 0 && my_class() == $class[seal clubber]){
-                use_skill($skill[Sea *dent: Talk to Some Fish]);
-                if (last_monster() != $monster[some fish])
-                    abort("talk to some fish didn't work for some reason");
-            }
-        }
-        sauce(7);
-        attack();
-        attack();
-        attack();
-        return;
-    }
-
-    if (get_property("BoFaWishRWB") == "true"){
-        use_skill($skill[%fn, fire a Red, White and Blue Blast]);
-    }
-
-    if (last_monster() == $monster[%monster%] && last_monster() == $monster[God Lobster]){
-        sauce(5);
-        return;
-    }
-
-    // ── Category: pure hurt locations/monsters ────────────────────────────────
-    if (hurtLocs[my_location()] || hurtMobs[last_monster()]) {
-        while (current_round() > 0) hurt(1);
-        return;
-    }
-
-    // Garbo
-    if (my_location() == $location[barf mountain]){
-        if (have_skill($skill[pocket crumbs]) && to_int(get_property("_pantsgivingCrumbs")) < 9)
-            use_skill($skill[pocket crumbs]);
-        if (my_familiar() == $familiar[patriotic eagle])
-            use_skill($skill[%FN, LET'S PLEDGE ALLEGIANCE TO A ZONE]);
-        if (last_monster() == $monster[garbage tourist] && to_int(get_property("_knuckleboneDrops")) == 100){
-            sniff($monster[garbage tourist]);
-        } else if (last_monster() == $monster[angry tourist] && to_int(get_property("_knuckleboneDrops")) < 100){
-            sniff($monster[angry tourist]);
-        }
-        free_kill(page_text);
-        free_run(page_text);
-        dart();
-        cleanUp();
-        return;
-    }
-
-    if ($locations[cyberzone 1, cyberzone 2,cyberzone 3] contains my_location()){
-        if (have_equipped($item[heartstone]) && (last_monster() == $monster[greyhat hacker] || last_monster() == $monster[bluehat hacker]))
-            use_skill($skill[Steal Monster's Heart]);
-        if (get_property("_cyberFreeFights").to_int() == 9)
-            use_skill($skill[sea *dent: throw a lightning bolt]);
-        sauce(5);
-        return;
-    }
-
-    if (my_location() == $location[the red zeppelin]){
-        if (to_int(get_property("_glarkCableUses")) < 5)
-            throw_item($item[glark cable]);
-        if (last_monster() == $monster[red skeleton]){
+    if (isLooseFK && current_round() > 0
+        && !last_monster().boss && requireFreeKill)
+        abort("Free-kill action did not end combat.");
+    if (current_round() > 0 && current_round() < 10)
+        print("[DEBUG] Stocking Mimic did not reach round 10; continuing to the kill.", "red");
+    if (current_round() > 0 && last_monster() == $monster[spawn of wally])
+        attack(10);
+    // Default finish after stalling: Saucegeyser, or weapon attacks if unavailable.
+    if (current_round() > 0){
+        if (have_skill($skill[Saucegeyser])){
             sauce(5);
+            attack(10);
         }
-        if (current_round() != 0)
-            abort();
-        return;
-    }
-
-    // ── Category: Dread (Woods, Village, Castle share opener) ─────────────────
-    if ($locations[Dreadsylvanian Woods, Dreadsylvanian Village,
-        Dreadsylvanian Castle] contains my_location()) {
-        free_run(page_text);
-        free_kill(page_text);
-        if (last_monster() != $monster[hot werewolf])
-            dart();
-        if (have_skill($skill[Slay the Dead])) use_skill($skill[Slay the Dead]);
-        insta_kill(page_text);
-        boolean paw = get_property("_monkeyPawWishesUsed") == "0"
-            && have_equipped($item[cursed monkey's paw]);
-
-        if (my_location() == $location[Dreadsylvanian Woods]) {
-            if (paw && last_monster() == $monster[hot werewolf]) { use_skill($skill[monkey slap]); return; }
-            if (paw) { use_skill($skill[monkey slap]); return; }
-            if (contains_text(to_string(last_monster().name),"bugbear")) {
-                if (contains_text(to_string(last_monster().name),"cold"))
-                    use_skill($skill[Carbohydrate Cudgel]);
-                attack(9);
-                return; }
-            if (contains_text(to_string(last_monster().name),"werewolf")) {
-                if (!contains_text(to_string(last_monster().name),"sleaze"))
-                    attack(2);
-                for i from 1 to 5 { use_skill(elementBonus[monster_element()]); }
-                return;
-            }
-
-        } else if (my_location() == $location[Dreadsylvanian Village]) {
-            if (paw) { use_skill($skill[monkey slap]); return; }
-            sauce(6);
-            return;
-
-        } else if (my_location() == $location[Dreadsylvanian Castle]) {
-            if (paw) { use_skill($skill[monkey slap]); return; }
-            if (contains_text(to_string(last_monster().name),"skeleton")
-                || contains_text(to_string(last_monster().name),"vampire")) {
-                if (have_effect($effect[chilled to the bone]) > 0
-                    && contains_text(to_string(last_monster().name),"skeleton"))
-                    throw_item($item[shadow brick]);
-                for i from 1 to 10 { use_skill(elementBonus[monster_element()]); }
-                use_skill($skill[stuffed mortar shell]);
-                attack(3); sauce(3); attack(24);
-                return;
-            }
-            sauce(1);
-            return;
-        }
-    }
-
-    // ── Category: Hobopolis ───────────────────────────────────────────────────
-    if (my_location().zone == "Hobopolis") {
-        if (last_monster() == $monster[Frosty]) {
-            throw_items($item[cinnamon troll doll],       $item[grape troll doll]);
-            throw_items($item[blue raspberry troll doll], $item[bag of gross foreign snacks]);
-            throw_items($item[crazy hobo notebook],       $item[hedgeturtle]);
-            for i from 1 to 11 {
-                throw_items($item[d8], $item[d8]);
-                if (my_hp() < 100) throw_items($item[new age healing crystal], $item[d8]);
-            }
-            if (monster_hp() <= 18) attack();
-            return;
-        }
-        if (last_monster() == $monster[Ol' Scratch] || last_monster() == $monster[Oscus] || last_monster() == $monster[Chester]) {
-            for i from 1 to 7 { use_skill($skill[snowclone]); }
-            return;
-        }
-        if (last_monster() == $monster[zombo]) {
-            for i from 1 to 13 { hurt(1); if (my_hp() < 250) heal_hurt(); }
-            return;
-        }
-        if (my_location() == $location[A Maze of Sewer Tunnels]) {
-            steal();
-            if (get_property("cleeshSewers") == "true"){
-                if (last_monster() == $monster[giant zombie goldfish])
-                    use_skill($skill[spring kick]);
-                use_skill($skill[Sea *dent: Talk to some fish]);
-                if (have_skill($skill[Prepare to reanimate your Foe])) use_skill($skill[Prepare to reanimate your Foe]);
-            }
-            if (last_monster() == $monster[giant zombie goldfish]) {
-                use_skill($skill[spring kick]); free_run(page_text); sauce(2); return;
-            }
-
-            if (last_monster() == $monster[Sewer gator]) {
-                use_skill($skill[Sea *dent: Throw a Lightning Bolt]); sauce(2); return;
-            }
-            free_run(page_text);
-            free_kill(page_text);
-            attack(); use_skill($skill[saucegeyser]); attack(); sauce(2); attack(3);
-        } else if (my_location() == $location[Hobopolis Town Square]) {
-            free_run(page_text);
-            free_kill(page_text);
-            if ($strings[boots,skulls,eyes,crotches,guts] contains get_property("parts_collection")) {
-                use_skill($skill[Stuffed Mortar Shell]);
-                throw_item($item[seal tooth]);
-            } else if (get_property("parts_collection") == "skins") {
-                use_skill($skill[Lunging Thrust-Smack]);
-            }
-        } else if (my_location() == $location[Exposure Esplanade]) {
-            free_run(page_text);
-            free_kill(page_text);
-            insta_kill(page_text);
-            set_property("choiceAdventure1589","1&victim=690");
-            sauce(4);
-        } else if (my_location() == $location[The Ancient Hobo Burial Ground]) {
-            free_run(page_text);
-            free_kill(page_text);
-            attack(15);
-        } else if ($locations[The Purple Light District, The Heap,Burnbarrel Blvd.] contains my_location()) {
-            if ((my_location() == $location[The Purple Light District] && to_int(get_property("PLD_left")) >= 50 && get_property("cleeshPLD") == "true") ||
-            (my_location() == $location[The Heap]) && get_property("cleeshHeap") == "true"){
-                use_skill($skill[Sea *dent: Talk to some fish]);
-                if (have_skill($skill[Prepare to reanimate your Foe])) use_skill($skill[Prepare to reanimate your Foe]);
-            }
-            free_run(page_text);
-            free_kill(page_text);
-            sauce(4);
-        }
-        return;
-    }
-
-    // Spacegate
-    if (my_location() == $location[Through the Spacegate]){
-        if (last_monster() == $monster[spant soldier])
-            abort();
-        sauce(6);
-        return;
-    }
-
-    // ── Category: FantasyRealm ────────────────────────────────────────────────
-    if (my_location().zone == "FantasyRealm") {
-        if (my_location() == $location[The Barrow Mounds])  { runaway(); return; }
-        if (my_location() == $location[The Troll Fortress]) { for i from 1 to 4 { use_skill($skill[Awesome Balls of Fire]); } return; }
-        if (last_monster() == $monster[Flock of every birds])          { for i from 1 to 9 { use_skill($skill[garbage nova]); } return; }
-        if (last_monster() == $monster[crypt creeper])                 { for i from 1 to 6 { throw_items($item[gauze garter],$item[gauze garter]); } return; }
-        if (last_monster() == $monster[Sewage Treatment Dragon])       { for i from 1 to 3 { throw_items($item[new age healing crystal],$item[new age hurting crystal]); } return; }
-        if ($monsters[plywood cultists, Ley Incursion, quadfaerie] contains last_monster()) { attack(24); return; }
-        sauce(4);
-        return;
-    }
-
-    // ── Category: Gingerbread City ────────────────────────────────────────────
-    if (my_location().zone == "Gingerbread City") {
-        if ($monsters[gingerbread convict, gingerbread finance bro,
-            gingerbread gentrifier, gingerbread lawyer,
-            gingerbread tech bro, judge fudge] contains last_monster()
-            && item_amount($item[gingerbread cigarette]) > 0)
-            throw_item($item[gingerbread cigarette]);
-        sauce(9);
-        return;
-    }
-
-    // ── Category: Glaciest ────────────────────────────────────────────────────
-    if (my_location().zone == "The Glaciest") {
-        free_run(page_text);
-        free_kill(page_text);
-        if (my_location() == $location[the ice hotel]) {
-            if (last_monster() == $monster[ice concierge]) {
-                if (!contains_text(get_property("trackedMonsters"),"ice concierge:McHugeLarge Slash"))
-                    use_skill($skill[MCHUGELARGE SLASH]);
-                if (!contains_text(get_property("trackedMonsters"),"ice concierge:Transcendent Olfaction"))
-                    use_skill($skill[TRANSCENDENT OLFACTION]);
-            }
-            if (get_property("walfordBucketItem") == "blood") attack();
-            if (get_property("walfordBucketItem") == "ice")   use_skill($skill[Weapon of the Pastalord]);
-            use_skill($skill[saucegeyser]);
-        }
-        if ($locations[the ice hole, VYKEA] contains my_location()) sauce(4);
-        return;
-    }
-
-    // ── Category: Spring Break Beach ────────────────────────────────────────────────────
-    if (my_location().zone == "Spring Break Beach") {
-        if (my_location() == $location[The Fun-Guy Mansion]) {
-                float minHP = to_float(my_maxhp())*0.8872;
-                if (my_hp() < minHP){
-                    throw_item($item[new age healing crystal]);
-                }
-                if (!free_monster())
-                    free_kill(page_text);
-                use_skill($skill[Saucegeyser]);
-                throw_item($item[new age hurting crystal]);
-                attack();
-        }
-        if (my_location() == $location[Sloppy Seconds Diner]) {
-            if (last_monster() == $monster[Sloppy Seconds Sundae]){
-                if (!contains_text(get_property("trackedMonsters"),"Sloppy Seconds Sundae:Transcendent Olfaction")){
-                    use_skill($skill[Transcendent Olfaction]);
-                }
-                if (!contains_text(get_property("trackedMonsters"),"Sloppy Seconds Sundae:McHugeLarge Slash")){
-                    use_skill($skill[McHugeLarge Slash]);
-                }
-                if (!contains_text(get_property("trackedMonsters"),"Sloppy Seconds Sundae:Gallapagosian Mating Call")){
-                    use_skill($skill[Gallapagosian Mating Call]);
-                }
-            }
-            if (contains_text(get_property("banishedMonsters"),"broctopus") && last_monster() == $monster[broctopus]){
-                use_skill($skill[spring kick]);
-            }
-            if (!free_monster())
-                free_kill(page_text);
-            use_skill($skill[stuffed mortar shell]);
-            use_skill($skill[Saucegeyser]);
-            use_skill($skill[Saucegeyser]);
-        }
-        if (my_location() == $location[The Sunken Party Yacht]) {
-            if (!contains_text(get_property("banishedMonsters"),"broctopus") && have_effect($effect[fishy]) >= 20){
-                use_skill($skill[spring kick]);
-            }
-            if (!free_monster())
-                free_kill(page_text);
-            use_skill($skill[stuffed mortar shell]);
-            use_skill($skill[Saucegeyser]);
-            use_skill($skill[Saucegeyser]);
-        }
-        return;
-    }
-
-    // The Sea
-    if (my_location() == $location[The Marinara Trench]){
-        if (last_monster() == $monster[giant squid] && my_class() == $class[accordion thief]){
-            sniff($monster[giant squid]);
-        }
-    }
-
-    // ── Individual locations / monsters ───────────────────────────────────────
-
-    if (last_monster() == $monster[black crayon spiraling shape]){
-        while (my_familiar() == $familiar[chest mimic] && to_int(get_property("_mimicEggsObtained")) < 11 && $familiar[chest mimic].experience > 100){
-            use_skill($skill[%fn, lay an egg]);
-        }
-        sauce(6);
-        return;
-    }
-
-    if (last_monster() == $monster[giant sandworm]){
-        sauce(6);
-        return;
-    }
-    if (my_location()== $location[Convention Hall Lobby]){
-        while (current_round() > 0){
-            throw_item($item[bottle of G&uuml;-Gone]);
-        }
-        return;
-    }
-
-    if (my_location()== $location[The Outer Compound]){
-        while (current_round() > 0){
-            use_skill($skill[Apprivoisez la tortue]);
-        }
-        return;
-    }
-
-    if (my_location() == $location[The Slime Tube]) {
-        // After a uvula is tickled we carry the rusty grave robbing shovel to
-        // squeeze a gall bladder; doing so spends the shovel and empties the
-        // weapon slot. Once it's gone, advance <clanId>Tickled to "done" so
-        // slime.ash / preadventure.ash stop re-equipping it.
-        if (get_property(get_clan_id() + "Tickled") == "tickled"){
-            while (have_equipped($item[rusty grave robbing shovel]))
-                throw_item($item[facsimile dictionary]);
-            if (equipped_item($slot[weapon]) == $item[none])
-                set_property(get_clan_id() + "Tickled","done");
-        }
-        // Mother Slime: stack Backup Dancers before the damage skills below.
-        if (last_monster() == $monster[mother slime]){
-            use_skill($skill[Raise Backup Dancer]);
-            use_skill($skill[Raise Backup Dancer]);
-        }
-        free_kill(page_text); free_run(page_text); insta_kill(page_text);
-        // Shadow bricks are the cheap kill while ML-farming on the purse rat.
-        if (my_familiar() == $familiar[purse rat] && have_effect($effect[coated in slime]) > 10 && to_int(get_property("_shadowBricksUsed")) < 13){
-            throw_item($item[shadow brick]);
-        }
-        for i from 1 to 4 {
-            if (my_hp() < 500 && my_hp() < my_maxhp()/2)
-                throw_items($item[new age healing crystal],$item[new age healing crystal]);
-            use_skill($skill[weapon of the pastalord]);
-        }
-        return;
-    }
-
-    if (my_location() == $location[Domed City of Grimacia]) {
-        if (last_monster().phylum == $phylum[horror])
-            use_skill($skill[%fn, Release the Patriotic Screech!]);
-        else {
-            if (to_int(get_property("_mildEvilPerpetrated")) < 3) use_skill($skill[perpetrate mild evil]);
-            if (to_int(get_property("_batWingsSwoopUsed")) < 11)  use_skill($skill[swoop like a bat]);
-            while (to_int(get_property("_douseFoeUses")) < 3 && get_property("_douseFoeSuccess") == "false")
-                use_skill($skill[douse foe]);
-        }
-        sauce(5); return;
-    }
-
-    if (my_location() == $location[The Broodling Grounds]) {
-        if (last_monster() == $monster[hellseal pup]) {
-            throw_item($item[seal tooth]);
-            throw_item($item[seal tooth]);
-            throw_item($item[seal tooth]);
-        }
-        attack(3); return;
-    }
-
-    if (my_location() == $location[The Brinier Deepers]) {
-        if (last_monster() == $monster[trophyfish]) abort();
-        return;
-    }
-    if (my_location() == $location[Mer-kin Elementary School]) {
-        if (contains_text(get_property("banishedMonsters"),"hacker"))
-            use_skill($skill[Sea *dent: Throw a Lightning Bolt]);
-    }
-    if (my_location() == $location[cobb's knob treasury]){
-        if (last_monster() == $monster[Knob Goblin Embezzler])
-            attack(5);
         else
-            free_run(page_text);
+            attack(20);
     }
-    if (my_location() == $location[the black forest]){
-        free_kill(page_text);
-    }
-    if (my_location() == $location[the coral corral]){
-        if (!contains_text(get_property("banishedPhyla"), "fish")){
-            if (last_monster() == $monster[mer-kin rustler])
-                use_skill(combatBan());
-            if (last_monster() == $monster[sea cowboy])
-                use_skill(combatBan());
-        }
-        farmingStuff();
-        attack();
-        attack();
-        attack();
-        cleanUp();
-        return;
-    }
+}
 
-    if (my_location() == $location[Shadow Rift (The Nearby Plains)]) {
-        if (last_monster() == $monster[shadow scythe]) sauce(2);
-        if (last_monster() == $monster[shadow orrery])
-            attack(20);
-        if (last_monster() == $monster[shadow matrix])
-            sauce(6);
-        if (last_monster().elemental_resistance > 85){
-            free_kill(page_text);
-            free_run(page_text);
-            for i from 1 to 20 {
-                use_skill($skill[snowclone]);
-            }
-        } else
-            sauce(20);
-        return;
+boolean handleStockingMimicCombat(string page_text){
+    if (my_familiar() != $familiar[stocking mimic])
+        return false;
+    prepareStockingMimicCombat();
+    finishStockingMimicCombat(page_text, true);
+    return true;
+}
+
+// Coldform / shard-of-double-ice fights retain their separate weakling strategy.
+void prepareWeaklingCombat(){
+    if (current_round() > 0 && have_skill($skill[Prepare to reanimate your Foe]))
+        use_skill($skill[Prepare to reanimate your Foe]);
+    while (current_round() > 0 && current_round() < 30 && monster_hp() > 9){
+        int roundBefore = current_round();
+        if (have_equipped($item[april shower thoughts shield]))
+            use_skill($skill[shieldbutt]);
+        else
+            throw_item($item[facsimile dictionary]);
+        if (current_round() == roundBefore){
+            print("[DEBUG] Weakling preparation failed; continuing combat.", "red");
+            break;
+        }
+        if (!have_equipped($item[april shower thoughts shield]) && current_round() > 10)
+            break;
+        if (current_round() > 0 && my_hp() < 100)
+            throw_items($item[new age healing crystal], $item[new age healing crystal]);
     }
-    if (my_location() == $location[Shadow Rift (The Misspelled Cemetary)]) {
-        steal();
-        if (last_monster() == $monster[shadow scythe]) abort();
-        if (last_monster() == $monster[shadow orrery]) {
-            attack(20);
+    if (current_round() > 0 && last_monster() == $monster[eldritch tentacle])
+        sauce(4);
+    if (current_round() > 0 && last_monster() == $monster[flaming leaflet])
+        throw_items($item[lit leaf lasso], $item[lit leaf lasso]);
+    if (current_round() > 0 && last_monster() == $monster[Ron "The Weasel" Copperhead]){
+        use_skill($skill[Club 'Em Back in Time]);
+        while (current_round() > 0 && current_round() < 30){
+            int roundBefore = current_round();
+            attack();
+            if (current_round() == roundBefore){
+                print("[DEBUG] Attack failed against The Weasel; continuing combat.", "red");
+                break;
+            }
         }
-        if (last_monster() == $monster[shadow matrix]) {
-            sauce(6);
+    }
+}
+
+void finishWeaklingCombat(){
+    if (current_round() > 0 && have_equipped($item[congressional medal of insanity]))
+        use_skill($skill[saucegeyser]);
+    while (current_round() > 0 && current_round() < 30 && monster_hp() > 9){
+        int roundBefore = current_round();
+        if (have_equipped($item[april shower thoughts shield]))
+            use_skill($skill[shieldbutt]);
+        else
+            attack();
+        if (current_round() == roundBefore){
+            print("[DEBUG] Weakling attack failed; continuing combat.", "red");
+            break;
         }
-        if (last_monster().boss == true){
-            cleanUp();
+    }
+    while (current_round() > 0 && current_round() < 30){
+        int roundBefore = current_round();
+        throw_item($item[facsimile dictionary]);
+        if (current_round() == roundBefore){
+            print("[DEBUG] Weakling dictionary stall failed; continuing to the kill.", "red");
+            break;
         }
+    }
+    if (current_round() == 0)
+        return;
+    if (item_amount($item[dry noodles]) > 0)
+        use_skill($skill[carbohydrate cudgel]);
+    else
+        abort("No dry noodles available for the weakling free kill.");
+}
+
+// ─── FREEKILL: LOCATIONS AND COMBAT MODES ───────────────────────────────────────
+
+// Bosses remain immediate exceptions; regular Rift fights are handled here in one place.
+boolean handleShadowRiftCombat(string page_text){
+    if (my_location() != $location[Shadow Rift (The Misspelled Cemetary)])
+        return false;
+    standardMimicStall();
+    if (current_round() == 0)
+        return true;
+    if (!get_property("_circadianRhythmsRecalled").to_boolean())
+        use_skill($skill[RECALL FACTS: %PHYLUM CIRCADIAN RHYTHMS]);
+    prepareFreeKillCombat();
+    if (current_round() == 0)
+        return true;
+    steal();
+    if (my_familiar() == $familiar[stocking mimic]){
+        if (have_equipped($item[bat wings]))
+            use_skill($skill[swoop like a bat]);
+        prepareStockingMimicCombat();
+        if (current_round() > 0 && last_monster() == $monster[shadow guy]){
+            if ((my_basestat($stat[submysticality]) - 62500) > BCZcost("GazeCasts"))
+                use_skill($skill[BCZ: Refracted Gaze]);
+            else
+                waffleShadowGuy();
+        }
+        finishStockingMimicCombat(page_text, have_effect($effect[shadow affinity]) == 0);
+        return true;
+    }
+    // Preserve the previous Rift handling for other familiars.
+    if (current_round() > 0 && last_monster() == $monster[shadow matrix])
+        sauce(6);
+    if (current_round() > 0 && !last_monster().boss){
         if (last_monster() == $monster[shadow guy]){
             if (have_equipped($item[blood cubic zirconia])){
                 use_skill($skill[BCZ: Refracted Gaze]);
-                use_skill($skill[swoop like a bat]);
+                if (current_round() > 0 && have_equipped($item[bat wings]))
+                    use_skill($skill[swoop like a bat]);
             }
-            while (to_int(get_property("_douseFoeUses")) < 3
-                && get_property("_douseFoeSuccess") == "false"
-                && current_round() < 25 && have_equipped($item[Flash Liquidizer Ultra Dousing Accessory]))
+            while (current_round() > 0 && current_round() < 25
+                && get_property("_douseFoeUses").to_int() < 3
+                && !get_property("_douseFoeSuccess").to_boolean()
+                && have_equipped($item[Flash Liquidizer Ultra Dousing Accessory])){
+                int roundBefore = current_round();
                 use_skill($skill[douse foe]);
-        } else if (have_equipped($item[bat wings])){
+                if (current_round() == roundBefore){
+                    print("[DEBUG] Douse Foe failed; continuing combat.", "red");
+                    break;
+                }
+            }
+        } else if (have_equipped($item[bat wings]))
             use_skill($skill[swoop like a bat]);
-        }
-        if (get_property("script") == "FreeKill"){
-            cleanUp();
-        }
-        free_run(page_text);
-        free_kill(page_text);
-        cleanUp();
-        return;
     }
+    cleanUp();
+    return true;
+}
 
-    if (my_location() == $location[The Spooky Forest]) { abort("Check spikolodon or else run"); free_run(page_text); return; }
-    if (my_location() == $location[The Outskirts of Cobb's Knob]) { free_run(page_text);}
-
-    if (my_location() == $location[Investigating a Plaintive Telegram]) {
-        if (last_monster() == $monster[Former Sheriff Dan Driscoll])  attack(18);
-        if (last_monster() == $monster[Snake-Eyes Glenn])             for i from 1 to 6 { use_skill($skill[grease lightning]); }
-        if (last_monster() == $monster[Clara])                        for i from 1 to 6 { use_skill($skill[eggsplosion]); }
-        if (last_monster() == $monster[Pharaoh Amoon-Ra Cowtep])      hurt(4);
-        if (last_monster() == $monster[cow cultist]
-            && contains_text(get_property("lastEncounter"),"reprehensible"))
-            for i from 1 to 3 { use_skill($skill[toynado]); }
-        sauce(6); return;
-    }
-
-    if (my_location() == $location[The Primordial Soup]) {
-        if (last_monster() == $monster[Cyrus the Virus]) {
-            foreach it in $items[memory of a CT base pair, memory of a CG base pair,
-                memory of a CA base pair, memory of a GT base pair,
-                memory of an AT base pair, memory of an AG base pair] {
-                if (item_amount(it) > 0
-                    && !contains_text(get_property("cyrusAdjectives"), basePairs[it]))
-                    throw_item(it);
+boolean handleCyberzoneCombat(string page_text){
+    if (!($locations[cyberzone 1, cyberzone 2, cyberzone 3] contains my_location()))
+        return false;
+    if (last_monster().phylum == $phylum[construct]){
+        while (current_round() > 0 && current_round() < 10 && my_hp() > my_maxhp()/10){
+            int roundBefore = current_round();
+            use_skill($skill[throw cyber rock]);
+            if (current_round() == roundBefore){
+                print("[DEBUG] Throw Cyber Rock failed; continuing combat.", "red");
+                break;
             }
         }
-        sauce(3); return;
+        if (current_round() > 0 && $monsters[ICE barrier, corruption quarantine, parental controls, null container] contains last_monster())
+            use_skill($skill[deploy glitched malware]);
+        if (current_round() > 0)
+            use_skill($skill[Launch Logic Grenade]);
     }
+    prepareFreeKillCombat();
+    if (current_round() == 0)
+        return true;
+    if (get_property("subscript") == "weakling"){
+        prepareWeaklingCombat();
+        finishWeaklingCombat();
+    } else if (!handleStockingMimicCombat(page_text)){
+        sauce(7);
+        attack(3);
+    }
+    return true;
+}
 
-    if (my_location() == $location[the deep dark jungle]) {
-        if (get_property("_questESp") == "questESpSmokes") {
-            if (last_monster() != $monster[smoke monster] && last_monster() != $monster[Mercenary of Fortune])
-                use_skill(combatBan());
-            sauce(3);
+// Failed pygmy banishes fall through to normal familiar combat.
+boolean handleBowlingAlleyCombat(){
+    if (my_location() != $location[The Hidden Bowling Alley])
+        return false;
+    if (last_monster() == $monster[pygmy bowler]){
+        throw_item($item[stuffed yam stinkbomb]);
+        if (current_round() > 0)
+            print("[DEBUG] Failed to banish the pygmy bowler with a stuffed yam stinkbomb.", "red");
+    } else if (last_monster() == $monster[pygmy orderlies]){
+        use_skill($skill[Throw Latte on Opponent]);
+        if (current_round() > 0)
+            print("[DEBUG] Failed to banish pygmy orderlies with Throw Latte on Opponent.", "red");
+    } else if (last_monster() == $monster[pygmy janitor]){
+        if (get_property("subscript") == "drunkPygmy")
+            print("[DEBUG] Unexpected pygmy janitor: check janitor relocation for this ascension; continuing combat.", "red");
+        else
+            use_skill($skill[Snokebomb]);
+    }
+    return current_round() == 0;
+}
+
+boolean handleScreechCombat(string page_text){
+    phylum[location] screechPhylum = {
+        $location[the briniest deepests]: $phylum[fish],
+        $location[madness bakery]: $phylum[construct]
+    };
+    if (get_property("subscript") != "screech" || !(screechPhylum contains my_location())
+        || last_monster().phylum != screechPhylum[my_location()])
+        return false;
+    if (contains_text(last_monster().attributes, "WANDERER")){
+        print("[DEBUG] Hit a WANDERER while trying to screech something.", "red");
+        attack(30);
+        if (current_round() == 0)
+            return true;
+    }
+    print("Ya boi screeching a " + last_monster() + " . . . ", "blue");
+    string screechResponse = to_string(use_skill($skill[%fn, Release the Patriotic Screech!]));
+    if (!contains_text(screechResponse, "releases an ear shattering screech"))
+        print("[DEBUG] Patriotic Screech failed; attempting the free run.", "red");
+    free_run(page_text);
+    return true;
+}
+// Script dispatch decides whether to free-run or continue combat after pledging.
+boolean handleEaglePledgeCombat(string page_text, boolean freeRunAfterPledge){
+    if (get_property("subscript") != "eaglePledge")
+        return false;
+    if (my_familiar() != $familiar[patriotic eagle])
+        abort("Eagle pledge combat requires the Patriotic Eagle.");
+    if (have_effect($effect[Citizen of a Zone]) == 0
+        || get_property("_citizenZone") != to_string(my_location())){
+        page_text = to_string(use_skill($skill[%FN, LET'S PLEDGE ALLEGIANCE TO A ZONE]));
+    }
+    if (have_effect($effect[Citizen of a Zone]) == 0
+        || get_property("_citizenZone") != to_string(my_location()))
+        abort("Eagle pledge failed; combat is paused for inspection.");
+    if (freeRunAfterPledge){
+        if (current_round() > 0)
+            free_run(page_text);
+        return true;
+    }
+    return current_round() == 0;
+}
+
+
+boolean handleGingerbreadCombat(string page_text){
+    if (my_location().zone != "Gingerbread City")
+        return false;
+    if (get_property("subscript") == "weakling"){
+        prepareWeaklingCombat();
+        if (current_round() > 0 && ($locations[Gingerbread Upscale Retail District, Gingerbread Civic Center] contains my_location())){
+            if (last_monster().phylum == $phylum[dude])
+                throw_item($item[gingerbread cigarette]);
+            else if (last_monster() == $monster[eldritch tentacle]){
+                while (current_round() > 0 && current_round() < 30){
+                    int roundBefore = current_round();
+                    use_skill($skill[shieldbutt]);
+                    if (current_round() == roundBefore){
+                        print("[DEBUG] Gingerbread Shieldbutt failed; continuing combat.", "red");
+                        break;
+                    }
+                }
+            }
         }
-        if (get_property("_questESp") == "questESpOutOfOrder") {
-            if (last_monster() != $monster[Mercenary of Fortune]) use_skill(combatBan());
-            sauce(3);
+        finishWeaklingCombat();
+    } else if (my_familiar() == $familiar[stocking mimic]){
+        prepareStockingMimicCombat();
+        if (current_round() > 0 && my_location() == $location[Gingerbread Civic Center])
+            throw_item($item[gingerbread cigarette]);
+        finishStockingMimicCombat(page_text, true);
+    } else {
+        if ($monsters[gingerbread convict, gingerbread finance bro, gingerbread gentrifier,
+            gingerbread lawyer, gingerbread tech bro, judge fudge] contains last_monster()
+            && item_amount($item[gingerbread cigarette]) > 0)
+            throw_item($item[gingerbread cigarette]);
+        if (current_round() > 0)
+            sauce(9);
+    }
+    return true;
+}
+
+boolean handleRedZeppelinCombat(string page_text){
+    if (my_location() != $location[The Red Zeppelin])
+        return false;
+    if (get_property("subscript") == "weakling"){
+        prepareWeaklingCombat();
+        if (current_round() > 0 && get_property("_glarkCableUses").to_int() < 5 && !get_property("NCtoC").to_boolean())
+            throw_item($item[glark cable]);
+        finishWeaklingCombat();
+    } else if (!handleStockingMimicCombat(page_text)){
+        if (get_property("_glarkCableUses").to_int() < 5)
+            throw_item($item[glark cable]);
+        if (current_round() > 0 && last_monster() == $monster[red skeleton])
+            sauce(5);
+        if (current_round() > 0)
+            abort("Red Zeppelin free kill did not end combat.");
+    }
+    return true;
+}
+
+boolean handleDomedCityCombat(string page_text){
+    if (my_location() != $location[Domed City of Grimacia])
+        return false;
+    if (get_property("subscript") == "weakling"){
+        prepareWeaklingCombat();
+        finishWeaklingCombat();
+    } else if (!handleStockingMimicCombat(page_text)){
+        if (last_monster().phylum == $phylum[horror])
+            use_skill($skill[%fn, Release the Patriotic Screech!]);
+        else {
+            if (get_property("_mildEvilPerpetrated").to_int() < 3)
+                use_skill($skill[perpetrate mild evil]);
+            if (current_round() > 0 && get_property("_batWingsSwoopUsed").to_int() < 11)
+                use_skill($skill[swoop like a bat]);
+            while (current_round() > 0 && get_property("_douseFoeUses").to_int() < 3
+                && !get_property("_douseFoeSuccess").to_boolean()){
+                int roundBefore = current_round();
+                use_skill($skill[douse foe]);
+                if (current_round() == roundBefore){
+                    print("[DEBUG] Domed City Douse Foe failed; continuing combat.", "red");
+                    break;
+                }
+            }
         }
+        if (current_round() > 0)
+            sauce(5);
+    }
+    return true;
+}
+
+// Existing FreeKill turn-burning recipe; future script=BARF combat remains separate.
+boolean handleFreeKillBarfMountainCombat(string page_text){
+    if (my_location() != $location[barf mountain])
+        return false;
+    if (get_property("subscript") == "weakling"){
+        prepareWeaklingCombat();
+        finishWeaklingCombat();
+    // if script=freekill and location is barf mountain, we want to use_skill($skill[%FN, LET'S PLEDGE ALLEGIANCE TO A ZONE]); and then use a free run
+    } else if (!handleStockingMimicCombat(page_text)){
+        if (my_familiar() == $familiar[patriotic eagle])
+            use_skill($skill[%FN, LET'S PLEDGE ALLEGIANCE TO A ZONE]);
+        if (current_round() > 0 && last_monster() == $monster[garbage tourist] && get_property("_knuckleboneDrops").to_int() == 100)
+            sniff($monster[garbage tourist]);
+        else if (current_round() > 0 && last_monster() == $monster[angry tourist] && get_property("_knuckleboneDrops").to_int() < 100)
+            sniff($monster[angry tourist]);
+        if (current_round() > 0)
+            free_kill(page_text);
+        if (current_round() > 0)
+            free_run(page_text);
+        if (current_round() > 0)
+            dart();
+        cleanUp();
+    }
+    return true;
+}
+
+// ─── FREEKILL: MONSTER EXCEPTIONS ──────────────────────────────────────────────
+
+boolean handleFlamingPlantCombat(){
+    if (my_familiar() != $familiar[stocking mimic]
+        || !($monsters[flaming monstera, leaviathan] contains last_monster()))
+        return false;
+    while (current_round() > 0 && current_round() < 10 && monster_hp() > 9){
+        int roundBefore = current_round();
+        throw_item($item[facsimile dictionary]);
+        if (current_round() == roundBefore){
+            print("[DEBUG] Flaming plant dictionary stall failed; continuing to the lasso.", "red");
+            break;
+        }
+    }
+    if (current_round() > 0)
+        throw_items($item[lit leaf lasso], $item[lit leaf lasso]);
+    if (current_round() > 0)
+        abort("Lit leaf lasso did not end the flaming plant fight.");
+    return true;
+}
+
+// Goblins use the same copy -> roaming setup -> kill order in every location.
+boolean handleSausageGoblinCombat(string page_text){
+    if (last_monster() != $monster[sausage goblin])
+        return false;
+    copyMonster($monster[sausage goblin]);
+    chainRoamingMonster($monster[sausage goblin]);
+    // Chest Mimic copies eggs; only Stocking Mimic uses purple-candle chaining.
+    if (current_round() > 0 && my_familiar() == $familiar[stocking mimic]
+        && have_effect($effect[everything looks purple]) == 0
+        && have_equipped($item[roman candelabra]))
+        use_skill($skill[blow the purple candle!]);
+    boolean stockingMimic = my_familiar() == $familiar[stocking mimic];
+    if (stockingMimic)
+        prepareStockingMimicCombat();
+    // Other familiars cast after copying; Stocking Mimic waits until round 11.
+    if (current_round() > 0 && (!stockingMimic || current_round() >= 11)
+        && have_skill($skill[Club 'Em Into Next Week])
+        && get_property("_clubEmNextWeekUsed").to_int() < 5)
+        use_skill($skill[Club 'Em Into Next Week]);
+    prepareFreeKillCombat();
+    if (current_round() == 0)
+        return true;
+    if (stockingMimic)
+        finishStockingMimicCombat(page_text, true);
+    else {
+        if (current_round() > 0)
+            sauce(2);
+        if (current_round() > 0)
+            attack(5);
+    }
+    return true;
+}
+
+boolean handleSandwormCombat(string page_text){
+    if (last_monster() != $monster[giant sandworm])
+        return false;
+    if (!handleStockingMimicCombat(page_text))
+        sauce(6);
+    return true;
+}
+
+// ─── SCRIPT DISPATCHERS ───────────────────────────────────────────────────────
+
+// True means a handler claimed the fight; false allows the shared rules below.
+boolean handleFreeKillCombat(string page_text){
+    if (handleEaglePledgeCombat(page_text, true))
+        return true;
+    if (handleShadowRiftBoss())
+        return true;
+
+    // Handle roaming goblins before the location that their fight interrupted.
+    if (handleSausageGoblinCombat(page_text)) return true;
+
+    // Banish setup precedes ordinary damage skills.
+    if (handleScreechCombat(page_text)) return true;
+    if (handleBowlingAlleyCombat()) return true;
+
+    // These location handlers own their opening actions and familiar differences.
+    if (handleShadowRiftCombat(page_text)) return true;
+    if (handleCyberzoneCombat(page_text)) return true;
+
+    prepareFreeKillCombat();
+    if (current_round() == 0)
+        return true;
+    if (handleFlamingPlantCombat()) return true;
+    if (handleGingerbreadCombat(page_text)) return true;
+    if (handleRedZeppelinCombat(page_text)) return true;
+    if (handleDomedCityCombat(page_text)) return true;
+    if (handleFreeKillBarfMountainCombat(page_text)) return true;
+
+    // Remaining weakling fights keep priority over normal familiar combat.
+    if (get_property("subscript") == "weakling"){
+        prepareWeaklingCombat();
+        finishWeaklingCombat();
+        return true;
+    }
+    if (handleSandwormCombat(page_text)) return true;
+    if (handleStockingMimicCombat(page_text)) return true;
+    if (last_monster() == $monster[God Lobster]){
+        sauce(5);
+        return true;
+    }
+    return false;
+}
+
+// BARF combat placeholder. False means shared combat handling can continue.
+boolean handleBARFCombat(string page_text){
+    if (handleEaglePledgeCombat(page_text, false))
+        return true;
+    // TODO: Add BARF farming combat rules here.
+    return false;
+}
+
+// ─── SHARED GENERAL COMBAT ────────────────────────────────────────────────────
+
+boolean handleGeneralCombat(string page_text){
+    if (sauceLocs[my_location()] || sauceMobs[last_monster()]){
+        if (!free_monster() && !free_location()){
+            free_run(page_text);
+            return true;
+        }
+        sauce(7);
+        attack(3);
+        return true;
+    }
+    // Final fallback is shared by every script.
+    if (current_round() > 0)
+        sauce(10);
+    if (current_round() > 0)
+        attack(20);
+    return true;
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
+
+void main(int round, monster mob, string page_text){
+    if (current_round() == 0)
         return;
-    }
 
-    if (my_location() == $location[The Mansion of Dr. Weirdeaux]) {
-        if (get_property("_questESp") == "questESpClipper")
-            for i from 1 to 3 { throw_item($item[military-grade fingernail clippers]); }
-        sauce(3); return;
-    }
+    helmetHP(page_text);
+    print("monster hp is " + last_monster().base_hp);
+    print("monster level is " + numeric_modifier("monster level"));
+    print("high stat is " + max(my_buffedstat($stat[muscle]), my_buffedstat($stat[mysticality]), my_buffedstat($stat[moxie])));
 
-    if (my_location() == $location[The Tower of Procedurally-Generated Skeletons]) {
-        if (contains_text(get_property("lastEncounter"),"shiny")
-            || contains_text(get_property("lastEncounter"),"disorienting")) {
-            if (contains_text(get_property("lastEncounter"),"dancing")) abort();
-            if (contains_text(get_property("lastEncounter"),"ghostly"))
-                for i from 1 to 3 { throw_items($item[boozebomb],$item[boozebomb]); }
-            hurt(6);
-        } else {
-            sauce(6);
-        }
+    if (get_property("script") == "FreeKill"){
+        if (handleFreeKillCombat(page_text))
+            return;
+    } else if (get_property("script") == "BARF"){
+        if (handleBARFCombat(page_text))
+            return;
+    }
+    if (current_round() == 0)
         return;
-    }
-
-    if (my_location() == $location[the nightmare meatrealm]) {
-        use_skill($skill[spring away]); runaway(); return;
-    }
-
-    if ($strings[Le Marais D&egrave;gueulasse] contains my_location().zone) {
-        sauce(3); return;
-    }
-
-    // ── Fallback ──────────────────────────────────────────────────────────────
-    insta_kill(page_text);
-    sauce(30);
-    attack();
+    handleGeneralCombat(page_text);
 }
