@@ -35,6 +35,167 @@ string mpAutoRecoveryTargetStorage  = get_property("mpAutoRecoveryTarget");
 
 // ─── 2. GENERAL UTILITIES ────────────────────────────────────────────────────
 
+// Shared estimates for the Coldform / double-ice strategy.
+float monsterLevelDamageMultiplier() {
+    return max(0.50, 1 - numeric_modifier("Monster Level") * 0.004);
+}
+
+float coldDamageMultiplier(monster m) {
+    if (m.defense_element == $element[cold])
+        return 0;
+    return ($elements[stench, sleaze] contains m.defense_element) ? 2 : 1;
+}
+
+int estimatedShardOpeningDamage(monster m) {
+    // Cold-aligned monsters take the minimum hit rather than another burst.
+    if (m.defense_element == $element[cold])
+        return 1;
+    int highStat = max(my_buffedstat($stat[muscle]),
+        my_buffedstat($stat[mysticality]), my_buffedstat($stat[moxie]));
+    // Observed Coldform/shard hits match stat x ML, without the generic item
+    // bonus: 1381 x 0.5 -> 691, and 1113 x 0.5 -> 557 despite Deft Hands.
+    // Round upward and keep the opening burst separate from later chip damage.
+    return max(1, to_int(ceil(highStat
+        * monsterLevelDamageMultiplier() * coldDamageMultiplier(m))));
+}
+
+int icedChipDamage() {
+    int damage = 2;
+    foreach ef in my_effects()
+        if (numeric_modifier(ef, "Damage Aura") != 0
+            || numeric_modifier(ef, "Sporadic Damage Aura") != 0
+            || numeric_modifier(ef, "Thorns") != 0)
+            damage += 1;
+    return damage;
+}
+
+boolean shouldTossWaterBalloons() {
+    return !get_property("_waterBalloonBuffGranted").to_boolean()
+        && get_property("_waterBalloonTossStreak").to_int() < 111;
+}
+
+// Keep the first Gingerbread sniff pending across opening noncombats.
+boolean gingerbreadNeedsSlash(){
+    return !get_property("_teresGingerbreadSlashDone").to_boolean()
+        && get_property("_mcHugeLargeSlashUses").to_int() < 3;
+}
+
+// Independent of the Gingerbread sniff; leave this pending across noncombats.
+boolean shadowRiftNeedsSlash(){
+    return !get_property("_teresShadowRiftSlashDone").to_boolean()
+        && get_property("_mcHugeLargeSlashUses").to_int() < 3;
+}
+
+// Final Rift phase: these forces require an ordinary combat before the boss visit.
+skill shadowRiftCombatForcer(){
+    if (available_amount($item[McHugeLarge left ski]) > 0
+        && get_property("_mcHugeLargeAvalancheUses").to_int() < 3)
+        return $skill[McHugeLarge Avalanche];
+    if (available_amount($item[Jurassic Parka]) > 0
+        && get_property("_spikolodonSpikeUses").to_int() < 5)
+        return $skill[Launch spikolodon spikes];
+    return $skill[none];
+}
+
+// Explicit offhands and two-handed weapons take priority over optional Rift gear.
+boolean shadowRiftOffhandReserved(string goal){
+    boolean[item] weapons;
+    matcher requiredGear = create_matcher("(?i)(?:^|,)\\s*equip\\s+([^,]+)", goal);
+    while (requiredGear.find()){
+        string name = split_string(requiredGear.group(1), "\\s*\\(")[0];
+        item required = to_item(name);
+        if (required == $item[none] && name.to_lower_case() == "legendary seal-clubbing")
+            required = $item[legendary seal-clubbing club];
+        if (required == $item[none] && name.to_lower_case() == "eternity codpiece")
+            required = $item[The Eternity Codpiece];
+        // Unrecognized maximizer syntax must not silently lose required equipment.
+        if (required == $item[none] || to_slot(required) == $slot[off-hand]
+            || (to_slot(required) == $slot[weapon] && weapon_hands(required) > 1))
+            return true;
+        if (to_slot(required) == $slot[weapon]){
+            weapons[required] = true;
+            if (count(weapons) > 1)
+                return true; // Two required weapons reserve the offhand for dual wielding.
+        }
+    }
+    return false;
+}
+
+void cleanupGingerbreadAdventure(){
+    if (get_property("_teresGingerbreadPoleOverrideActive").to_boolean()
+        || get_property("_teresGingerbreadShieldOverrideActive").to_boolean()){
+        set_property("offOverride", get_property("_teresGingerbreadSavedOffOverride"));
+        set_property("_teresGingerbreadPoleOverrideActive", false);
+        set_property("_teresGingerbreadShieldOverrideActive", false);
+        set_property("_teresGingerbreadSavedOffOverride", "");
+    }
+}
+
+void prepareGingerbreadAdventure(location zone){
+    if (zone.zone != "Gingerbread City")
+        return;
+    if (get_property("_gingerbreadCityTurns").to_int() >= 30){
+        cleanupGingerbreadAdventure();
+        return;
+    }
+    if (have_effect($effect[Ew, The Humanity]) == 0){
+        item candle = $item[Scent of a Human&trade; candle];
+        if (!retrieve_item(1, candle) || !use(1, candle)
+            || have_effect($effect[Ew, The Humanity]) == 0)
+            abort("Gingerbread City requires the Scent of a Human candle's Ew, The Humanity effect.");
+    }
+    if (item_amount($item[waffle]) < 15)
+        retrieve_item(15, $item[waffle]);
+    if (item_amount($item[waffle]) < 15)
+        abort("Gingerbread City requires at least 15 waffles before adventuring.");
+    if (item_amount($item[gingerbread cigarette]) == 0)
+        retrieve_item(1, $item[gingerbread cigarette]);
+    if (item_amount($item[gingerbread cigarette]) == 0)
+        abort("Gingerbread City requires a cigarette for its free combat finisher.");
+    if (gingerbreadNeedsSlash()){
+        if (!retrieve_item(1, $item[McHugeLarge left pole]))
+            abort("Could not acquire the McHugeLarge left pole for the first Gingerbread sniff.");
+        if (!get_property("_teresGingerbreadPoleOverrideActive").to_boolean()){
+            set_property("_teresGingerbreadSavedOffOverride", get_property("offOverride"));
+            set_property("_teresGingerbreadPoleOverrideActive", true);
+        }
+        set_property("offOverride", ", equip McHugeLarge left pole");
+    } else if (get_property("subscript") == "weakling"){
+        if (!retrieve_item(1, $item[April Shower Thoughts shield]))
+            abort("Could not acquire the April shield for Gingerbread Shieldbutt stalling.");
+        if (!get_property("_teresGingerbreadShieldOverrideActive").to_boolean()){
+            set_property("_teresGingerbreadSavedOffOverride", get_property("offOverride"));
+            set_property("_teresGingerbreadShieldOverrideActive", true);
+        }
+        set_property("offOverride", ", equip April Shower Thoughts shield");
+    }
+}
+
+// Start a Next Week chain, or renew it once the scheduled wanderer is due.
+boolean clubNextWeekReady() {
+    return get_property("_clubEmNextWeekUsed").to_int() < 5
+        && (get_property("clubEmNextWeekMonster") == ""
+            || total_turns_played() >= get_property("clubEmNextWeekMonsterTurn").to_int() + 8);
+}
+
+boolean hiddenCityFarming() {
+    return get_property("subscript") == "drunkPygmy"
+        && my_location() == $location[The Hidden Bowling Alley];
+}
+
+// Select only a banish that the current outfit actually provides.
+skill hiddenCityOrderliesBanish() {
+    if (!get_property("_latteBanishUsed").to_boolean()
+        && have_equipped($item[latte lovers member's mug])
+        && have_skill($skill[Throw Latte on Opponent]))
+        return $skill[Throw Latte on Opponent];
+    if (!get_property("_mafiaMiddleFingerRingUsed").to_boolean()
+        && have_equipped($item[mafia middle finger ring])
+        && have_skill($skill[Show them your ring]))
+        return $skill[Show them your ring];
+    return $skill[none];
+}
+
 int count_substring(string text, string sub) {
     int count = 0;
     int pos = 0;
@@ -263,38 +424,21 @@ skill combatBan() {
 
 // ─── 4. CLAN & INSTANCE ACCESS ───────────────────────────────────────────────
 
-// stashgrab / stashreturn hop to a specific shared-stash clan (2047009940) and
-// back. Only Fart Scauce is whitelisted there and wants this side effect, so
-// they are no-ops on any other account.
-void stashgrab(item it){
-    if (my_name().to_lower_case() != "fart scauce") return;
-    visit_url("showclan.php?whichclan=2047009940&action=joinclan&confirm=on");
-    if (stash_amount(it) > 0)
-        take_stash(it, 1 );
-    visit_url("showclan.php?whichclan=" + get_property("homeClanID").to_int() + "&action=joinclan&confirm=on");
-    if (get_property("_clanFortuneConsultUses") == 0){
-        cli_execute("/whitelist Bonus Adventures from Hell");
-        visit_url("showclan.php?whichclan=" + get_property("homeClanID").to_int() + "&action=joinclan&confirm=on");
-    }}
-
-void stashreturn(item it){
-    if (my_name().to_lower_case() != "fart scauce") return;
-    visit_url("showclan.php?whichclan=2047009940&action=joinclan&confirm=on");
-    cli_execute("unequip "+ it);
-    if (available_amount(it) > 0)
-        put_stash(it, 1 );
-    visit_url("showclan.php?whichclan=" + get_property("homeClanID").to_int() + "&action=joinclan&confirm=on");}
-
-// Clan fortune-teller onlyfax for the day's 3 free consults (needs a clan
-// with a fortune teller; 90485 is a public one -- see the config note above).
+// FKPrep's remaining daily OnlyFax consultations; return to the stash clan afterward.
 void clanFortune(){
+    int consultsUsed = get_property("_clanFortuneConsultUses").to_int();
+    if (consultsUsed >= 3)
+        return;
     if (get_clan_name() != "Bonus Adventures from Hell")
         cli_execute("/whitelist Bonus Adventures from Hell");
-    if (get_property("_clanFortuneConsultUses").to_int() == 3)
-        return;
-    visit_url("showclan.php?whichclan=90485&action=joinclan&confirm=on");
-    cli_execute("fortune onlyfax pizza batman thick");
-    cli_execute("/whitelist Soup Clan");
+    try {
+        for (int consult = consultsUsed; consult < 3; consult++) {
+            if (!cli_execute("fortune onlyfax pizza batman thick"))
+                break;
+        }
+    } finally {
+        cli_execute("/whitelist Soup Clan");
+    }
 }
 
 // ─── 5. IOTM & ITEM HELPERS ──────────────────────────────────────────────────
@@ -1142,12 +1286,20 @@ void beretBusking(string modifiers){
 
 // ─── 99. SCRIPT LIFECYCLE ────────────────────────────────────────────────────
 
+void clearPreAdvGearCache(){
+    set_property("_teresGearBaselineKey", "");
+    set_property("_teresGearBaselineOutfit", "");
+}
+
 // starter(): point mafia's between-battle / after-adventure / choice hooks and the CCS at this environment.
 void starter(){
-    set_property("hpAutoRecovery",0.75);
-    set_property("hpAutoRecoveryTarget",0.95);
-    set_property("mpAutoRecovery",0.25);
-    set_property("mpAutoRecoveryTarget",0.3);
+    clearPreAdvGearCache();
+    // Start with small absolute targets, including before the first gear hook.
+    // KoLmafia stores these as fractions; preadventure recalculates after swaps.
+    set_property("hpAutoRecovery", min(1.0, 750.0 / max(1, my_maxhp())));
+    set_property("hpAutoRecoveryTarget", min(1.0, 1000.0 / max(1, my_maxhp())));
+    set_property("mpAutoRecovery", min(1.0, 200.0 / max(1, my_maxmp())));
+    set_property("mpAutoRecoveryTarget", min(1.0, 300.0 / max(1, my_maxmp())));
     set_auto_attack(0);
     set_property("battleAction", "custom combat script");
     buffer ccs = "consult unlockerCCS.ash \n abort";
@@ -1163,10 +1315,12 @@ void starter(){
 // clears this environment's own scratch properties (script /
 // subscript / inSpendAdv / every *Override).
 void finisher() {
+    clearPreAdvGearCache();
     set_property("script", "");
     set_property("subscript", "");
     set_property("betweenBattleScript",   betweenBattleScriptStorage);
     set_property("afterAdventureScript",  afterAdventureScriptStorage);
+    set_property("choiceAdventureScript", choiceAdventureScriptStorage);
     set_property("battleAction",          battleActionStorage);
     set_property("customCombatScript",    ccsStorage);
     set_property("hpAutoRecovery",        hpAutoRecoveryStorage);

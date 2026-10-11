@@ -128,20 +128,32 @@ void freeKillTurnGuard(){
     set_property("LastFKTurn", turnsNow);
     // The Hidden Temple is an existing exception for intentional paid adventures.
     // Abort while testing individual phases; switch to a red warning once dailyFKs is verified.
-    if (previousTurn != "" && turnsSpent > 0 && my_location() != $location[the hidden temple])
+    // The final Rift phase intentionally pays for combats that arm NC forces.
+    if (previousTurn != "" && turnsSpent > 0 && my_location() != $location[the hidden temple]
+        && get_property("subscript") != "shadowForcers")
         abort("FreeKill unexpectedly spent " + turnsSpent + " turn(s) at "
             + my_location() + " against " + last_monster() + ".");
 }
 
-// Stop when the day is over and the wineglass is equipped.
-void endOfDayHandling(){
-    if (my_adventures() == 0 && have_equipped($item[drunkula's wineglass]))
-        abort("Done for the day");
+// Avoid buying MP before every Lucky! encounter just to burn it on a Libram.
+void spendSpareLibramMP(){
+    if (!have_skill($skill[Summon Party Favor]))
+        return;
+    if (get_property("script") != "embezzler"){
+        if (my_mp() >= mp_cost($skill[Summon Party Favor]))
+            cli_execute("cast * Summon Party Favor");
+        return;
+    }
+    int reserveMP = max(300, 10 * mp_cost($skill[Weapon of the Pastalord]));
+    while (my_mp() >= reserveMP + mp_cost($skill[Summon Party Favor])){
+        if (!use_skill(1, $skill[Summon Party Favor]))
+            break;
+    }
 }
 
 // Per-turn upkeep: safety aborts, script-specific bookkeeping, then the daily
 // resource chores (Law of Averages, autumn-aton, resin, trainset, universe skill,
-// sweat, leprecondo, consumable top-ups, distill), then end-of-day.
+// sweat, consumable top-ups, distill).
 void postAdv(){
     if (contains_text(visit_url("main.php"),"You're fighting"))
         run_combat();
@@ -161,8 +173,8 @@ void postAdv(){
         if (have_effect(ef) > 0)
             cli_execute("uneffect " + ef);
     }
-    if (item_amount($item[tiny stillsuit]) > 0 && have_familiar($familiar[tickle-me emilio]) && familiar_equipped_equipment($familiar[tickle-me emilio]) != $item[tiny stillsuit]){
-        use_familiar($familiar[tickle-me emilio]);
+    if (item_amount($item[tiny stillsuit]) > 0 && have_familiar($familiar[Animated Macaroni Duck]) && familiar_equipped_equipment($familiar[Animated Macaroni Duck]) != $item[tiny stillsuit]){
+        use_familiar($familiar[Animated Macaroni Duck]);
         equip($item[tiny stillsuit]);
     }
     if (get_property("script") == "FreeKill"){
@@ -176,9 +188,17 @@ void postAdv(){
         }
     }
     freeKillTurnGuard();
+    cleanupGingerbreadAdventure();
+    // Claim once the uninterrupted toss/catch streak reaches the daily reward.
+    if (get_property("_waterBalloonTossStreak").to_int() >= 111
+        && !get_property("_waterBalloonBuffGranted").to_boolean()){
+        visit_url("council.php");
+        if (get_property("_waterBalloonBuffGranted").to_boolean())
+            print("Water Balloon Champion claimed; balloon stalling is done for today.", "blue");
+        else
+            print("Could not claim Water Balloon Champion from the Council.", "red");
+    }
     lawOfAverages();
-    if (is_online("OnlyFax"))
-        clanFortune();
     if (get_property("autumnatonQuestLocation") == "" && item_amount($item[autumn-aton]) > 0){
         upgradeAutumnaton();
     }
@@ -196,18 +216,15 @@ void postAdv(){
     if (get_property("_aug16Cast") == "false" && my_fullness() > 0)
         use_skill($skill[Aug. 16th: Roller Coaster Day!]);
     sweatpants();
-    if (to_int(get_property("_leprecondoRearrangements")) < 3){
-        // Fixed aftercore layout: bed, laptop, treadmill, retro console.
-        // The helper skips rearranging when these four are already installed.
-        leprecondo("27,12,9,24");
-    }
-    if (have_equipped($item[drunkula's wineglass]) && dayType() == 0)
-        abort("Done for the day");
-    if (my_inebriety() < inebriety_limit() && dayType() != 0 && my_adventures() < 60){
+    int stillsuitDrams = get_property("familiarSweat").to_int();
+    int distillateAdventures = round(stillsuitDrams ** 0.4);
+    if (distillateAdventures >= 12 && my_inebriety() <= inebriety_limit() - 2){
+        print("Stillsuit: distilling " + stillsuitDrams + " drams for " + distillateAdventures + " base adventures.", "blue");
         visit_url("inventory.php?"+my_hash()+"&action=distill");
-        run_choice(1);
+        if (handling_choice() && last_choice() == 1476)
+            run_choice(1);
     }
-    endOfDayHandling();
+    spendSpareLibramMP();
 }
 
 // Adventure routing stays with the calling script; this hook only runs upkeep.

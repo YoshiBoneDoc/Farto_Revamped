@@ -27,15 +27,12 @@ void dailyMoodAndNightcap(){
 // Template
 void BARFprep(){
 
-    //vykea lamp for +40 meat cli: 'create level 5 lightening couch'
-    //start with patriot eagle , pledge allegiance to the zone (+50% meat in barf)
-    //              use_skill($skill[%fn, Release the Patriotic Screech!]);   <-- replace with pledge
-    //              free_run(page_text);
-
 /*
         -vip clan
-        1. drink 1 TRIO with paw(1) + yeti
-        2. get carpe
+        // bird a day
+        // collect dinsey wages + quest
+
+
         3. get 2002 stuff
         4. favorite bird
         5. war concert
@@ -78,6 +75,13 @@ void BARFprep(){
 export function garboDiet() {
 
 /*
+    start at: 3/0/0 - drunk/stomach/spleen
+    sweatpants x3 0/0/0
+
+
+
+    cast 5 pals
+
     _______ Working Blueprint ________
     1. daily chores - BARFprep()
 
@@ -198,6 +202,7 @@ export function garboDiet() {
     // top off and adventure
     cli_execute("CONSUME ALL");
     cli_execute("adventure * Barf Mountain");
+    dailyWorkshed();
 
     // Stooper
     cli_execute("familiar Stooper");
@@ -213,7 +218,7 @@ export function garboDiet() {
 
     //cli_execute("wear burning cape");
     //cli_execute("make snow belt");
-    cli_execute("maximize adv");
+    cli_execute("maximize adv, -equip legendary seal-clubbing club");
     cli_execute("wear ratskin pants");
 
     someHelperFunction();

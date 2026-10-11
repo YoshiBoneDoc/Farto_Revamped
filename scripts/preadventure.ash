@@ -62,12 +62,148 @@ buffer preAdvMaximize(){
     return maximize;
 }
 
+// Reuse a baseline within this run; only simple, single-slot requirements are
+// temporary swaps. Accessories, exclusions and familiar/location changes define
+// a new baseline. Other objectives, item modes and weapon conflicts use the solver.
+boolean applyBaselineGear(string goal){
+    string[int] clauses = split_string(goal, "\\s*,\\s*");
+    string objective = replace_all(create_matcher("^\\s+|\\s+$", clauses[0]), "").to_lower_case();
+    if (objective != "familiar weight" && objective != "familiar experience")
+        return false;
+
+    string baselineGoal = objective + ", -equip bat wings, -equip legendary seal-clubbing club, -equip McHugeLarge left pole";
+    item[slot] overrides;
+    boolean[item] excluded;
+    foreach index, clause in clauses {
+        if (index == 0)
+            continue;
+        clause = replace_all(create_matcher("^\\s+|\\s+$", clause), "");
+        if (clause == "")
+            continue;
+        matcher equipment = create_matcher("(?i)^(-?)equip\\s+(.+)$", clause);
+        if (!equipment.find())
+            return false;
+        item required = equipment.group(2).to_item();
+        // These existing maximizer abbreviations are not exact ASH item names.
+        if (required == $item[none] && equipment.group(2).to_lower_case() == "eternity codpiece")
+            required = $item[The Eternity Codpiece];
+        if (required == $item[none] && equipment.group(2).to_lower_case() == "legendary seal-clubbing")
+            required = $item[legendary seal-clubbing club];
+        // Mode suffixes and other special maximizer syntax stay with KoLmafia.
+        if (required == $item[none] || contains_text(clause, "(") || contains_text(clause, ")"))
+            return false;
+        if (equipment.group(1) == "-") {
+            excluded[required] = true;
+            if (required != $item[bat wings] && required != $item[legendary seal-clubbing club]
+                && required != $item[McHugeLarge left pole])
+                baselineGoal += ", -equip " + required;
+            continue;
+        }
+        slot position = to_slot(required);
+        if ($slots[acc1, acc2, acc3] contains position) {
+            baselineGoal += ", equip " + required;
+            continue;
+        }
+        if (!($slots[hat, weapon, off-hand, back, shirt, pants, familiar] contains position)
+            || (position == $slot[weapon] && weapon_hands(required) > 1)
+            || (overrides contains position && overrides[position] != required))
+            return false;
+        overrides[position] = required;
+    }
+    foreach position, required in overrides
+        if (excluded contains required)
+            return false;
+
+    // Hooks execute separately, so two scratch properties carry the baseline.
+    // starter()/finisher() clear them; day, path and environment also delimit reuse.
+    string key = today_to_string() + ":" + my_ascensions() + ":" + my_class()
+        + ":" + my_path() + ":" + my_familiar() + ":" + my_location().environment
+        + ":" + (my_location() != $location[none]
+            && my_location() == get_property("_seadentWaveZone").to_location())
+        + ":" + baselineGoal;
+    if (get_property("_teresGearBaselineKey") != key) {
+        clearPreAdvGearCache();
+        print("Gear baseline: maximizing " + baselineGoal + ".", "blue");
+        if (!maximize(baselineGoal, false))
+            abort("preAdv baseline maximize() failed: " + baselineGoal);
+        string outfit;
+        foreach position in $slots[hat, weapon, off-hand, back, shirt, pants, acc1, acc2, acc3, familiar]
+            outfit += (outfit == "" ? "" : ",") + to_int(equipped_item(position));
+        set_property("_teresGearBaselineOutfit", outfit);
+        set_property("_teresGearBaselineKey", key);
+    }
+
+    string[int] baseline = split_string(get_property("_teresGearBaselineOutfit"), ",");
+    if (count(baseline) != 10) {
+        clearPreAdvGearCache();
+        return false;
+    }
+    item[slot] desired;
+    int index = 0;
+    int[item] copiesNeeded;
+    foreach position in $slots[hat, weapon, off-hand, back, shirt, pants, acc1, acc2, acc3, familiar] {
+        desired[position] = overrides contains position ? overrides[position] : baseline[index].to_int().to_item();
+        index += 1;
+        if (desired[position] != $item[none])
+            copiesNeeded[desired[position]] += 1;
+    }
+    // A two-handed baseline needs a different weapon to support an off-hand.
+    if (weapon_hands(desired[$slot[weapon]]) > 1 && desired[$slot[off-hand]] != $item[none])
+        return false;
+    foreach required, copies in copiesNeeded
+        if (available_amount(required) < copies) {
+            clearPreAdvGearCache();
+            return false;
+        }
+    foreach position, required in desired
+        if (required != $item[none] && equipped_item(position) != required && !can_equip(required))
+            return false;
+
+    // Clear the off-hand first when restoring a two-handed baseline; otherwise
+    // switch the weapon before the off-hand. The rest only changes differing slots.
+    if (desired[$slot[off-hand]] == $item[none] && equipped_item($slot[off-hand]) != $item[none])
+        if (!equip($slot[off-hand], $item[none]))
+            abort("Could not clear the off-hand for the gear baseline.");
+    foreach position in $slots[hat, weapon, off-hand, back, shirt, pants, acc1, acc2, acc3, familiar]
+        if (equipped_item(position) != desired[position]) {
+            print("Gear swap: " + position + " -> " + desired[position] + ".", "blue");
+            if (!equip(position, desired[position])) {
+                clearPreAdvGearCache();
+                abort("Could not equip " + desired[position] + " in " + position + ".");
+            }
+        }
+    return true;
+}
+
 void applyPreAdvGear(buffer maximize){
+    // The pole is a temporary skill tool, not part of the normal outfit.
+    matcher poleRequest = create_matcher("(?i)(?:^|,)\\s*-?equip\\s+McHugeLarge left pole\\s*(?=,|$)", maximize.to_string());
+    if (!poleRequest.find())
+        append(maximize, ", -equip McHugeLarge left pole");
+    // The eyepatch is opt-in: ordinary maximization must not select or retain it.
+    matcher eyepatchRequest = create_matcher("(?i)(?:^|,)\\s*-?equip\\s+PirateRealm eyepatch\\s*(?=,|$)", maximize.to_string());
+    if (!eyepatchRequest.find())
+        append(maximize, ", -equip PirateRealm eyepatch");
+    // Wings are opt-in: ordinary maximization must not select or retain them.
+    matcher wingsRequest = create_matcher("(?i)(?:^|,)\\s*-?equip\\s+bat wings\\s*(?:,|$)", maximize.to_string());
+    if (!wingsRequest.find())
+        append(maximize, ", -equip bat wings");
+    // The club is opt-in for a ready Next Week chain or the Back in Time FK.
+    matcher clubRequest = create_matcher("(?i)(?:^|,)\\s*equip\\s+legendary seal-clubbing(?: club)?\\s*(?=,|$)", maximize.to_string());
+    boolean clubRequested = clubRequest.find();
+    boolean clubBackInTime = get_property("subscript") == "looseFK"
+        && get_property("_clubEmTimeUsed").to_int() < 5;
+    if (!clubRequested || (!clubNextWeekReady() && !clubBackInTime)) {
+        if (clubRequested)
+            maximize = replace_all(clubRequest, "").to_buffer();
+        if (!contains_text(maximize.to_string().to_lower_case(), "-equip legendary seal-clubbing"))
+            append(maximize, ", -equip legendary seal-clubbing club");
+    }
     boolean yellowReady = have_effect($effect[everything looks yellow]) == 0;
     boolean greenReady = have_effect($effect[everything looks green]) == 0;
     boolean dartReady = have_effect($effect[everything looks red]) == 0;
-    // Run Maximize string
-    if (!maximize(maximize.to_string(), false)) {
+    // Simple familiar outfits reuse a baseline; complex setups retain full maximization.
+    if (!applyBaselineGear(maximize.to_string()) && !maximize(maximize.to_string(), false)) {
         // DEBUG for if maximize fails
         print("MAXIMIZE STRING: " + maximize.to_string(), "red");
         abort("preAdv maximize() failed: " + maximize.to_string());
@@ -85,31 +221,59 @@ void applyPreAdvGear(buffer maximize){
 
 }
 
+familiar selectFreeKillFamiliar(){
+    int mimicXPTarget = 950;
+    int yetiXPTarget = 2600; // (225 * 8) for Too Cool, 400 for nightcap, 400 base xp
+    familiar selectedFamiliar;
+    if (have_familiar($familiar[chest mimic]) && $familiar[chest mimic].experience < mimicXPTarget)
+        selectedFamiliar = $familiar[chest mimic];
+    else if (have_familiar($familiar[cooler yeti]) && $familiar[cooler yeti].experience < yetiXPTarget)
+        selectedFamiliar = $familiar[cooler yeti];
+    else if (get_property("_mapToACandyRichBlockDrops").to_int() < 1)
+        selectedFamiliar = $familiar[Jill-of-All-Trades];
+    else if (get_property("_knuckleboneDrops").to_int() < 100)
+        selectedFamiliar = $familiar[skeleton of crimbo past];
+    else
+        selectedFamiliar = $familiar[Jill-of-All-Trades];
+    return selectedFamiliar;
+}
+
+// Check the finalized outfit and supplies before any farming encounter starts.
+void validateHiddenCityPreparation(){
+    if (!hiddenCityFarming())
+        return;
+    if (item_amount($item[bowl of scorpions]) == 0)
+        abort("Bowling Alley: no bowl of scorpions is available before combat.");
+    if (!contains_text(get_property("banishedMonsters"), "pygmy bowler")
+        && item_amount($item[stuffed yam stinkbomb]) == 0)
+        abort("Bowling Alley: no stuffed yam stinkbomb is available before combat.");
+    if (!contains_text(get_property("banishedMonsters"), "pygmy orderlies")) {
+        skill banish = hiddenCityOrderliesBanish();
+        if (banish == $skill[none])
+            abort("Bowling Alley: the finalized outfit has no unused latte or ring banish.");
+        if (my_mp() < mp_cost(banish) && !restore_mp(mp_cost(banish)))
+            abort("Bowling Alley: could not restore MP for " + banish + ".");
+        if (my_mp() < mp_cost(banish))
+            abort("Bowling Alley: insufficient MP for " + banish + ".");
+    }
+}
+
 void setupFreeKill(){
     string famOvr = get_property("famOverride");
     string maxOvr = get_property("maxOverride");
+    boolean bowlingAlley = hiddenCityFarming();
+    boolean godLobster = get_property("subscript") == "godLobster";
+    boolean familiarExperienceFarming = bowlingAlley || godLobster;
 
     // ------- FAMILIAR HANDLING -------
     boolean keepStooper = false;
     if (my_familiar() == $familiar[stooper])  // Only evaluate drunk limit when Stooper is already equipped.
         keepStooper = my_inebriety() == inebriety_limit();
-    if (!keepStooper){
+    if (!keepStooper || godLobster){
         if (famOvr != "")
             use_familiar(famOvr.to_familiar());
         else {
-            int mimicXPTarget = 950;
-            int yetiXPTarget = 2600; // (225 * 8) for Too Cool, 400 for nightcap, 400 base xp
-            familiar selectedFamiliar;
-            if (have_familiar($familiar[chest mimic]) && $familiar[chest mimic].experience < mimicXPTarget)
-                selectedFamiliar = $familiar[chest mimic];
-            else if (have_familiar($familiar[cooler yeti]) && $familiar[cooler yeti].experience < yetiXPTarget)
-                selectedFamiliar = $familiar[cooler yeti];
-            else if (get_property("_mapToACandyRichBlockDrops").to_int() < 1)
-                selectedFamiliar = $familiar[Jill-of-All-Trades];
-            else if (get_property("_knuckleboneDrops").to_int() < 100)
-                selectedFamiliar = $familiar[skeleton of crimbo past];
-            else
-                selectedFamiliar = $familiar[Jill-of-All-Trades];
+            familiar selectedFamiliar = selectFreeKillFamiliar();
             if (!use_familiar(selectedFamiliar))
                 abort("Could not equip " + selectedFamiliar + " for FreeKill farming.");
         }
@@ -124,20 +288,18 @@ void setupFreeKill(){
     // Familiar equipment --------------------
     string famEquipment;
     if (get_property("famEquipOverride") != "")                    famEquipment = get_property("famEquipOverride");
+    else if (my_familiar() == $familiar[stocking mimic])           famEquipment = ", equip amulet coin";
     else if (my_familiar() == $familiar[skeleton of crimbo past])  famEquipment = ", equip small peppermint-flavored sugar walking crook";
     else if (my_familiar() == $familiar[cooler yeti])              famEquipment = ", equip toy cupid bow";
     else if (my_familiar() == $familiar[chest mimic])              famEquipment = ", equip toy cupid bow";
     else if (my_familiar() == $familiar[mini kiwi])                famEquipment = ", equip aviator goggles";
     else if (my_familiar() == $familiar[Meat Shield Maiden])       famEquipment = ", equip can of shield tenderizer";
-    else                                                           famEquipment = ", equip tiny stillsuit";
 
     buffer maximize = preAdvMaximize();
     append(maximize, famEquipment);
 
-    if (get_property("subscript") == "drunkPygmy" && my_location() == $location[The Hidden Bowling Alley]){
-        // Keep the farming outfit simple; wanderers use the normal combat handlers.
-        append(maximize, ", equip latte lovers member's mug");
-    } else {
+    // Hidden City and God Lobster fights maximize XP without general farming gear overrides.
+    if (!familiarExperienceFarming){
         int highStat = max(my_buffedstat($stat[muscle]),my_buffedstat($stat[mysticality]),my_buffedstat($stat[moxie]));
     // -- Overrides for all gear, accounting for diet > max, and FK charges --
         // No Hat overrides because of Hat Path
@@ -158,8 +320,11 @@ void setupFreeKill(){
             append(maximize, get_property("backOverride"));
         else if (have_item($item[protonic accelerator pack]) && get_property("questPAGhost") == "unstarted")
             append(maximize, ", equip protonic accelerator pack");
-        // Shirt
-        if (have_equipped($item[devilbone corset]))
+        // Quest/forcer shirts must win over the retained farming corset.
+        if (contains_text(get_property("shirtOverride"), "equip PARTY HARD T-shirt")
+            || (get_property("subscript") == "shadowForcers" && get_property("shirtOverride") != ""))
+            append(maximize, get_property("shirtOverride"));
+        else if (have_equipped($item[devilbone corset]))
             append(maximize, ", equip devilbone corset");
         else if (get_property("shirtOverride") != "")
             append(maximize, get_property("shirtOverride"));
@@ -203,17 +368,12 @@ void setupFreeKill(){
     set_property("mpAutoRecoveryTarget", mpAutoRecoveryTarget);
     if (equipped_item($slot[codpiece5]) != $item[massive gemstone])
         codpiece("peridot of peril,blood cubic zirconia,baseball diamond,massive gemstone,massive gemstone");
-    if (get_property("_seadentWaveUsed") == "false") {
-        if (dayType() == 0 && contains_text(get_property("lastEncounter"), "gingerbread")) {
-            use_skill($skill[Sea *dent: Summon a Wave]);
-        }
-    }
 // --dont flood the shadow realm in hat path
 //            else if (dayType() == 1 && contains_text(get_property("lastEncounter"),"shadow")){
 //                use_skill($skill[Sea *dent: Summon a Wave]);
 
     //monster level
-    foreach ef in $effects[Ur-Kel's Aria of Annoyance,Pride of the Puffin,Bloodbathed,Misplaced Rage,Manbait,Sweetbreads Flamb&eacute;,Red Lettered,Spangled Star,Tortious,Litterbug,Not Sharing,Para-lyzed Jaw,Contemptible Emanations,Lapdog,Ashen Burps,The Cupcake of Wrath,Gelded,Mysteriously Handsome]{
+    foreach ef in $effects[Ur-Kel's Aria of Annoyance,Pride of the Puffin,Bloodbathed,Misplaced Rage,Manbait,Sweetbreads Flamb&eacute;,Red Lettered,Spangled Star,Tortious,Litterbug,Not Sharing,Para-lyzed Jaw,Contemptible Emanations,Ashen Burps,The Cupcake of Wrath,Gelded,Mysteriously Handsome]{
         if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]))
             continue;
         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)))
@@ -228,6 +388,7 @@ void setupFreeKill(){
         if (have_effect(ef) > 0)
             cli_execute("uneffect " + ef);
     }
+    validateHiddenCityPreparation();
 }
 
 void setupBARF(){
@@ -235,14 +396,32 @@ void setupBARF(){
     // Familiar equipment: placeholder for BARF-specific selection.
 }
 
-// General gear fallback, also used by TeresMimic's embezzler phase.
+// Lucky! fights need Meat gear and absolute recovery amounts, not percentages
+// inherited from starter() or the previous farming phase.
+void setupEmbezzler(){
+    buffer maximize;
+    append(maximize, "meat drop");
+    if (get_property("backOverride") != "")
+        append(maximize, get_property("backOverride"));
+    if (get_property("famEquipOverride") != "")
+        append(maximize, get_property("famEquipOverride"));
+    applyPreAdvGear(maximize);
+
+    // Shared combat may try up to ten Pastalord casts; usually one is enough.
+    int combatMP = max(200, 10 * mp_cost($skill[Weapon of the Pastalord]));
+    set_property("hpAutoRecovery", min(1.0, 750.0 / my_maxhp()));
+    set_property("hpAutoRecoveryTarget", min(1.0, 1000.0 / my_maxhp()));
+    set_property("mpAutoRecovery", min(1.0, to_float(combatMP) / my_maxmp()));
+    set_property("mpAutoRecoveryTarget", min(1.0, to_float(max(300, combatMP)) / my_maxmp()));
+}
+
+// General gear fallback.
 void setupDefault(){
-    boolean clubEmReady = get_property("clubEmNextWeekMonster") != "" && total_turns_played() >= get_property("clubEmNextWeekMonsterTurn").to_int() + 8;
+    boolean clubEmReady = get_property("clubEmNextWeekMonster") != "" && clubNextWeekReady();
     boolean clubEmExact = total_turns_played() == get_property("clubEmNextWeekMonsterTurn").to_int() + 8;
     boolean jokesterReady = get_property("_firedJokestersGun") == "false";
     boolean avalancheReady = get_property("_mcHugeLargeAvalancheUses").to_int() < 3;
     boolean spikeReady = get_property("_spikolodonSpikeUses").to_int() < 5;
-    boolean batReady = get_property("_batWingsFreeFights").to_int() < 5;
     boolean dartReady = have_effect($effect[everything looks red]) == 0;
     boolean greenReady = have_effect($effect[everything looks green]) == 0;
     boolean yellowReady = have_effect($effect[everything looks yellow]) == 0;
@@ -288,8 +467,6 @@ void setupDefault(){
         // Back
         if (get_property("backOverride") != "")
             append(maximize, get_property("backOverride"));
-        else if (batReady)
-            append(maximize, ", equip bat wings");
         // Shirt
         if (have_equipped($item[devilbone corset]))
             append(maximize, ", equip devilbone corset");
@@ -360,12 +537,47 @@ void setupDefault(){
 
 void preAdv(){
     if (get_property("script") == "FreeKill")
+        prepareGingerbreadAdventure(my_location());
+    if (get_property("script") == "FreeKill")
         setupFreeKill();
+    else if (get_property("script") == "embezzler")
+        setupEmbezzler();
     else if (get_property("script") == "BARF")
         setupBARF();
     else
-        // dailyFKs switches script to "embezzler" for Lucky! Treasury fights; use the general gear setup.
         setupDefault();
+
+    if (get_property("script") == "FreeKill" && my_location().zone == "Gingerbread City"
+        && get_property("_gingerbreadCityTurns").to_int() < 30 && gingerbreadNeedsSlash()
+        && !have_equipped($item[McHugeLarge left pole]))
+        abort("The first Gingerbread sniff requires the McHugeLarge left pole equipped.");
+    if (get_property("script") == "FreeKill"
+        && contains_text(get_property("offOverride"), "equip McHugeLarge left pole")
+        && (get_property("subscript") == "shadowAffinity" || get_property("subscript") == "looseFK")
+        && !have_equipped($item[McHugeLarge left pole]))
+        abort("The first Shadow Rift sniff requires the McHugeLarge left pole equipped.");
+    if (get_property("script") == "FreeKill"
+        && contains_text(get_property("offOverride"), "equip April Shower Thoughts shield")
+        && (get_property("subscript") == "shadowAffinity" || get_property("subscript") == "looseFK")
+        && !have_equipped($item[April Shower Thoughts shield]))
+        abort("Shadow Rift Shieldbutt stalling requires the April shield equipped.");
+    if (get_property("script") == "FreeKill" && get_property("subscript") == "weakling"
+        && my_location().zone == "Gingerbread City" && get_property("_gingerbreadCityTurns").to_int() < 30
+        && !gingerbreadNeedsSlash() && !have_equipped($item[April Shower Thoughts shield]))
+        abort("Gingerbread Shieldbutt stalling requires the April shield equipped.");
+    if (get_property("script") == "FreeKill" && get_property("subscript") == "weakling"
+        && contains_text(get_property("offOverride"), "equip April Shower Thoughts shield")
+        && !have_equipped($item[April Shower Thoughts shield]))
+        abort("Shield stalling requires the April shield equipped.");
+    if (get_property("script") == "FreeKill" && get_property("subscript") == "weakling"
+        && contains_text(get_property("acc3Override"), "equip PirateRealm eyepatch")
+        && !have_equipped($item[PirateRealm eyepatch]))
+        abort("Stat-limited shard stalling requires the PirateRealm eyepatch equipped.");
+    if (get_property("script") == "FreeKill" && get_property("subscript") == "weakling"
+        && my_location() == $location[The Neverending Party]
+        && contains_text(get_property("shirtOverride"), "equip PARTY HARD T-shirt")
+        && (!have_equipped($item[PARTY HARD T-shirt]) || have_equipped($item[PirateRealm eyepatch])))
+        abort("Party hard fights require the PARTY HARD T-shirt and no PirateRealm eyepatch.");
 
     // Shared supplies for the combat scripts.
     // Required for FreeKill stalling: stop before combat if acquisition fails.
@@ -374,24 +586,37 @@ void preAdv(){
         if (item_amount($item[facsimile dictionary]) == 0)
             abort("FreeKill requires a facsimile dictionary; Combat was not started. Go get one before running again.");
     }
+    // One balloon can be reused across fights when the monster returns it.
+    if (get_property("script") == "FreeKill"
+        && (my_familiar() == $familiar[stocking mimic]
+            || $strings[weakling, looseFK, shadowAffinity] contains get_property("subscript"))
+        && shouldTossWaterBalloons()
+        && item_amount($item[water balloon]) == 0
+        && !retrieve_item(1, $item[water balloon]))
+        print("Could not acquire a water balloon; continuing with normal stalling.", "red");
     if (item_amount($item[peppermint parasol]) == 0
         && !retrieve_item(1, $item[peppermint parasol]))
         print("[DEBUG] Could not acquire a peppermint parasol before combat; continuing.", "red");
-    if (item_amount($item[dry noodles]) < 2)
-        retrieve_item(2,$item[dry noodles]);
+    // Keep the round-30 Cudgel fallback supplied before entering combat.
+    if (item_amount($item[dry noodles]) == 0)
+        retrieve_item(1, $item[dry noodles]);
+    if (item_amount($item[dry noodles]) == 0)
+        abort("Combat requires at least one dry noodles for Carbohydrate Cudgel.");
     if (item_amount($item[lit leaf lasso]) < 2)
         buy(2,$item[lit leaf lasso]);
     if (item_amount($item[logic grenade]) < 2)
         retrieve_item(2,$item[logic grenade]);
     if (item_amount($item[glitched malware]) < 1)
         retrieve_item(1,$item[glitched malware]);
-    if (get_property("subscript") == "weakling" || get_property("subscript") == "looseFK"){
+    // Keep shards in inventory; only replenish when a shard phase needs one.
+    if ($strings[weakling, looseFK, shadowAffinity] contains get_property("subscript")
+        && item_amount($item[shard of double-ice]) == 0) {
         if (closet_amount($item[shard of double-ice]) > 0)
-            take_closet($item[shard of double-ice]);
+            take_closet(1, $item[shard of double-ice]);
         else
-            retrieve_item($item[shard of double-ice]);
-    } else {
-        put_closet(item_amount($item[shard of double-ice]),$item[shard of double-ice]);
+            retrieve_item(1, $item[shard of double-ice]);
+        if (item_amount($item[shard of double-ice]) == 0)
+            abort("Shard fights require at least one shard of double-ice in inventory.");
     }
     if (item_amount($item[4-D camera]) == 0)
         retrieve_item($item[4-D camera]);
@@ -414,8 +639,6 @@ void main(){
         if (get_property("noncombatForcerActive") == "true" && get_property("inSpendAdv") != "true")
             postAdv();
         preAdv();
-        if (item_amount($item[dry noodles]) == 0)
-            retrieve_item($item[dry noodles]);
         if (item_amount($item[4-D camera]) == 0)
             retrieve_item($item[4-D camera]);
         cli_execute("checkpoint clear");
