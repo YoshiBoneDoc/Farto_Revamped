@@ -1,5 +1,6 @@
 import iotm.ash;
 import postadventure.ash;
+import teresBarfSupport.ash;
 // Shared buffs selected by the maximizer goal.
 void mood(string function){
     if (function == "")
@@ -66,14 +67,20 @@ buffer preAdvMaximize(){
 // temporary swaps. Accessories, exclusions and familiar/location changes define
 // a new baseline. Other objectives, item modes and weapon conflicts use the solver.
 boolean applyBaselineGear(string goal){
+    boolean forcers=get_property("_teresForcerGearCacheActive").to_boolean();
     string[int] clauses = split_string(goal, "\\s*,\\s*");
     string objective = replace_all(create_matcher("^\\s+|\\s+$", clauses[0]), "").to_lower_case();
+    if (forcers && objective != "familiar weight" && objective != "familiar experience")
+        abort("Unsupported NC-forcer outfit objective: " + objective);
     if (objective != "familiar weight" && objective != "familiar experience")
         return false;
 
     string baselineGoal = objective + ", -equip bat wings, -equip legendary seal-clubbing club, -equip McHugeLarge left pole";
     item[slot] overrides;
     boolean[item] excluded;
+    boolean[item] accessories;
+    string parkaMode;
+    if(forcers)baselineGoal+=", 1 hand, -equip PirateRealm eyepatch, -equip McHugeLarge left ski, -equip congressional medal of insanity, -equip petrified wood wizard's pouch";
     foreach index, clause in clauses {
         if (index == 0)
             continue;
@@ -81,16 +88,23 @@ boolean applyBaselineGear(string goal){
         if (clause == "")
             continue;
         matcher equipment = create_matcher("(?i)^(-?)equip\\s+(.+)$", clause);
-        if (!equipment.find())
+        boolean matched=equipment.find();
+        if (!matched && forcers)
+            abort("Unsupported NC-forcer gear request: " + clause);
+        if (!matched)
             return false;
-        item required = equipment.group(2).to_item();
+        boolean spikolodon=forcers && equipment.group(2).to_lower_case()=="jurassic parka (spikolodon)";
+        item required = spikolodon?$item[Jurassic Parka]:equipment.group(2).to_item();
+        if(spikolodon)parkaMode="spikolodon";
         // These existing maximizer abbreviations are not exact ASH item names.
         if (required == $item[none] && equipment.group(2).to_lower_case() == "eternity codpiece")
             required = $item[The Eternity Codpiece];
         if (required == $item[none] && equipment.group(2).to_lower_case() == "legendary seal-clubbing")
             required = $item[legendary seal-clubbing club];
         // Mode suffixes and other special maximizer syntax stay with KoLmafia.
-        if (required == $item[none] || contains_text(clause, "(") || contains_text(clause, ")"))
+        if(forcers && (required==$item[none] || (contains_text(clause,"(") && required!=$item[Jurassic Parka])))
+            abort("Unsupported NC-forcer equipment: " + clause);
+        if (required == $item[none] || ((!forcers || required!=$item[Jurassic Parka]) && (contains_text(clause, "(") || contains_text(clause, ")"))))
             return false;
         if (equipment.group(1) == "-") {
             excluded[required] = true;
@@ -101,18 +115,29 @@ boolean applyBaselineGear(string goal){
         }
         slot position = to_slot(required);
         if ($slots[acc1, acc2, acc3] contains position) {
+            if(forcers){
+                accessories[required]=true;
+                if($items[angelbone chopsticks,angelbone dice,devilbone rosary] contains required)baselineGoal+=", equip "+required;
+                continue;
+            }
             baselineGoal += ", equip " + required;
             continue;
         }
         if (!($slots[hat, weapon, off-hand, back, shirt, pants, familiar] contains position)
             || (position == $slot[weapon] && weapon_hands(required) > 1)
-            || (overrides contains position && overrides[position] != required))
-            return false;
+            || (overrides contains position && overrides[position] != required)){
+            if(forcers)abort("Conflicting NC-forcer equipment: "+clause);
+            else return false;
+        }
         overrides[position] = required;
+        if(forcers && $items[devilbone corset,angelbone chopsticks,angelbone dice,devilbone rosary,angelbone totem,devilbone greaves,Drunkula's wineglass] contains required)
+            baselineGoal+=", equip "+required;
     }
     foreach position, required in overrides
-        if (excluded contains required)
-            return false;
+        if (excluded contains required){
+            if(forcers)abort("NC-forcer gear both requires and excludes "+required);
+            else return false;
+        }
 
     // Hooks execute separately, so two scratch properties carry the baseline.
     // starter()/finisher() clear them; day, path and environment also delimit reuse.
@@ -121,11 +146,13 @@ boolean applyBaselineGear(string goal){
         + ":" + (my_location() != $location[none]
             && my_location() == get_property("_seadentWaveZone").to_location())
         + ":" + baselineGoal;
+    if(forcers)key="Shadow Rift NC forcers";
     if (get_property("_teresGearBaselineKey") != key) {
         clearPreAdvGearCache();
         print("Gear baseline: maximizing " + baselineGoal + ".", "blue");
         if (!maximize(baselineGoal, false))
             abort("preAdv baseline maximize() failed: " + baselineGoal);
+        if(forcers)set_property("_teresForcerParkaMode",get_property("parkaMode"));
         string outfit;
         foreach position in $slots[hat, weapon, off-hand, back, shirt, pants, acc1, acc2, acc3, familiar]
             outfit += (outfit == "" ? "" : ",") + to_int(equipped_item(position));
@@ -135,6 +162,7 @@ boolean applyBaselineGear(string goal){
 
     string[int] baseline = split_string(get_property("_teresGearBaselineOutfit"), ",");
     if (count(baseline) != 10) {
+        if(forcers)abort("Invalid cached NC-forcer outfit; restart the phase.");
         clearPreAdvGearCache();
         return false;
     }
@@ -144,20 +172,37 @@ boolean applyBaselineGear(string goal){
     foreach position in $slots[hat, weapon, off-hand, back, shirt, pants, acc1, acc2, acc3, familiar] {
         desired[position] = overrides contains position ? overrides[position] : baseline[index].to_int().to_item();
         index += 1;
-        if (desired[position] != $item[none])
-            copiesNeeded[desired[position]] += 1;
     }
+    if(forcers){
+        boolean[slot] pinned;
+        foreach required in accessories{
+            slot target=$slot[none];
+            foreach position in $slots[acc1,acc2,acc3]if(!pinned[position] && desired[position]==required){target=position;break;}
+            if(target==$slot[none])foreach position in $slots[acc3,acc2,acc1]
+                if(!pinned[position] && !(accessories contains desired[position])){target=position;break;}
+            if(target==$slot[none])abort("NC-forcer gear requires more than three accessories.");
+            desired[target]=required;pinned[target]=true;
+        }
+        foreach position,required in desired if(excluded contains required)
+            abort("Cached NC-forcer outfit conflicts with exclusion: "+required);
+    }
+    foreach position,required in desired if(required!=$item[none])copiesNeeded[required]+=1;
     // A two-handed baseline needs a different weapon to support an off-hand.
-    if (weapon_hands(desired[$slot[weapon]]) > 1 && desired[$slot[off-hand]] != $item[none])
-        return false;
+    if (weapon_hands(desired[$slot[weapon]]) > 1 && desired[$slot[off-hand]] != $item[none]){
+        if(forcers)abort("NC-forcer weapon conflicts with its required offhand.");
+        else return false;
+    }
     foreach required, copies in copiesNeeded
         if (available_amount(required) < copies) {
+            if(forcers)abort("Cached NC-forcer outfit is missing "+required+".");
             clearPreAdvGearCache();
             return false;
         }
     foreach position, required in desired
-        if (required != $item[none] && equipped_item(position) != required && !can_equip(required))
-            return false;
+        if (required != $item[none] && equipped_item(position) != required && !can_equip(required)){
+            if(forcers)abort("Cannot equip required NC-forcer item: "+required);
+            else return false;
+        }
 
     // Clear the off-hand first when restoring a two-handed baseline; otherwise
     // switch the weapon before the off-hand. The rest only changes differing slots.
@@ -172,6 +217,11 @@ boolean applyBaselineGear(string goal){
                 abort("Could not equip " + desired[position] + " in " + position + ".");
             }
         }
+    if(forcers && desired[$slot[shirt]]==$item[Jurassic Parka]){
+        string mode=parkaMode==""?get_property("_teresForcerParkaMode"):parkaMode;
+        if(mode!="" && get_property("parkaMode")!=mode && !cli_execute("parka "+mode))
+            abort("Could not set the NC-forcer parka mode.");
+    }
     return true;
 }
 
@@ -223,7 +273,7 @@ void applyPreAdvGear(buffer maximize){
 
 familiar selectFreeKillFamiliar(){
     int mimicXPTarget = 950;
-    int yetiXPTarget = 2600; // (225 * 8) for Too Cool, 400 for nightcap, 400 base xp
+    int yetiXPTarget = 2000; // (225 * 7) for Too Cool, 400 for double xp, topped off to 2000
     familiar selectedFamiliar;
     if (have_familiar($familiar[chest mimic]) && $familiar[chest mimic].experience < mimicXPTarget)
         selectedFamiliar = $familiar[chest mimic];
@@ -290,10 +340,11 @@ void setupFreeKill(){
     if (get_property("famEquipOverride") != "")                    famEquipment = get_property("famEquipOverride");
     else if (my_familiar() == $familiar[stocking mimic])           famEquipment = ", equip amulet coin";
     else if (my_familiar() == $familiar[skeleton of crimbo past])  famEquipment = ", equip small peppermint-flavored sugar walking crook";
-    else if (my_familiar() == $familiar[cooler yeti])              famEquipment = ", equip toy cupid bow";
-    else if (my_familiar() == $familiar[chest mimic])              famEquipment = ", equip toy cupid bow";
+    else if (my_familiar() == $familiar[cooler yeti])              famEquipment = ", equip tiny stillsuit";
+    else if (my_familiar() == $familiar[chest mimic])              famEquipment = ", equip tiny stillsuit";
     else if (my_familiar() == $familiar[mini kiwi])                famEquipment = ", equip aviator goggles";
     else if (my_familiar() == $familiar[Meat Shield Maiden])       famEquipment = ", equip can of shield tenderizer";
+    else famEquipment = ", equip tiny stillsuit";
 
     buffer maximize = preAdvMaximize();
     append(maximize, famEquipment);
@@ -329,7 +380,12 @@ void setupFreeKill(){
         else if (get_property("shirtOverride") != "")
             append(maximize, get_property("shirtOverride"));
         // Pants
-        if (have_equipped($item[devilbone greaves]))
+        if ((get_property("subscript") == "weakling"
+                && contains_text(get_property("pantsOverride"), "equip eldritch pants"))
+            || (get_property("subscript") == "locketFight"
+                && contains_text(get_property("pantsOverride"), "equip tearaway pants")))
+            append(maximize, get_property("pantsOverride"));
+        else if (have_equipped($item[devilbone greaves]))
             append(maximize, ", equip devilbone greaves");
         else if (get_property("pantsOverride") != "")
             append(maximize, get_property("pantsOverride"));
@@ -344,13 +400,39 @@ void setupFreeKill(){
         else if (get_property("acc2Override") != "")
             append(maximize, get_property("acc2Override"));
         // Acc3
-        if (have_equipped($item[devilbone rosary]))
+        boolean shardStats = shardEyepatchRequired();
+        if (have_equipped($item[devilbone rosary]) && !shardStats)
             append(maximize, ", equip devilbone rosary");
         else if (get_property("acc3Override") != "")
             append(maximize, get_property("acc3Override"));
     }
 
+    // Require the actual stat cap, including early locket, pledge and summoned fights.
+    if (shardEyepatchRequired()){
+        matcher exclusion = create_matcher("(?i)(?:^|,)\\s*-equip\\s+PirateRealm eyepatch\\s*(?=,|$)", maximize.to_string());
+        if (exclusion.find())
+            abort("Shard combat requires the PirateRealm eyepatch; remove its conflicting exclusion.");
+        if (available_amount($item[PirateRealm eyepatch]) == 0)
+            visit_url("place.php?whichplace=realm_pirate&action=pr_port");
+        if (!retrieve_item(1, $item[PirateRealm eyepatch]))
+            abort("Shard fights require the PirateRealm eyepatch.");
+        matcher required = create_matcher("(?i)(?:^|,)\\s*equip\\s+PirateRealm eyepatch\\s*(?=,|$)", maximize.to_string());
+        if (!required.find())
+            append(maximize, ", equip PirateRealm eyepatch");
+    }
+    // Explicit resource offhands take priority over the optional shield.
+    if (shardCombatMode() && !familiarExperienceFarming
+        && !($strings[shadowForcers, shadowAffinity, looseFK] contains get_property("subscript"))){
+        if (my_familiar() != $familiar[patriotic eagle]
+            && !shadowRiftOffhandReserved(maximize.to_string())){
+            if (!retrieve_item(1, $item[April Shower Thoughts shield]))
+                abort("Shard stalling requires the April Shower Thoughts shield.");
+            append(maximize, ", equip April Shower Thoughts shield");
+        }
+    }
     applyPreAdvGear(maximize);
+    if (shardEyepatchRequired() && !have_equipped($item[PirateRealm eyepatch]))
+        abort("Shard combat requires the PirateRealm eyepatch equipped; combat was not started.");
 
     float mpTar = min(1, 500 / to_float(my_maxmp()));
     float hpTar = min(1, 1000 / to_float(my_maxhp()));
@@ -394,18 +476,52 @@ void setupFreeKill(){
 void setupBARF(){
     // TODO: Add BARF familiar, gear, buffs, and recovery settings here.
     // Familiar equipment: placeholder for BARF-specific selection.
+    barfGear();
 }
 
 // Lucky! fights need Meat gear and absolute recovery amounts, not percentages
 // inherited from starter() or the previous farming phase.
+boolean restoreEmbezzlerOutfit(){
+    string cached=get_property("_teresEmbezzlerOutfit");
+    if(cached=="")return false;
+    string[int] pieces=split_string(cached,",");
+    if(count(pieces)!=10)abort("Invalid cached Embezzler outfit; restart the Lucky! phase.");
+    int index=0;
+    foreach position in $slots[hat,weapon,off-hand,back,shirt,pants,acc1,acc2,acc3,familiar]{
+        item desired=pieces[index++].to_int().to_item();
+        if(equipped_item(position)!=desired&&!equip(position,desired))
+            abort("Could not restore Embezzler outfit: "+desired+" in "+position+".");
+    }
+    return true;
+}
+
 void setupEmbezzler(){
-    buffer maximize;
-    append(maximize, "meat drop");
-    if (get_property("backOverride") != "")
-        append(maximize, get_property("backOverride"));
-    if (get_property("famEquipOverride") != "")
-        append(maximize, get_property("famEquipOverride"));
-    applyPreAdvGear(maximize);
+    familiar desired=get_property("famOverride").to_familiar();
+    if(desired!=$familiar[none]&&my_familiar()!=desired&&!use_familiar(desired))
+        abort("Could not restore the Embezzler familiar.");
+    if (have_effect($effect[Merry Smithsness]) == 0){
+        if (item_amount($item[Flaskfull of Hollow]) == 0 && !buy(1, $item[Flaskfull of Hollow]))
+            abort("Could not buy Flaskfull of Hollow for embezzlers.");
+        if (!use(1, $item[Flaskfull of Hollow]) || have_effect($effect[Merry Smithsness]) == 0)
+            abort("Embezzlers require Merry Smithsness.");
+    }
+    if (!have_equipped($item[Half a Purse]) && !retrieve_item(1, $item[Half a Purse])) abort("Embezzlers require Half a Purse.");
+    if (!restoreEmbezzlerOutfit()){
+        buffer maximize;
+        append(maximize, "meat drop, equip Half a Purse");
+        if (get_property("backOverride") != "")
+            append(maximize, get_property("backOverride"));
+        if (get_property("famEquipOverride") != "")
+            append(maximize, get_property("famEquipOverride"));
+        applyPreAdvGear(maximize);
+        string cached;
+        foreach position in $slots[hat,weapon,off-hand,back,shirt,pants,acc1,acc2,acc3,familiar]
+            cached+=(cached==""?"":",")+to_int(equipped_item(position));
+        set_property("_teresEmbezzlerOutfit",cached);
+    }
+
+    if (equipped_item($slot[off-hand]) != $item[Half a Purse])
+        abort("Could not equip Half a Purse for embezzlers.");
 
     // Shared combat may try up to ten Pastalord casts; usually one is enough.
     int combatMP = max(200, 10 * mp_cost($skill[Weapon of the Pastalord]));
@@ -520,15 +636,14 @@ void setupDefault(){
             append(maximize, ", equip ordnance magnet");
         // Fam equip
         string famEquipment;
-        if (get_property("famEquipOverride") != "")                          famEquipment = get_property("famEquipOverride");
-        else if (my_familiar() == $familiar[skeleton of crimbo past])         famEquipment = ", equip small peppermint-flavored sugar walking crook";
-        else if (my_familiar() == $familiar[cooler yeti])                    famEquipment = ", equip toy cupid bow";
-        else if (my_familiar() == $familiar[chest mimic])                    famEquipment = ", equip toy cupid bow";
-        else if (my_familiar() == $familiar[mini kiwi])                       famEquipment = ", equip aviator goggles";
-        else if (my_familiar() == $familiar[Hobo in Sheep's Clothing])        famEquipment = ", equip half-height cigar";
-        else if ($familiars[robortender, none, purse rat] contains my_familiar()
-            || $strings[-combat, combat] contains get_property("maxOverride")) famEquipment = "";
-        else                                                                famEquipment = ", equip Li'l Businessman Kit";
+        if (get_property("famEquipOverride") != "")                    famEquipment = get_property("famEquipOverride");
+        else if (my_familiar() == $familiar[stocking mimic])           famEquipment = ", equip amulet coin";
+        else if (my_familiar() == $familiar[skeleton of crimbo past])  famEquipment = ", equip small peppermint-flavored sugar walking crook";
+        else if (my_familiar() == $familiar[cooler yeti])              famEquipment = ", equip tiny stillsuit";
+        else if (my_familiar() == $familiar[chest mimic])              famEquipment = ", equip tiny stillsuit";
+        else if (my_familiar() == $familiar[mini kiwi])                famEquipment = ", equip aviator goggles";
+        else if (my_familiar() == $familiar[Meat Shield Maiden])       famEquipment = ", equip can of shield tenderizer";
+        else famEquipment = ", equip tiny stillsuit";
         append(maximize, famEquipment);
     }
     applyPreAdvGear(maximize);
@@ -536,6 +651,10 @@ void setupDefault(){
 }
 
 void preAdv(){
+    if (get_property("script") == "BARF"){
+        setupBARF();
+        return;
+    }
     if (get_property("script") == "FreeKill")
         prepareGingerbreadAdventure(my_location());
     if (get_property("script") == "FreeKill")
@@ -609,7 +728,7 @@ void preAdv(){
     if (item_amount($item[glitched malware]) < 1)
         retrieve_item(1,$item[glitched malware]);
     // Keep shards in inventory; only replenish when a shard phase needs one.
-    if ($strings[weakling, looseFK, shadowAffinity] contains get_property("subscript")
+    if (($strings[weakling, looseFK, shadowAffinity] contains get_property("subscript") || shardCombatMode())
         && item_amount($item[shard of double-ice]) == 0) {
         if (closet_amount($item[shard of double-ice]) > 0)
             take_closet(1, $item[shard of double-ice]);
@@ -633,6 +752,10 @@ void preAdv(){
 }
 
 void main(){
+    if (get_property("script") == "BARF"){
+        setupBARF();
+        return;
+    }
     set_property("autoSatisfyWithStash", "true");
     string boof = get_property("betweenBattleScript");
     try {

@@ -1,4 +1,6 @@
 import iotm.ash;
+import farmingProfit.ash;
+import teresBarfSupport.ash;
 
 // ─── postadventure.ash ───────────────────────────────────────────────────────
 // FreeKill bookkeeping, construct banishing, and shared post-adventure upkeep.
@@ -14,10 +16,9 @@ string [string] adventureAbortMessages = {
     "Drunken Stupor": "Overdrunk"
 };
 
-// Burn the day's Law of Averages while under 100 adventures: unconditional on day
-// 1, day 2 only once Steely-Eyed Squint is up so the copy is worthwhile.
+// Burn the day's Law of Averages while under 100 adventures
 void lawOfAverages(){
-    if (my_adventures() < 100 && get_property("_lawOfAveragesUsed") == "0" && dayType() == 1 && have_item($item[law of averages]))
+    if (my_adventures() < 100 && get_property("_lawOfAveragesUsed") == "0" && have_item($item[law of averages]))
         use($item[law of averages]);
 }
 
@@ -155,10 +156,15 @@ void spendSpareLibramMP(){
 // resource chores (Law of Averages, autumn-aton, resin, trainset, universe skill,
 // sweat, consumable top-ups, distill).
 void postAdv(){
+    if (get_property("script") == "BARF"){
+        barfPostAdventure();
+        return;
+    }
     if (contains_text(visit_url("main.php"),"You're fighting"))
         run_combat();
     // Bail loudly on a lost fight or a "stuck" last-adventure zone before doing anything else.
     set_property("NCtoC","false");
+    lawOfAverages();
     if (get_property("_lastCombatLost") == "true" && get_property("noncombatForcerActive") != "true" && LastAdvTxt().contains_text("Round 1") && my_location() != $location[the outer compound] && last_monster() != $monster[flaming monstera] && last_monster() != $monster[leaviathan] && last_monster() != $monster[flaming leaflet]){
         cli_execute("cast tongue;cast cannel");
         abort("It appears you lost the last combat, look into that");
@@ -182,10 +188,7 @@ void postAdv(){
             if (get_property("_eldritchTentaclesFoughtToday").to_int() == 11 && have_effect($effect[eldritch attunement]) > 0)
                 cli_execute("uneffect eldritch attunement");
         }
-        if (get_property("freeMeat").to_int() != my_meat( )){
-            print("FK meat profit of " + to_string(my_meat() - get_property("freeMeat").to_int(), "%,d") + " from this fight", "blue");
-            set_property("freeMeat",my_meat());
-        }
+        reportFightWalletChange();
     }
     freeKillTurnGuard();
     cleanupGingerbreadAdventure();
@@ -199,9 +202,7 @@ void postAdv(){
             print("Could not claim Water Balloon Champion from the Council.", "red");
     }
     lawOfAverages();
-    if (get_property("autumnatonQuestLocation") == "" && item_amount($item[autumn-aton]) > 0){
-        upgradeAutumnaton();
-    }
+    sendAutumnatonToShadowRift();
     if (have_effect($effect[resined]) == 0)
         use($item[distilled resin]);
     if (get_property("trainsetPosition").to_int() >= get_property("lastTrainsetConfiguration").to_int() + 42 && get_workshed() == $item[model train set]){
@@ -213,7 +214,8 @@ void postAdv(){
             visit_url("runskillz.php?action=Skillz&whichskill=144&targetplayer=0&quantity=1");
             visit_url("choice.php?whichchoice=1103&option=1&num="+uniInt);
         }
-    if (get_property("_aug16Cast") == "false" && my_fullness() > 0)
+    if (get_property("script") != "FreeKill" && get_property("script") != "embezzler"
+        && get_property("_aug16Cast") == "false" && my_fullness() > 1)
         use_skill($skill[Aug. 16th: Roller Coaster Day!]);
     sweatpants();
     int stillsuitDrams = get_property("familiarSweat").to_int();

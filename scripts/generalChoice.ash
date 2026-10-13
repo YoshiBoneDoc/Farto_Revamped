@@ -135,6 +135,15 @@ int[int] voteLocalPicks(){
 }
 
 void main(int whichchoice, string page) {
+    if (get_property("script") == "BARF" && whichchoice == 1073){
+        item saved = equipped_item($slot[acc3]);
+        try {
+            if (get_property("questEStSuperLuber") == "started" && available_amount($item[lube-shoes]) > 0)
+                equip($slot[acc3],$item[lube-shoes]);
+            run_choice(1);
+        } finally { equip($slot[acc3],saved); }
+        return;
+    }
     if (whichchoice == 536){
         item pill;
         int target;

@@ -35,6 +35,23 @@ string mpAutoRecoveryTargetStorage  = get_property("mpAutoRecoveryTarget");
 
 // ─── 2. GENERAL UTILITIES ────────────────────────────────────────────────────
 
+// Shared phase eligibility; individual combat handlers still own boss/banish exceptions.
+boolean shardCombatMode(){
+    return get_property("script") == "FreeKill" && have_effect($effect[Coldform]) > 0
+        && !($strings[shieldMaiden, drunkPygmy, godLobster] contains get_property("subscript"))
+        && (my_familiar() == $familiar[stocking mimic]
+            || $strings[weakling, looseFK, shadowAffinity, locketCopySource, eaglePledge, screech]
+                contains get_property("subscript"));
+}
+
+// Party hard scaling is the deliberate exception to the shard stat cap.
+boolean shardEyepatchRequired(){
+    return shardCombatMode()
+        && !(get_property("subscript") == "weakling"
+            && my_location() == $location[The Neverending Party]
+            && contains_text(get_property("shirtOverride"), "equip PARTY HARD T-shirt"));
+}
+
 // Shared estimates for the Coldform / double-ice strategy.
 float monsterLevelDamageMultiplier() {
     return max(0.50, 1 - numeric_modifier("Monster Level") * 0.004);
@@ -922,11 +939,12 @@ boolean getLucky() {
             return true;
         }
     }
-    // Clover if profitable
-    if (EmbezBetter()){
-        use($item[11-leaf clover]);
-        return true;
-    }
+    // Clover fallback disabled for now; use only free Lucky! sources.
+    // if (EmbezBetter()){
+    //     use($item[11-leaf clover]);
+    //     return true;
+    // }
+
     // No lucky sources and Lucky! not active
     if (have_effect($effect[lucky!]) == 0){
         print("Did not acquire Lucky! ... We're out of sources!","green");
@@ -1282,6 +1300,13 @@ void beretBusking(string modifiers, string effects){
 
 void beretBusking(string modifiers){
     beretBusking(modifiers, "");
+}
+
+// Inventory is authoritative on return; the quest-location preference may linger.
+void sendAutumnatonToShadowRift(){
+    if(item_amount($item[autumn-aton])==0 || current_round()>0 || handling_choice())return;
+    if(!cli_execute("autumnaton send "+$location[Shadow Rift (The Misspelled Cemetary)]))
+        print("Could not send the autumn-aton to the Shadow Rift; inspect its available destinations.","red");
 }
 
 // ─── 99. SCRIPT LIFECYCLE ────────────────────────────────────────────────────
