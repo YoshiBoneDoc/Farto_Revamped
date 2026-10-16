@@ -84,16 +84,12 @@ boolean barfGoblinDue(){
 
 boolean barfVhsDue(){ return barfWandererDue("spookyVHSTapeMonster", "spookyVHSTapeMonsterTurn"); }
 
-boolean barfDudesPresent(){
-    foreach target, rate in appearance_rates($location[Barf Mountain])
-        if (rate > 0 && target.phylum == $phylum[dude]
-            && !contains_text(target.attributes,"NOBANISH") && !is_banished(target)) return true;
-    return false;
-}
-
-boolean barfEagleNeedsRecharge(){
-    return have_familiar($familiar[Patriotic Eagle]) && barfDudesPresent()
-        && get_property("screechCombats").to_int() > 0;
+familiar barfVhsFamiliar(){
+    boolean charged=get_property("_teresBarfPlannedExecution").to_boolean()&&get_property("_teresBarfPlanYetiCharged").to_boolean();
+    if(!charged&&have_familiar($familiar[Cooler Yeti])&&$familiar[Cooler Yeti].experience<barfSetting("YetiXP",2000))
+        return $familiar[Cooler Yeti];
+    if(have_familiar($familiar[Stocking Mimic]))return $familiar[Stocking Mimic];
+    return $familiar[Jill-of-All-Trades];
 }
 
 familiar barfTrainingFamiliar(){
@@ -115,7 +111,7 @@ boolean barfMobiusReady(){
 string barfProgressKey(){
     string result = "";
     foreach pref in $strings[_clubEmNextWeekUsed,clubEmNextWeekMonster,_chainedPurpleCandleMonster,
-        spookyVHSTapeMonster,screechCombats,_mobiusStripEncounters,_bczRefractedGazeCasts,
+        spookyVHSTapeMonster,_mobiusStripEncounters,_bczRefractedGazeCasts,
         shrunkenHeadZombieHP,_sausageFights,lastEncounter]
         result += get_property(pref) + ":";
     foreach buff in $effects[Everything Looks Red,Everything Looks Yellow,Everything Looks Green,Everything Looks Purple]
@@ -145,18 +141,10 @@ boolean barfNeedsFruit(){
 
 familiar barfChooseFamiliar(){
     string mode = get_property("_teresBarfMode");
-    if (($strings[battlefield, garbageSetup, goat] contains mode) && have_familiar($familiar[Patriotic Eagle]))
+    if (($strings[battlefield, goat] contains mode) && have_familiar($familiar[Patriotic Eagle]))
         return $familiar[Patriotic Eagle];
-    if (barfVhsDue() && mode != "goblinSeed"){
-        if (barfEagleNeedsRecharge()) return $familiar[Patriotic Eagle];
-        familiar trainee = barfTrainingFamiliar();
-        if (trainee != $familiar[none]) return trainee;
-        return $familiar[Jill-of-All-Trades];
-    }
+    if (barfVhsDue() && mode != "goblinSeed")return barfVhsFamiliar();
     if (mode == "goblinSeed" || (mode != "battlefield" && barfGoblinDue())) return $familiar[Stocking Mimic];
-    if ((mode == "eagleRun" || mode == "screech"
-        || (barfVhsDue() && barfEagleNeedsRecharge())) && have_familiar($familiar[Patriotic Eagle]))
-        return $familiar[Patriotic Eagle];
     if (barfEarlyJill() && have_familiar($familiar[Jill-of-All-Trades])) return $familiar[Jill-of-All-Trades];
     familiar trainee = barfTrainingFamiliar();
     if (trainee != $familiar[none]) return trainee;
@@ -220,7 +208,6 @@ item[slot] barfFarmingOutfit(familiar farmer){
     }else{
         slot[int] slots;slots[0]=$slot[acc2];slots[1]=$slot[acc3];slots[2]=$slot[acc1];
         int n=0;
-        if(mode=="eagleRun"&&available_amount($item[spring shoes])>0)gear[slots[n++]]=$item[spring shoes];
         if(!goblin&&have_effect($effect[Everything Looks Red])==0&&available_amount($item[everfull dart holster])>0)
             gear[slots[n++]]=$item[everfull dart holster];
         if(n<3&&barfNeedsFruit()&&available_amount($item[Portable Laughing Stock])>0)
@@ -262,6 +249,25 @@ boolean barfTrainingBuff(effect buff){
     return $effects[Heart of White, Candied Devil, Blue Swayed, Curiosity of Br'er Tarrypin] contains buff;
 }
 
+// Shared by the forecast and the live path; hooks must preserve capacity swaps.
+item[slot] barfPlannedOutfit(int mask,familiar farmer,int trainer){
+    item[slot] gear=trainer>0?barfTrainingOutfit():barfBaselineOutfit();
+    if(trainer==0){
+        if(mask%2==1)gear[$slot[shirt]]=$item[devilbone corset];
+        if((mask/2)%2==1)gear[$slot[acc3]]=$item[angelbone chopsticks];
+        if((mask/4)%2==1)gear[$slot[acc2]]=$item[angelbone dice];
+        if((mask/8)%2==1)gear[$slot[acc1]]=$item[devilbone rosary];
+        if((mask/16)%2==1){
+            slot spot=have_skill($skill[Double-Fisted Skull Smashing])&&weapon_hands(gear[$slot[weapon]])==1?$slot[off-hand]:$slot[weapon];
+            gear[spot]=$item[angelbone totem];
+        }
+        if((mask/32)%2==1)gear[$slot[pants]]=$item[devilbone greaves];
+        gear[$slot[familiar]]=barfFamiliarGear(farmer);
+        if(available_amount(gear[$slot[familiar]])==0)gear[$slot[familiar]]=available_amount($item[tiny stillsuit])>0?$item[tiny stillsuit]:$item[none];
+    }
+    return gear;
+}
+
 void barfTrainingBuffs(){
     foreach potion in $items[white candy heart, deviled candy egg]{
         effect buff = effect_modifier(potion, "Effect");
@@ -297,6 +303,25 @@ void barfTrainingGear(){
 }
 
 void barfGear(){
+    set_property("_teresBarfVhsEncounter",barfVhsDue());
+    if(get_property("_teresBarfPlannedExecution").to_boolean()){
+        int trainer=get_property("_teresBarfPlanTrainer").to_int();
+        familiar farmer=trainer==128?$familiar[Chest Mimic]:trainer==256?$familiar[Cooler Yeti]
+            :get_property("_teresBarfPlanStooper").to_boolean()?$familiar[Stooper]:$familiar[Jill-of-All-Trades];
+        // Free copies use the Yeti until charged, then the Stocking Mimic.
+        // Keep Stooper/capacity equipment once its extra organ space is occupied.
+        if(barfVhsDue()&&get_property("_teresBarfPlanMask").to_int()==0&&!get_property("_teresBarfPlanStooper").to_boolean()){
+            farmer=barfVhsFamiliar();trainer=farmer==$familiar[Cooler Yeti]?256:0;
+            set_property("_teresBarfPlanTrainer",trainer);
+        }
+        if(!use_familiar(farmer))abort("Planned BARF could not select "+farmer+".");
+        foreach spot,it in barfPlannedOutfit(get_property("_teresBarfPlanMask").to_int(),farmer,trainer)
+            if(equipped_item(spot)!=it&&!equip(spot,it))abort("Planned BARF could not equip "+it+" in "+spot+".");
+        if(have_equipped($item[Jurassic Parka])&&get_property("parkaMode")!="kachungasaur"&&!cli_execute("parka kachungasaur"))abort("Could not set farming parka mode.");
+        if(farmer==$familiar[Jill-of-All-Trades]&&get_property("ledCandleMode")!="ultraviolet"&&!cli_execute("ledcandle ultraviolet"))abort("Could not set farming candle mode.");
+        foreach fruit in $items[antique watermelon,classic banana,quince]set_property("_teresBarfFruitBefore"+to_int(fruit),item_amount(fruit));
+        set_property("_teresBarfEquipment",barfEquipmentKey());barfRecovery();return;
+    }
     familiar farmer = barfChooseFamiliar();
     if (!use_familiar(farmer)) abort("BARF could not select " + farmer + ".");
     if (barfFamiliarGear(farmer) == $item[LED candle] && get_property("ledCandleMode") != "ultraviolet")
@@ -320,6 +345,16 @@ void barfGear(){
     foreach fruit in $items[antique watermelon, classic banana, quince]
         set_property("_teresBarfFruitBefore" + to_int(fruit), item_amount(fruit));
     barfRecovery();
+}
+
+boolean barfPlannedAdventureAllowed(){
+    if(!get_property("_teresBarfPlannedExecution").to_boolean())return true;
+    int reserve=max(barfSetting("ReserveAdventures",0),get_property("_teresBarfPlanMinimumAdventures").to_int());
+    if(my_adventures()<=reserve||my_fullness()>fullness_limit()||my_inebriety()>inebriety_limit()||my_spleen_use()>spleen_limit()
+        ||have_effect($effect[Looking Cool])<1||get_property("coolerYetiMode")!="")return false;
+    foreach i,id in split_string(get_property("_teresBarfPlanRetained"),",")
+        if(id.to_int()>0&&have_effect(to_effect(id.to_int()))<6)return false;
+    return true;
 }
 
 void barfKnuckleboneRests(){
@@ -458,7 +493,9 @@ void barfPostAdventure(){
             if (item_amount(fruit) > get_property("_teresBarfFruitBefore" + to_int(fruit)).to_int())
                 set_property("_teresBarfFruit" + to_int(fruit), true);
     if (get_property("_lastCombatLost").to_boolean() || have_effect($effect[Beaten Up]) > 0)
-        abort("BARF lost a fight; stopped before spending more turns.");
+        print("Warning: BARF lost a fight; recovering and continuing.", "red");
+    if (have_effect($effect[Beaten Up]) > 0)
+        cli_execute("cast tongue of the walrus");
     if (get_property("questEStSuperLuber") == "step1") barfKiosk(false);
     if (have_skill($skill[Calculate the Universe])
         && get_property("_universeCalculated").to_int() < get_property("skillLevel144").to_int()

@@ -38,7 +38,7 @@ string mpAutoRecoveryTargetStorage  = get_property("mpAutoRecoveryTarget");
 // Shared phase eligibility; individual combat handlers still own boss/banish exceptions.
 boolean shardCombatMode(){
     return get_property("script") == "FreeKill" && have_effect($effect[Coldform]) > 0
-        && !($strings[shieldMaiden, drunkPygmy, godLobster] contains get_property("subscript"))
+        && !($strings[shieldMaiden, drunkPygmy, godLobster, shadowBoss] contains get_property("subscript"))
         && (my_familiar() == $familiar[stocking mimic]
             || $strings[weakling, looseFK, shadowAffinity, locketCopySource, eaglePledge, screech]
                 contains get_property("subscript"));

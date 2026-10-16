@@ -268,7 +268,7 @@ void prepBuffs(){
     }
 
     // meat drop
-    while (have_effect($effect[Merry Smithsness]) < 800){
+    while (have_effect($effect[Merry Smithsness]) < 100){
         if (item_amount($item[Flaskfull of Hollow]) == 0 && !retrieve_item(1, $item[Flaskfull of Hollow]))
             abort("Could not buy Flaskfull of Hollow.");
         if (!use(1, $item[Flaskfull of Hollow]))
@@ -323,6 +323,11 @@ void prepBuffs(){
         if (have_effect(ef) == 0)
             cli_execute(ef.default);
     }
+
+    // other random buffs to help with combat
+    setClan("stash");
+    cli_execute("use imported taffy; use 4 autumn years wisdom; cast 2 Carol of the Hells; use tobiko marble soda;");
+
     setClan("VIP");
     step("phase: FKPrep limited daily clan/other buffs");
     // Photo booth x3 effect +10-30 mp regen
@@ -785,6 +790,9 @@ void FKPrep(){
 	codpiece("none");
     retrieve_item(2, $item[massive gemstone]);
 	codpiece("peridot of peril,blood cubic zirconia,baseball diamond,massive gemstone,massive gemstone");
+    //monster level
+    // Initial ML belongs to prep; safeToFK can request more for a specific fight.
+    cli_execute("gain 400 ml");
 }
 
 // ─── bulkFK and helpers (verbatim from farto.ash, not yet refactored) ────────
@@ -868,6 +876,7 @@ void eaglePledge(location pledgeLocation){
         print("Already pledged allegiance to " + to_string(pledgeLocation) + ".", "blue");
         return;
     }
+    prepareDailyShardCombat();
     familiar savedFamiliar = my_familiar();
     string[string] saved;
     foreach pref in $strings[subscript, famOverride]
@@ -1032,6 +1041,7 @@ void shieldMaidenMeatBuff(){
 }
 
 void shadowBoss(){
+    set_property("maxOverride","familiar weight, -equip PirateRealm eyepatch, equip congressional medal of insanity");
     cli_execute("cast Carol of the Hells");
     cli_execute("use scroll of drastic healing");
     // 1st round atks for 90% of max hp
@@ -1039,21 +1049,16 @@ void shadowBoss(){
         use($item[scroll of drastic healing]);
         set_property("hpAutoRecovery", 1.0);
         set_property("hpAutoRecoveryTarget", 1.0);
-        set_property("maxOverride", "familiar weight, equip congressional medal of insanity");
+        retrieve_item(60,$item[love song of smoldering passion]);
     }
     // reflects spells, has more elemental resist
     else if (get_property("rufusQuestTarget") == "shadow orrery"){
-        set_property("maxOverride","familiar weight");
         set_property("shirtOverride",", equip ultracolor");
         set_property("mainOverride",", equip june cleaver");
     } else if (get_property("rufusQuestTarget") == "shadow spire"){
         set_property("hpAutoRecovery",0.36);
         set_property("hpAutoRecoveryTarget",0.36);
         cli_execute("recover hp");
-        if (have_item($item[petrified wood wizard's pouch]))
-            set_property("maxOverride","familiar weight, equip petrified wood wizard's pouch");
-        else
-        set_property("maxOverride","familiar weight, equip congressional medal of insanity");
     }
 }
 
@@ -1351,6 +1356,8 @@ void neverendingPartyFreeFights(){
 
 // Prepare the shard phases, paid combat-forcer gear, or a due boss's stance.
 void prepareShadowRift(string phase, string freeKillMax, boolean bossDue) {
+    if (bossDue)
+        set_property("subscript","shadowBoss");
     // Keep any offhand override supplied by the selected FK method in its goal.
     if (phase == "freeKills" && !bossDue && get_property("offOverride") != "")
         freeKillMax += get_property("offOverride");
@@ -1361,7 +1368,7 @@ void prepareShadowRift(string phase, string freeKillMax, boolean bossDue) {
         set_property("maxOverride", freeKillMax);
 
     if (phase != "forcers") {
-        if (have_effect($effect[Coldform]) == 0) {
+        if (!bossDue && have_effect($effect[Coldform]) == 0) {
             if (!retrieve_item($item[phial of coldness]) || !use($item[phial of coldness])
                 || have_effect($effect[Coldform]) == 0)
                 abort("Shadow Rift: could not obtain Coldform for shard stalling.");
@@ -1412,27 +1419,29 @@ void prepareShadowRift(string phase, string freeKillMax, boolean bossDue) {
             }
         }
         if (!bossDue && have_effect($effect[Coldform]) > 0){
+            if (!retrieve_item(1, $item[shard of double-ice]))
+                abort("Shadow Rift: could not acquire a shard of double-ice.");
             prepareShardStatLimiter();
             if (!shadowRiftOffhandReserved(get_property("maxOverride"))){
                 if (!retrieve_item(1, $item[April Shower Thoughts shield]))
                     abort("Shadow Rift Shieldbutt stalling requires the April shield.");
                 set_property("offOverride", ", equip April Shower Thoughts shield");
             }
+        } else if (!bossDue && !retrieve_item(1, $item[facsimile dictionary])) {
+            abort("Shadow Rift: dictionary stalling requires a facsimile dictionary.");
         }
     }
 
     if (bossDue){
         shadowBoss();
-        prepareShardStatLimiter();
         if (!retrieve_item($item[congressional medal of insanity]))
             abort("Shadow Rift boss requires the congressional medal of insanity.");
         // Require both accessories in the goal; slot overrides can otherwise
         // lose to retained farming accessories such as the devilbone rosary.
-        set_property("acc3Override", "");
-        string bossMax = get_property("maxOverride") + ", equip PirateRealm eyepatch";
-        if (!contains_text(bossMax, "equip congressional medal of insanity"))
-            bossMax += ", equip congressional medal of insanity";
-        set_property("maxOverride", bossMax);
+        // Bosses now require the medal and exclude the eyepatch; the other two
+        // accessories come from ordinary familiar-weight maximization.
+        foreach pref in $strings[acc1Override,acc2Override,acc3Override]
+            set_property(pref, "");
     }
 }
 
@@ -1443,7 +1452,7 @@ boolean shadowRiftVisit(string phase) {
     string freeKillMax = get_property("maxOverride"); // looseFK() selected resource gear.
     int savedAutoAttack = get_auto_attack();
     string[string] saved;
-    foreach pref in $strings[script, subscript, inSpendAdv, maxOverride, famOverride, shirtOverride, backOverride, mainOverride, offOverride, acc3Override, hpAutoRecovery, hpAutoRecoveryTarget, choiceAdventureScript, choiceAdventure1499, shadowLabyrinthGoal]
+    foreach pref in $strings[script, subscript, inSpendAdv, maxOverride, famOverride, shirtOverride, backOverride, mainOverride, offOverride, acc1Override, acc2Override, acc3Override, hpAutoRecovery, hpAutoRecoveryTarget, choiceAdventureScript, choiceAdventure1499, shadowLabyrinthGoal]
         saved[pref] = get_property(pref);
 
     try {
@@ -1493,10 +1502,17 @@ boolean shadowRiftVisit(string phase) {
         prepareShadowRift(phase, freeKillMax, bossDue);
 
         int turnsBefore = total_turns_played();
-        if (!adv1(rift))
+        boolean adventureSucceeded=adv1(rift);
+        boolean fallbackPaidTurn=get_property("_teresFreeKillFallbackTurn")==to_string(turnsBefore)
+            &&total_turns_played()==turnsBefore+1&&current_round()==0&&!handling_choice()&&!in_multi_fight();
+        if (!adventureSucceeded&&!(fallbackPaidTurn&&get_property("_lastCombatLost").to_boolean()))
             abort("Shadow Rift " + phase + " encounter failed.");
-        if (phase != "forcers" && total_turns_played() != turnsBefore)
-            abort("Shadow Rift " + phase + " unexpectedly spent a turn.");
+        if (phase != "forcers" && total_turns_played() != turnsBefore){
+            if(fallbackPaidTurn)
+                print("Shadow Rift: fallback finisher spent one adventure; continuing free kills.","red");
+            else
+                abort("Shadow Rift " + phase + " unexpectedly spent a turn.");
+        }
         settleRufusRewards(false);
         return true;
     } finally {
@@ -2511,7 +2527,6 @@ boolean weakMonstersLeft(){
 
 // Scope the embezzler outfit and recovery settings so later phases start cleanly.
 void luckyEmbezzlers(){
-    step("phase: dailyFKs set fire to embezzlers with ~ Lucky! ~ sources");
     string[string] saved;
     foreach pref in $strings[script, subscript, maxOverride, famOverride, backOverride, hpAutoRecovery, hpAutoRecoveryTarget, mpAutoRecovery, mpAutoRecoveryTarget, _teresEmbezzlerOutfit]
         saved[pref] = get_property(pref);
@@ -2558,14 +2573,12 @@ void dailyFKs() {
     set_property("subscript", "");
     set_auto_attack(0);
 
-    step("phase: dailyFKs Coldform and shard supplies");
-    prepareDailyShardCombat();
+    // Renew Coldform only for pending shard fights; a resumed run may have only bosses/forcers left.
     step("Pledging allegiance to BARF Mountain for +50% meat . . .");
     if (!can_adventure($location[barf mountain])){
         retrieve_item($item[one-day ticket to Dinseylandfill]);
         use($item[one-day ticket to Dinseylandfill]);
     }
-    cli_execute("gain 550 ml");
     eaglePledge($location[barf mountain]);
     use_familiar($familiar[stocking mimic]);
 //    step("phase: dailyFKs - Spending spleen on Extrovermectin");
@@ -2579,6 +2592,7 @@ void dailyFKs() {
     step("phase: August Golem");
     augustGolem();
     if (!get_property("_molehillMountainUsed").to_boolean()){
+        prepareDailyShardCombat();
         mimicPrep();
         main@preadventure();
         use($item[molehill mountain]);
@@ -2595,6 +2609,7 @@ void dailyFKs() {
     //make sure only the hackers use ice-shard logic, constructs should stick to logic we currently have
     step("phase: dailyFKs cyberzone");
     while (get_property("_cyberFreeFights").to_int() < 10){
+        prepareDailyShardCombat();
         cli_execute("use digital honeypot");
         constructBanish();
         mimicPrep();
@@ -2619,6 +2634,7 @@ void dailyFKs() {
 
     // uncomment code in iotm.ash file to start using 11-leaf clovers again
     // only using free Lucky sources for now
+    step("phase: dailyFKs set fire to embezzlers with ~ Lucky! ~ sources");
     luckyEmbezzlers();
 
     // use NC forces at end so we dont waste effect turns meant for FKs when getting reward

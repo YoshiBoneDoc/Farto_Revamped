@@ -162,21 +162,73 @@ void updateWeaklingHP(string page_text){
     updateWeaklingHP(page_text, 0);
 }
 
+boolean lateCombatWarningPrinted = false;
+
+boolean shieldMicrophoneFight(){
+    return !last_monster().boss && weaklingIced
+        && have_equipped($item[April Shower Thoughts shield]) && have_skill($skill[Shieldbutt])
+        && have_skill($skill[Ambidextrous Funkslinging])
+        && get_property("subscript") != "looseFK" && my_location().zone != "Gingerbread City"
+        && (my_location() != $location[Shadow Rift (The Misspelled Cemetary)]
+            || $strings[shadowAffinity, shadowForcers] contains get_property("subscript")
+            || have_effect($effect[Shadow Affinity]) > 0);
+}
+
+int weaklingFinisherRound(){
+    // Required free kills get rounds 25-30 for Hat Trick retries.
+    if(get_property("subscript")=="looseFK")return 25;
+    return shieldMicrophoneFight() && item_amount($item[droppable microphone]) > 0 ? 26 : 28;
+}
+
+void throwLateMicrophones(){
+    while (shieldMicrophoneFight() && current_round() >= 29 && current_round() <= 30){
+        int microphones = item_amount($item[droppable microphone]);
+        if (microphones == 0){
+            print("No droppable microphones remain; continuing with the normal finisher.", "red");
+            return;
+        }
+        int before = current_round();
+        print("Round " + before + ": throwing " + min(2, microphones) + " droppable microphone(s).", "blue");
+        string response = microphones >= 2
+            ? to_string(throw_items($item[droppable microphone], $item[droppable microphone]))
+            : to_string(throw_item($item[droppable microphone]));
+        if (weaklingIced && current_round() > 0) updateWeaklingHP(response);
+        if (current_round() == before){
+            print("Droppable microphones did not advance combat; continuing with the normal finisher.", "red");
+            return;
+        }
+    }
+}
+
+void warnLateCombat(){
+    if (current_round() >= 30 && !lateCombatWarningPrinted){
+        print("Warning: " + last_monster() + " is still alive at round " + current_round()
+            + "; continuing combat despite the risk of losing.", "red");
+        lateCombatWarningPrinted = true;
+    }
+}
+
 // Retry only hat-blocked actions; other failures retain the caller's checks.
+string freeKillUseState(skill action);
 string combatSkill(skill action){
     if(current_round()==0)return "";
-    if(current_round()>30)abort("Combat passed round 30 before "+action+".");
+    string used=skillResourceFlags[action].freeKill?freeKillUseState(action):"";
     while(current_round()>0){
+        throwLateMicrophones();
+        if(current_round()==0)return "";
+        warnLateCombat();
         int before=current_round();
         string response=to_string(use_skill(action));
         if(weaklingIced && current_round()>0)updateWeaklingHP(response);
+        if(skillResourceFlags[action].freeKill&&freeKillUseState(action)!=used)return response;
         string text=replace_all(create_matcher("<[^>]*>",response)," ").to_lower_case();
         boolean distracted=contains_text(text,"too distracted")
             || (my_path()==$path[Hat Trick] && contains_text(text,"distracted"));
         if(!distracted || current_round()==0)return response;
         if(current_round()==before)abort("Hat-blocked "+action+" made no combat progress; combat paused.");
-        if(action==$skill[Shieldbutt] && current_round()>=28)return response;
-        if(current_round()>=30 || (weaklingIced && !weaklingCanStall()))
+        if(action==$skill[Shieldbutt] && current_round()>=weaklingFinisherRound())return response;
+        if(current_round()<30 && weaklingIced && !weaklingCanStall()
+            && !skillResourceFlags[action].freeKill && action!=$skill[Carbohydrate Cudgel])
             abort("Hat-blocked "+action+" cannot safely retry before the finisher; combat paused.");
         print("Hats blocked "+action+"; retrying at round "+current_round()+".","blue");
     }
@@ -230,20 +282,68 @@ void farmingStuff(){
         throw_item($item[pulled red taffy]);
 }
 
+string freeKillUseState(skill action){
+    if(action==$skill[Spit Jurassic Acid])return to_string(have_effect($effect[Everything Looks Yellow])>0);
+    if(action==$skill[Darts: Aim for the Bullseye])return to_string(have_effect($effect[Everything Looks Red])>0);
+    string[skill] counters={
+        $skill[Assert your Authority]:"_assertYourAuthorityCast",$skill[Fire the Jokester's Gun]:"_firedJokestersGun",
+        $skill[BCZ: Sweat Bullets]:"_bczSweatBulletsCasts",$skill[Shattering Punch]:"_shatteringPunchUsed",
+        $skill[Gingerbread Mob Hit]:"_gingerbreadMobHitUsed",$skill[Club 'Em Back in Time]:"_clubEmTimeUsed"};
+    return get_property(counters[action]);
+}
+
+boolean freeKillSkillReady(skill action){
+    // Use Mafia's current combat skill list, not names in the opening fight page.
+    // Known/granted skills also count: the parsed combat list can omit them.
+    if(!have_skill(action))return false;
+    if(action==$skill[Spit Jurassic Acid])return my_adventures()>=10&&have_effect($effect[Everything Looks Yellow])==0;
+    if(action==$skill[Darts: Aim for the Bullseye])return my_adventures()>=40&&have_effect($effect[Everything Looks Red])==0&&get_property("_dartsLeft").to_int()>0;
+    if(action==$skill[Assert your Authority])return get_property("_assertYourAuthorityCast").to_int()<3;
+    if(action==$skill[Fire the Jokester's Gun])return !get_property("_firedJokestersGun").to_boolean();
+    if(action==$skill[BCZ: Sweat Bullets])return sweatBulletsReady(62500);
+    if(action==$skill[Shattering Punch])return get_property("_shatteringPunchUsed").to_int()<3;
+    if(action==$skill[Gingerbread Mob Hit])return !get_property("_gingerbreadMobHitUsed").to_boolean();
+    return action==$skill[Club 'Em Back in Time]&&get_property("_clubEmTimeUsed").to_int()<5
+        &&my_location()!=$location[Hobopolis Town Square];
+}
+
+void retryFreeKillSkill(skill action){
+    string used=freeKillUseState(action);
+    print("Free kill: trying "+action+" at round "+current_round()+".","blue");
+    while(current_round()>0&&freeKillSkillReady(action)){
+        int before=current_round();
+        combatSkill(action);
+        // A spent source must not consume another daily charge in this fight.
+        if(current_round()==0||freeKillUseState(action)!=used)return;
+        if(current_round()==before){
+            print("Free kill "+action+" made no combat progress; trying the fallback finisher.","red");
+            return;
+        }
+        print("Free kill "+action+" has not registered; retrying while it remains available.","blue");
+    }
+}
+
+void finishFreeKillFallback(){
+    if(current_round()==0)return;
+    print("Free-kill source is spent or unavailable; finishing with Carbohydrate Cudgel and continuing.","red");
+    if(!have_skill($skill[Carbohydrate Cudgel]))abort("Cannot finish the free-kill fight: Carbohydrate Cudgel is unavailable.");
+    // Only this explicitly authorized recovery may explain a paid FK encounter.
+    set_property("_teresFreeKillFallbackTurn",total_turns_played());
+    while(current_round()>0){
+        int before=current_round();
+        combatSkill($skill[Carbohydrate Cudgel]);
+        if(current_round()==before)abort("Carbohydrate Cudgel did not advance combat; inspect the fight.");
+    }
+}
+
 void free_kill(string ptext) {
     foreach sk in $skills[Spit jurassic acid, Darts: Aim for the Bullseye] {
         if (current_round() == 0)
             return;
-        if (current_round() > 30)
-            abort("Free-kill combat passed round 30; no further action was submitted.");
-        if (contains_text(ptext, to_string(sk))) {
-            if (sk == $skill[Darts: Aim for the Bullseye] && my_adventures() < 40)
-                continue;
-            if (sk == $skill[Spit jurassic acid] && my_adventures() < 10)
-                continue;
-            combatSkill(sk);
-            if (sk == $skill[Darts: Aim for the Bullseye])
-                while (to_int(get_property("_dartsLeft")) > 0 && current_round() > 0 && current_round() <= 30) combatSkill(sk);
+        warnLateCombat();
+        if (freeKillSkillReady(sk)) {
+            retryFreeKillSkill(sk);
+            return;
         }
     }
     if (get_property("script") == "farto" || (get_property("script") == "FreeKill" && get_property("subscript") != "looseFK"))
@@ -253,26 +353,27 @@ void free_kill(string ptext) {
         Gingerbread Mob Hit, Club 'Em Back in Time] {
         if (current_round() == 0)
             return;
-        if (current_round() > 30)
-            abort("Free-kill combat passed round 30; no further action was submitted.");
-        if (sk == $skill[Fire the Jokester's Gun] && get_property("_firedJokestersGun").to_boolean())
-            continue;
-        if (sk == $skill[Assert your Authority] && get_property("_assertYourAuthorityCast").to_int() >= 3)
-            continue;
-        if (my_location() == $location[hobopolis town square] && sk == $skill[Club 'Em Back in Time])
-            continue;
-        if (sk == $skill[BCZ: Sweat Bullets] && !sweatBulletsReady(62500))
-            continue;
-        if (contains_text(ptext, to_string(sk))) {
-            combatSkill(sk);
+        warnLateCombat();
+        if (freeKillSkillReady(sk)) {
+            retryFreeKillSkill(sk);
+            return;
         }
     }
     if (current_round() > 0 && item_amount($item[interesting coin]) > 0 && get_property("_interestingCoinHeads") == "false"){
-        while (get_property("_interestingCoinHeads") == "false" && current_round() > 0 && current_round() < 30)
+        while (get_property("_interestingCoinHeads") == "false" && current_round() > 0 && item_amount($item[interesting coin]) > 0){
+            int before=current_round();warnLateCombat();
             throw_item($item[interesting coin]);
+            if(current_round()==before)break;
+        }
+        return;
     }
-    if (current_round() > 0 && current_round() <= 30 && available_amount($item[shadow brick]) > 0 && get_property("_shadowBricksUsed").to_int() < 13)
+    int bricksUsed=get_property("_shadowBricksUsed").to_int();
+    while (current_round() > 0 && item_amount($item[shadow brick]) > 0 && bricksUsed < 13
+        && get_property("_shadowBricksUsed").to_int()==bricksUsed){
+        int before=current_round();warnLateCombat();
         throw_item($item[shadow brick]);
+        if(current_round()==before)break;
+    }
 }
 
 void free_run(string ptext) {
@@ -566,7 +667,9 @@ void copyMonster(monster target){
 // Retry Hat Trick distractions, validating Mafia's successful-use counter.
 void combatCounterSkill(skill action, string counter){
     string before = get_property(counter);
-    while (current_round() > 0 && current_round() < 27 && get_property(counter) == before){
+    boolean barfSniffing = get_property("script") == "BARF"
+        && $skills[Transcendent Olfaction,Gallapagosian Mating Call] contains action;
+    while (current_round() > 0 && (barfSniffing || current_round() < 27) && get_property(counter) == before){
         int roundBefore = current_round();
         string response = to_string(combatSkill(action));
         if (get_property("script") == "FreeKill" && weaklingIced) updateWeaklingHP(response);
@@ -575,7 +678,8 @@ void combatCounterSkill(skill action, string counter){
             abort("Required combat action failed: " + action + ". Combat paused.");
     }
     if (get_property(counter) == before)
-        abort("Required combat action did not succeed before the round limit: " + action);
+        print("Warning: required combat action did not succeed before the round limit: " + action
+            + "; continuing combat.", "red");
 }
 
 // Schedule roaming goblins with Habitat recalls first, then Be Gregarious.
@@ -606,11 +710,33 @@ void chainRoamingMonster(monster target){
 // Return true when a shadow boss was handled so main skips other combat actions.
 boolean handleShadowRiftBoss(){
     // Handle these bosses before any free kills, runaways, or other combat actions.
-    if ($monsters[shadow scythe, shadow spire] contains last_monster()) {
+    item song=$item[love song of smoldering passion];
+    if (last_monster() == $monster[shadow scythe]){
+        while (current_round()>0){
+            warnLateCombat();
+            int before=current_round();
+           if (my_hp() < my_maxhp() * 0.5
+                && item_amount($item[soggy used band-aid]) > 0 && item_amount(song) > 0)
+                throw_items($item[soggy used band-aid],song);
+            else if (item_amount(song)>=2)
+                throw_items(song,song);
+            else {
+                print("Shadow Scythe: paired love songs unavailable; finishing with Weapon of the Pastalord.","red");
+                combatSkill($skill[Weapon of the Pastalord]);
+            }
+            if (current_round()==before)
+                abort("Shadow Scythe finisher did not advance combat; inspect the fight.");
+        }
+        return true;
+    }
+    if ($monsters[shadow spire, shadow matrix] contains last_monster()) {
         while (current_round() > 0) {
-            int roundBefore = current_round();
-            combatSkill($skill[Weapon of the Pastalord]);
-            if (current_round() == roundBefore)
+           int roundBefore = current_round();
+           if (my_hp() < my_maxhp() * 0.4
+                && item_amount($item[soggy used band-aid]) > 0 && item_amount(song) > 0)
+                    throw_items($item[soggy used band-aid],song);
+           combatSkill($skill[Weapon of the Pastalord]);
+           if (current_round() == roundBefore)
                 abort("Weapon of the Pastalord failed against " + last_monster());
         }
         return true;
@@ -690,17 +816,22 @@ boolean waterBalloonStall(int lastStallRound, boolean trackHP){
 
 // Standard mimic stall: balloon exchanges or the dictionary through round 10.
 // The caller continues with its next combat actions from round 11 onward.
-void standardMimicStall(){
-    bowlStraightUpStall(false);
+void standardMimicStall(boolean dictionaryOnly){
+    if (!dictionaryOnly)
+        bowlStraightUpStall(false);
     while (current_round() > 0 && current_round() <= 10){
         int roundBefore = current_round();
-        if (!waterBalloonStall(10, false))
+        if (dictionaryOnly || !waterBalloonStall(10, false))
             updateWaterBalloonHP(to_string(throw_item($item[facsimile dictionary])));
         if (current_round() == roundBefore){
             print("[DEBUG] Could not stall " + last_monster() + " with the facsimile dictionary; continuing combat.", "red");
             break;
         }
     }
+}
+
+void standardMimicStall(){
+    standardMimicStall(false);
 }
 
 // ─── FREEKILL: COMMON COMBAT ACTIONS ───────────────────────────────────────────
@@ -735,18 +866,20 @@ void prepareFreeKillCombat(){
 
 // Coldform / shard-of-double-ice fights retain their separate weakling strategy.
 // Stall through round 27; reserve 28 for Candyblast, 29 for Pastalord, and 30 for Cudgel.
+// With microphones, finishers move to 26-28 and microphones own rounds 29-30.
 void prepareWeaklingCombat(){
     prepareFreeKillCombat();
     if (current_round() > 0 && current_round() < 28 && weaklingCanStall() && have_skill($skill[Prepare to reanimate your Foe])
         && !contains_text(get_property("_lastCombatActions"), "sk" + to_int($skill[Prepare to reanimate your Foe]) + ";"))
         updateWeaklingHP(to_string(combatSkill($skill[Prepare to reanimate your Foe])));
     bowlStraightUpStall(true);
-    while (current_round() > 0 && current_round() < 28 && weaklingCanStall()){
+    int finishRound = weaklingFinisherRound();
+    while (current_round() > 0 && current_round() < finishRound && weaklingCanStall()){
         int roundBefore = current_round();
         boolean shieldStall = weaklingIced && have_equipped($item[april shower thoughts shield]) && have_skill($skill[Shieldbutt]);
         if (!shieldStall && current_round() >= 11)
             break;
-        if (!waterBalloonStall(shieldStall ? 27 : 10, true)){
+        if (!waterBalloonStall(shieldStall ? finishRound - 1 : 10, true)){
             if (shieldStall)
                 updateWeaklingHP(to_string(combatSkill($skill[shieldbutt])));
             else
@@ -758,11 +891,11 @@ void prepareWeaklingCombat(){
         }
         if ((!weaklingIced || !have_equipped($item[april shower thoughts shield]) || !have_skill($skill[Shieldbutt])) && current_round() > 10)
             break;
-        if (current_round() > 0 && current_round() < 28 && my_hp() < 100 && weaklingCanStall())
+        if (current_round() > 0 && current_round() < finishRound && my_hp() < 100 && weaklingCanStall())
             updateWeaklingHP(to_string(throw_items($item[new age healing crystal], $item[new age healing crystal])));
     }
-    if (current_round() > 0 && current_round() < 28 && last_monster() == $monster[eldritch tentacle])
-        backupSpell(min(4, 28 - current_round()));
+    if (current_round() > 0 && current_round() < finishRound && last_monster() == $monster[eldritch tentacle])
+        backupSpell(min(4, finishRound - current_round()));
     if (current_round() > 0 && last_monster() == $monster[flaming leaflet])
         updateWeaklingHP(to_string(throw_items($item[lit leaf lasso], $item[lit leaf lasso])));
 }
@@ -770,9 +903,10 @@ void prepareWeaklingCombat(){
 // Shared late stall, without damage spells before a required free-kill item.
 void stallWeaklingCombat(){
     bowlStraightUpStall(true);
-    while (current_round() > 0 && current_round() < 28 && weaklingIced && weaklingCanStall()){
+    int finishRound = weaklingFinisherRound();
+    while (current_round() > 0 && current_round() < finishRound && weaklingIced && weaklingCanStall()){
         int roundBefore = current_round();
-        if (!waterBalloonStall(27, true)){
+        if (!waterBalloonStall(finishRound - 1, true)){
             if (have_equipped($item[april shower thoughts shield]) && have_skill($skill[Shieldbutt]))
                 updateWeaklingHP(to_string(combatSkill($skill[shieldbutt])));
             else
@@ -783,9 +917,9 @@ void stallWeaklingCombat(){
             break;
         }
     }
-    while (current_round() > 0 && current_round() < 28 && weaklingCanStall()){
+    while (current_round() > 0 && current_round() < finishRound && weaklingCanStall()){
         int roundBefore = current_round();
-        if (!waterBalloonStall(27, true))
+        if (!waterBalloonStall(finishRound - 1, true))
             updateWeaklingHP(to_string(throw_item($item[facsimile dictionary])));
         if (current_round() == roundBefore){
             print("[DEBUG] Weakling dictionary stall failed; continuing to the kill.", "red");
@@ -795,26 +929,33 @@ void stallWeaklingCombat(){
 }
 
 void finishWeaklingCombat(boolean lateStall){
-    if (current_round() > 0 && current_round() < 28 && weaklingIced && weaklingCanStall()
+    if (current_round() > 0 && current_round() < weaklingFinisherRound() && weaklingIced && weaklingCanStall()
         && have_equipped($item[congressional medal of insanity]))
         updateWeaklingHP(to_string(combatSkill($skill[Weapon of the Pastalord])));
     if (lateStall)
         stallWeaklingCombat();
     if (current_round() == 0)
         return;
-    if (current_round() == 28)
+    boolean microphoneFinisher = shieldMicrophoneFight() && current_round() >= 25
+        && item_amount($item[droppable microphone]) > 0;
+    int finishRound = microphoneFinisher ? 26 : 28;
+    if (current_round() == finishRound)
         combatSkill($skill[Candyblast]);
     // If the HP safety check ended stalling early, finish early as well.
-    while (current_round() > 0 && current_round() < 30){
+    while (current_round() > 0 && current_round() < finishRound + 2){
         int roundBefore = current_round();
         combatSkill($skill[Weapon of the Pastalord]);
         if (current_round() == roundBefore)
             abort("Weapon of the Pastalord failed; combat is paused before the round limit.");
     }
-    if (current_round() > 0 && current_round() <= 30)
-        combatSkill($skill[Carbohydrate Cudgel]);
     if (current_round() > 0)
-        abort("Weakling finisher failed; combat is paused for inspection.");
+        combatSkill($skill[Carbohydrate Cudgel]);
+    while (current_round() > 0){
+        int roundBefore = current_round();
+        combatSkill($skill[Weapon of the Pastalord]);
+        if (current_round() == roundBefore)
+            abort("Weapon of the Pastalord failed to advance combat.");
+    }
 }
 
 void finishWeaklingCombat(){
@@ -881,7 +1022,7 @@ void finishStockingMimicCombat(string page_text, boolean requireFreeKill){
         if (current_round() > 0 && isLooseFK)
             free_kill(visit_url("fight.php", false));
         if (current_round() > 0 && isLooseFK && requireFreeKill)
-            abort("Free-kill action did not end combat.");
+            finishFreeKillFallback();
         if (current_round() > 0)
             finishWeaklingCombat(shieldStall);
         return;
@@ -903,7 +1044,7 @@ void finishStockingMimicCombat(string page_text, boolean requireFreeKill){
     }
     if (isLooseFK && current_round() > 0
         && !last_monster().boss && requireFreeKill)
-        abort("Free-kill action did not end combat.");
+        finishFreeKillFallback();
     if (current_round() > 0 && current_round() < 11)
         print("[DEBUG] Stocking Mimic did not reach round 11; continuing to the kill.", "red");
     if (current_round() > 0 && last_monster() == $monster[spawn of wally])
@@ -1085,7 +1226,7 @@ boolean handleIcedShadowRiftCombat(string page_text){
         // No Swoop, Gaze, attack, or other damage before the required free kill.
         free_kill(page_text);
         if (current_round() > 0)
-            abort("Shadow Rift: free-kill action did not end combat.");
+            finishFreeKillFallback();
         return true;
     }
 
@@ -1106,6 +1247,7 @@ boolean handleShadowRiftForcerCombat(string page_text){
     if (get_property("subscript") != "shadowForcers"
         || my_location() != $location[Shadow Rift (The Misspelled Cemetary)])
         return false;
+    weaklingIced = false;
     if (!last_monster().boss && shardCombatMode())
         startWeaklingCombat(page_text);
     if (current_round() > 0 && !last_monster().boss && !get_property("noncombatForcerActive").to_boolean()){
@@ -1124,7 +1266,7 @@ boolean handleShadowRiftForcerCombat(string page_text){
         if (weaklingIced)
             prepareStockingMimicCombat();
         else
-            standardMimicStall();
+            standardMimicStall(true);
     }
     if (current_round() > 0)
         finishStockingMimicCombat(page_text, false);
@@ -1308,8 +1450,7 @@ boolean handleEaglePledgeCombat(string page_text, boolean freeRunAfterPledge){
 void finishGingerbreadDude(){
     if (current_round() == 0)
         return;
-    if (current_round() > 30)
-        abort("Gingerbread combat is past its round limit; no further action was submitted.");
+    warnLateCombat();
     if (item_amount($item[gingerbread cigarette]) == 0)
         abort("No gingerbread cigarette remains; combat is paused before a damage finisher.");
     throw_item($item[gingerbread cigarette]);
@@ -1411,12 +1552,17 @@ boolean handleRedZeppelinCombat(string page_text){
             throw_item($item[glark cable]);
         finishWeaklingCombat();
     } else if (!handleStockingMimicCombat(page_text)){
-        if (get_property("_glarkCableUses").to_int() < 5)
+        int cablesUsed=get_property("_glarkCableUses").to_int();
+        while (current_round()>0&&cablesUsed<5&&item_amount($item[glark cable])>0
+            &&get_property("_glarkCableUses").to_int()==cablesUsed){
+            int before=current_round();
             throw_item($item[glark cable]);
+            if(current_round()==before)break;
+        }
         if (current_round() > 0 && last_monster() == $monster[red skeleton])
             backupSpell(5);
         if (current_round() > 0)
-            abort("Red Zeppelin free kill did not end combat.");
+            finishFreeKillFallback();
     }
     return true;
 }
@@ -1679,11 +1825,9 @@ void barfSniff(monster target){
     foreach source in $skills[Transcendent Olfaction, Gallapagosian Mating Call]{
         if (current_round() == 0 || !have_skill(source) || source.dailylimit == 0
             || my_mp() < mp_cost(source)) continue;
-        boolean already = source == $skill[Transcendent Olfaction]
-            ? to_monster(get_property("olfactedMonster")) == target
-            : to_monster(get_property("_gallapagosMonster")) == target;
-        if (source == $skill[Transcendent Olfaction] && have_effect($effect[On the Trail]) > 0) continue;
-        if (!already) combatSkill(source);
+        string counter = source == $skill[Transcendent Olfaction] ? "olfactedMonster" : "_gallapagosMonster";
+        // A successful cast must set its own target; hat distractions consume rounds, not success.
+        if (to_monster(get_property(counter)) != target) combatCounterSkill(source,counter);
     }
 }
 
@@ -1695,8 +1839,10 @@ void barfReanimate(){
         if (current_round() == before || !contains_text(response, "distracted"))
             abort("Reanimation did not consume the shrunken head; combat paused.");
     }
-    if (have_equipped($item[shrunken head])) abort("Reanimation did not succeed before the round limit.");
+    if (have_equipped($item[shrunken head]))
+        print("Warning: reanimation did not succeed before the round limit; continuing combat.", "red");
 }
+
 
 // BARF combat placeholder. False means shared combat handling can continue.
 boolean handleBARFCombat(string page_text){
@@ -1746,17 +1892,14 @@ boolean handleBARFCombat(string page_text){
             return true;
         }
     } else if (!last_monster().boss){
-        if (my_location() == $location[Barf Mountain] && my_familiar() == $familiar[Patriotic Eagle]
-            && last_monster().phylum == $phylum[dude] && get_property("screechCombats").to_int() == 0){
-            combatCounterSkill($skill[%fn, Release the Patriotic Screech!], "screechCombats");
-            if (current_round() == 0) return true;
-        }
+        // BARF tourists have NOBANISH; neither Screech, Sea *dent nor Spring Kick can exclude them.
         if (my_location() == $location[Barf Mountain] && last_monster() == $monster[garbage tourist]){
-            if (have_skill($skill[Transcendent Olfaction]) && $skill[Transcendent Olfaction].dailylimit != 0
-                && have_effect($effect[On the Trail]) == 0
-                && get_property("olfactedMonster").to_monster() != $monster[garbage tourist])
-                combatCounterSkill($skill[Transcendent Olfaction], "olfactedMonster");
+            // Olfaction replaces an existing target directly; keep a garbage-tourist trail.
+            barfSniff($monster[garbage tourist]);
             if (current_round() > 0 && get_property("spookyVHSTapeMonster") == ""
+                && !get_property("_teresBarfVhsEncounter").to_boolean()
+                && (!get_property("_teresBarfPlannedExecution").to_boolean()
+                    ||(get_property("_teresBarfPlanMask").to_int()==0&&!get_property("_teresBarfPlanStooper").to_boolean()))
                 && item_amount($item[spooky VHS tape]) > 0){
                 while (current_round() > 0 && current_round() < 27 && get_property("spookyVHSTapeMonster") == ""){
                     int before = current_round();
@@ -1765,16 +1908,6 @@ boolean handleBARFCombat(string page_text){
                     if (current_round() == before || !contains_text(response, "distracted")) abort("VHS recording failed; combat paused.");
                 }
             }
-        }
-        if (current_round() > 0 && my_familiar() == $familiar[Patriotic Eagle]
-            && have_equipped($item[spring shoes]) && have_effect($effect[Everything Looks Green]) == 0){
-            while (current_round() > 0 && current_round() < 27 && have_effect($effect[Everything Looks Green]) == 0){
-                int before = current_round();
-                string response = to_string(combatSkill($skill[Spring Away]));
-                if (current_round() == 0) return true;
-                if (current_round() == before || !contains_text(response, "distracted")) abort("Spring Shoes free run failed.");
-            }
-            if (current_round() == 0) return true;
         }
         if (current_round() > 0 && last_monster() == $monster[drunk goat] && have_skill($skill[Prepare to reanimate your Foe]))
             barfReanimate();
@@ -1788,21 +1921,34 @@ boolean handleBARFCombat(string page_text){
             }
         }
     }
+    if(my_location()==$location[Barf Mountain]&&get_property("_teresBarfVhsEncounter").to_boolean()
+        &&my_familiar()==$familiar[Stocking Mimic]&&!last_monster().boss){
+        while(current_round()>0&&current_round()<11){
+            int before=current_round();throw_item($item[facsimile dictionary]);
+            if(current_round()==before)abort("BARF VHS dictionary stall made no progress.");
+        }
+    }
     if (current_round() > 0 && $familiars[Chest Mimic, Cooler Yeti] contains my_familiar()){
-        while (current_round() > 0 && current_round() < 30){
-            if (item_amount($item[love song of icy revenge]) == 0) abort("BARF training ran out of icy love songs.");
+        while (current_round() > 0){
+            warnLateCombat();
+            if (item_amount($item[love song of icy revenge]) == 0){
+                if(get_property("_teresBarfPlannedExecution").to_boolean()){
+                    print("Planned BARF training ran out of icy love songs; finishing normally and replanning from actual XP.","orange");break;
+                }
+                abort("BARF training ran out of icy love songs.");
+            }
             int before = current_round();
             throw_item($item[love song of icy revenge]);
             if (current_round() > 0 && current_round() <= before) abort("BARF training love song did not advance combat.");
         }
-        if (current_round() > 0) abort("BARF training could not finish combat before the round limit.");
-        return true;
+        if(current_round()==0)return true;
     }
     if (current_round() > 0 && last_monster() != $monster[sausage goblin] && !last_monster().boss
         && have_skill($skill[Extract])) combatSkill($skill[Extract]);
     // Paid farming kills promptly: no shard, waffle, free-run or free-kill resources.
     if (current_round() > 0 && last_monster() != $monster[sausage goblin]) bowlStraightUpStall(false);
-    while (current_round() > 0 && current_round() < 28){
+    while (current_round() > 0){
+        warnLateCombat();
         int before = current_round();
         if (my_hp() < min(300,my_maxhp()) && have_skill($skill[Cannelloni Cocoon]) && my_mp() >= mp_cost($skill[Cannelloni Cocoon])){
             combatSkill($skill[Cannelloni Cocoon]); continue;
@@ -1812,7 +1958,6 @@ boolean handleBARFCombat(string page_text){
         else attack();
         if (current_round() > 0 && current_round() <= before) return true;
     }
-    if (current_round() > 0) abort("BARF could not finish " + last_monster() + " before round 28; resume manually.");
     return true;
 }
 
@@ -1841,6 +1986,7 @@ boolean handleGeneralCombat(string page_text){
 void main(int round, monster mob, string page_text){
     if (current_round() == 0)
         return;
+    warnLateCombat();
     if (get_property("script") == "BARF"){
         handleBARFCombat(page_text);
         return;

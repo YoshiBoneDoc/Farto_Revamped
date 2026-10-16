@@ -131,9 +131,17 @@ void freeKillTurnGuard(){
     // Abort while testing individual phases; switch to a red warning once dailyFKs is verified.
     // The final Rift phase intentionally pays for combats that arm NC forces.
     if (previousTurn != "" && turnsSpent > 0 && my_location() != $location[the hidden temple]
-        && get_property("subscript") != "shadowForcers")
-        abort("FreeKill unexpectedly spent " + turnsSpent + " turn(s) at "
-            + my_location() + " against " + last_monster() + ".");
+        && get_property("subscript") != "shadowForcers"){
+        if (get_property("_lastCombatLost").to_boolean())
+            print("Warning: lost a FreeKill fight and spent " + turnsSpent + " turn(s) at "
+                + my_location() + "; continuing.", "red");
+        else if (turnsSpent == 1 && get_property("_teresFreeKillFallbackTurn") == previousTurn)
+            print("Warning: the free-kill fallback finisher spent one adventure at "
+                + my_location() + "; continuing.", "red");
+        else
+            abort("FreeKill unexpectedly spent " + turnsSpent + " turn(s) at "
+                + my_location() + " against " + last_monster() + ".");
+    }
 }
 
 // Avoid buying MP before every Lucky! encounter just to burn it on a Libram.
@@ -167,7 +175,7 @@ void postAdv(){
     lawOfAverages();
     if (get_property("_lastCombatLost") == "true" && get_property("noncombatForcerActive") != "true" && LastAdvTxt().contains_text("Round 1") && my_location() != $location[the outer compound] && last_monster() != $monster[flaming monstera] && last_monster() != $monster[leaviathan] && last_monster() != $monster[flaming leaflet]){
         cli_execute("cast tongue;cast cannel");
-        abort("It appears you lost the last combat, look into that");
+        print("Warning: lost the last combat; recovering and continuing.", "red");
     }
     if (have_effect($effect[beaten up]) > 0 )
         cli_execute("cast tongue of the walrus");

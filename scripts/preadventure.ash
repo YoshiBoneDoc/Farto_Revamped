@@ -67,7 +67,8 @@ buffer preAdvMaximize(){
 // temporary swaps. Accessories, exclusions and familiar/location changes define
 // a new baseline. Other objectives, item modes and weapon conflicts use the solver.
 boolean applyBaselineGear(string goal){
-    boolean forcers=get_property("_teresForcerGearCacheActive").to_boolean();
+    boolean forcers=get_property("_teresForcerGearCacheActive").to_boolean()
+        && get_property("subscript") != "shadowBoss";
     string[int] clauses = split_string(goal, "\\s*,\\s*");
     string objective = replace_all(create_matcher("^\\s+|\\s+$", clauses[0]), "").to_lower_case();
     if (forcers && objective != "familiar weight" && objective != "familiar experience")
@@ -314,6 +315,7 @@ void setupFreeKill(){
     boolean bowlingAlley = hiddenCityFarming();
     boolean godLobster = get_property("subscript") == "godLobster";
     boolean familiarExperienceFarming = bowlingAlley || godLobster;
+    boolean shadowBoss = get_property("subscript") == "shadowBoss";
 
     // ------- FAMILIAR HANDLING -------
     boolean keepStooper = false;
@@ -390,18 +392,18 @@ void setupFreeKill(){
         else if (get_property("pantsOverride") != "")
             append(maximize, get_property("pantsOverride"));
         // Acc1
-        if (have_equipped($item[angelbone dice]))
+        if (have_equipped($item[angelbone dice]) && !shadowBoss)
             append(maximize, ", equip angelbone dice");
         else if (get_property("acc1Override") != "")
             append(maximize, get_property("acc1Override"));
         // Acc2
-        if (have_equipped($item[angelbone chopsticks]))
+        if (have_equipped($item[angelbone chopsticks]) && !shadowBoss)
             append(maximize, ", equip angelbone chopsticks");
         else if (get_property("acc2Override") != "")
             append(maximize, get_property("acc2Override"));
         // Acc3
         boolean shardStats = shardEyepatchRequired();
-        if (have_equipped($item[devilbone rosary]) && !shardStats)
+        if (have_equipped($item[devilbone rosary]) && !shardStats && !shadowBoss)
             append(maximize, ", equip devilbone rosary");
         else if (get_property("acc3Override") != "")
             append(maximize, get_property("acc3Override"));
@@ -438,6 +440,10 @@ void setupFreeKill(){
     float hpTar = min(1, 1000 / to_float(my_maxhp()));
     string hpAutoRecovery = to_float(round(hpTar * 0.75 * 10000))/10000;
     string hpAutoRecoveryTarget = to_float(round(hpTar * 10000))/10000;
+    if (shadowBoss && get_property("rufusQuestTarget") == "shadow scythe"){
+        hpAutoRecovery = "1.0";
+        hpAutoRecoveryTarget = "1.0";
+    }
 // For Hat Path Aftercore - just recover MP when below 200 mp, recover to 300 mp
 //      string mpAutoRecovery = to_float(round(mpTar * 0.5 * 10000))/10000;
 //      string mpAutoRecoveryTarget = to_float(round(mpTar * 10000))/10000;
@@ -448,23 +454,12 @@ void setupFreeKill(){
     set_property("hpAutoRecoveryTarget", hpAutoRecoveryTarget);
     set_property("mpAutoRecovery",       mpAutoRecovery);
     set_property("mpAutoRecoveryTarget", mpAutoRecoveryTarget);
-    if (equipped_item($slot[codpiece5]) != $item[massive gemstone])
+    if (equipped_item($slot[codpiece5]) != $item[massive gemstone]
+        || equipped_item($slot[codpiece2]) != $item[blood cubic zirconia])
         codpiece("peridot of peril,blood cubic zirconia,baseball diamond,massive gemstone,massive gemstone");
 // --dont flood the shadow realm in hat path
 //            else if (dayType() == 1 && contains_text(get_property("lastEncounter"),"shadow")){
 //                use_skill($skill[Sea *dent: Summon a Wave]);
-
-    //monster level
-    foreach ef in $effects[Ur-Kel's Aria of Annoyance,Pride of the Puffin,Bloodbathed,Misplaced Rage,Manbait,Sweetbreads Flamb&eacute;,Red Lettered,Spangled Star,Tortious,Litterbug,Not Sharing,Para-lyzed Jaw,Contemptible Emanations,Ashen Burps,The Cupcake of Wrath,Gelded,Mysteriously Handsome]{
-        if (mall_price(effect_to_item(ef)) > mall_price($item[pocket wish]))
-            continue;
-        if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)))
-            continue;
-        if (numeric_modifier("Monster level") >= 150)
-            break;
-        if (have_effect(ef) == 0)
-            cli_execute(ef.default);
-    }
 
     foreach ef in $effects[Tranquilized Mind,Cunctatitis, Mathematically Precise]{
         if (have_effect(ef) > 0)
@@ -477,6 +472,7 @@ void setupBARF(){
     // TODO: Add BARF familiar, gear, buffs, and recovery settings here.
     // Familiar equipment: placeholder for BARF-specific selection.
     barfGear();
+    if(!barfPlannedAdventureAllowed())abort("Planned BARF: actual reserve, organs, cooling or retained buffs changed before the adventure. Replan before spending another turn.");
 }
 
 // Lucky! fights need Meat gear and absolute recovery amounts, not percentages
@@ -650,6 +646,17 @@ void setupDefault(){
 
 }
 
+void prepareDroppableMicrophones(){
+    if (get_property("script") != "FreeKill"
+        || !have_equipped($item[April Shower Thoughts shield]) || !have_skill($skill[Shieldbutt])
+        || !have_skill($skill[Ambidextrous Funkslinging]))
+        return;
+    if (item_amount($item[droppable microphone]) == 0)
+        buy(100, $item[droppable microphone], 100);
+    if (item_amount($item[droppable microphone]) < 2)
+        print("Fewer than two droppable microphones available at 100 Meat each; continuing with available supplies.", "red");
+}
+
 void preAdv(){
     if (get_property("script") == "BARF"){
         setupBARF();
@@ -699,6 +706,7 @@ void preAdv(){
         abort("Party hard fights require the PARTY HARD T-shirt and no PirateRealm eyepatch.");
 
     // Shared supplies for the combat scripts.
+    prepareDroppableMicrophones();
     // Required for FreeKill stalling: stop before combat if acquisition fails.
     if (get_property("script") == "FreeKill" && item_amount($item[facsimile dictionary]) == 0) {
         retrieve_item(1, $item[facsimile dictionary]);
@@ -717,6 +725,7 @@ void preAdv(){
         && !retrieve_item(1, $item[peppermint parasol]))
         print("[DEBUG] Could not acquire a peppermint parasol before combat; continuing.", "red");
     // Keep the round-30 Cudgel fallback supplied before entering combat.
+    // Microphone fights move Cudgel to round 28.
     if (item_amount($item[dry noodles]) == 0)
         retrieve_item(1, $item[dry noodles]);
     if (item_amount($item[dry noodles]) == 0)
@@ -752,6 +761,7 @@ void preAdv(){
 }
 
 void main(){
+    set_property("_teresFreeKillFallbackTurn", "");
     if (get_property("script") == "BARF"){
         setupBARF();
         return;

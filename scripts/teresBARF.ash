@@ -1,5 +1,6 @@
 import TeresMimic.ash;
 import TeresMimicDiet.ash;
+import TeresMimicDietLive.ash;
 import teresBarfSimulation.ash;
 
 // Run after TeresMimic's free-kill phases. This entry point does not repeat them.
@@ -78,13 +79,8 @@ void barfBeginDay(){
 location barfNextAdventure(){
     set_property("_teresBarfMode", "");
     if (barfGoblinDue() || barfVhsDue()) return $location[Barf Mountain];
-    if (have_familiar($familiar[Patriotic Eagle]) && get_property("screechCombats").to_int() == 0
-        && barfDudesPresent()){
-        set_property("_teresBarfMode", "screech");
-        return $location[Barf Mountain];
-    }
-    if (have_familiar($familiar[Patriotic Eagle]) && have_skill($skill[Transcendent Olfaction])
-        && $skill[Transcendent Olfaction].dailylimit != 0 && have_effect($effect[On the Trail]) == 0
+    if (have_skill($skill[Transcendent Olfaction])
+        && $skill[Transcendent Olfaction].dailylimit != 0
         && get_property("olfactedMonster").to_monster() != $monster[garbage tourist]){
         if (get_property("spookyVHSTapeMonster") == ""
             && !barfAcquire($item[spooky VHS tape], barfSetting("MaxItemPrice",100000)))
@@ -117,9 +113,6 @@ location barfNextAdventure(){
         set_property("_teresBarfMode", "goat");
         return $location[The Goatlet];
     }
-    if (barfEagleNeedsRecharge()
-        && available_amount($item[spring shoes]) > 0 && have_effect($effect[Everything Looks Green]) == 0)
-        set_property("_teresBarfMode", "eagleRun");
     if (get_property("spookyVHSTapeMonster") == ""
         && !barfAcquire($item[spooky VHS tape], barfSetting("MaxItemPrice",100000)))
         abort("Could not acquire a spooky VHS tape for familiar recharge.");
@@ -155,12 +148,6 @@ void barfFinishChainedCombats(){
 }
 
 void barfFarm(int requestedTurns){
-    if (have_skill($skill[Transcendent Olfaction]) && $skill[Transcendent Olfaction].dailylimit != 0
-        && get_property("olfactedMonster").to_monster() != $monster[garbage tourist]
-        && have_effect($effect[On the Trail]) > 0){
-        if (!cli_execute("uneffect On the Trail") || have_effect($effect[On the Trail]) > 0)
-            abort("BARF could not clear the previous trail before tracking garbage tourists.");
-    }
     int start = total_turns_played();
     int iterations = 0;
     int emptyAttempts = 0;
@@ -189,11 +176,16 @@ void barfFarm(int requestedTurns){
         int before = total_turns_played();
         string progressBefore = barfProgressKey();
         int adventuresBefore = my_adventures();
-        if (!adv1(next,-1,"")) abort("BARF adventure failed; stopped.");
+        string combatBefore = get_property("_lastCombatStarted");
+        boolean wasLost = get_property("_lastCombatLost").to_boolean();
+        boolean adventured = adv1(next,-1,"");
+        boolean lostFight = current_round() == 0 && !handling_choice()
+            && get_property("_lastCombatLost").to_boolean()
+            && (!wasLost || get_property("_lastCombatStarted") != combatBefore)
+            && (total_turns_played() != before || my_adventures() != adventuresBefore);
+        if (!adventured && !lostFight) abort("BARF adventure failed; stopped.");
         barfFinishChainedCombats();
         if (handling_choice()) abort("BARF left an unresolved choice; stopped.");
-        if (get_property("_lastCombatLost").to_boolean() || have_effect($effect[Beaten Up]) > 0)
-            abort("BARF lost the last fight; stopped.");
         if (total_turns_played() == before && my_adventures() == adventuresBefore && progressBefore == barfProgressKey()) emptyAttempts += 1;
         else emptyAttempts = 0;
         if (emptyAttempts >= 5) abort("BARF made no adventure progress for five encounters.");
@@ -205,22 +197,58 @@ void barfFarm(int requestedTurns){
     dailyWorkshed();
 }
 
+void barfRunPlanned(int turns){
+    if(get_property("mayoInMouth")!="")abort("Handle queued Mayo before executing an exact diet.");
+    barfBeginDay();
+    barfDietPlan();if(!barfDietPlanReady)abort("No complete validated diet is available to execute.");
+    string[string] saved;
+    foreach pref in $strings[script,subscript,inSpendAdv,autoSatisfyWithStash,autoSatisfyWithMall,autoSatisfyWithNPCs,
+        autoSatisfyWithCoinmasters,autoBuyPriceLimit,autoFillMayoMinder,autoTuxedo,autoPinkyRing,autoGarish,_teresBarfPlannedExecution,_teresBarfPlanMask,
+        _teresBarfPlanStooper,_teresBarfPlanTrainer,_teresBarfPlanMinimumAdventures,_teresBarfMode,_teresBarfVhsEncounter,_teresBarfTurnsRemaining,_teresBarfEquipment,
+        unconditionalOverride,maxOverride,famOverride,hatOverride,mainOverride,weaponOverride,offOverride,backOverride,
+        shirtOverride,pantsOverride,acc1Override,acc2Override,acc3Override,famEquipOverride]saved[pref]=get_property(pref);
+    string savedMood=get_property("currentMood");boolean completed=false;beginFarmingReport();
+    try{
+        barfLiveMood("apathetic");
+        starter();set_property("script","BARF");set_property("subscript","");set_property("inSpendAdv",true);
+        set_property("_teresBarfPlannedExecution",true);set_property("_teresBarfMode","");
+        set_property("autoSatisfyWithStash",false);set_property("autoSatisfyWithMall",false);
+        set_property("autoSatisfyWithNPCs",false);set_property("autoSatisfyWithCoinmasters",false);
+        set_property("autoBuyPriceLimit",barfSetting("DietMaxItemPrice",500000));set_property("autoFillMayoMinder",false);
+        set_property("autoTuxedo",false);set_property("autoPinkyRing",false);set_property("autoGarish",false);
+        set_property("_teresBarfTurnsRemaining",turns>0?turns:barfDietPlanned.turns);
+        foreach name in $strings[unconditional,max,fam,hat,main,weapon,off,back,shirt,pants,acc1,acc2,acc3,famEquip]set_property(name+"Override","");
+        print("LIVE BARF: executing the printed diet. A turn limit caps farming, not the diet purchases/consumption. Limited runs stop before end-of-day buffs and nightcap.","blue");
+        barfDietExecute(turns);completed=true;
+    }finally{
+        try{finisher();}finally{
+            try{barfLiveMood(savedMood);}finally{foreach pref,value in saved set_property(pref,value);finishFarmingReport(completed);}
+        }
+    }
+}
+
 // The revised diet is staged as a dry run; the legacy execution body is kept for reference.
+// Explicit 'run' now executes the revised plan; the old phase aliases remain previews.
 void main(string command){
     if (command == "diet-snapshot"){ barfDietSnapshot(); return; }
     if (command == "diet-plan"){barfDietPlan();return;}
+    if (command == "diet-candidates"){barfDietPlan(true);return;}
     string[int] args = split_string(command,"\\s+");
     string phase = command == "" ? "all" : args[0].to_lower_case();
     int turns = count(args) > 1 ? args[1].to_int() : 0;
+    if(phase=="run"){
+        if(count(args)>2||(count(args)>1&&(!create_matcher("^[0-9]+$",args[1]).find()||turns<=0)))abort("Use teresBARF.ash run [positive paid-turn limit].");
+        barfRunPlanned(turns);return;
+    }
     if ($strings[all,prep,diet,farm,plan,sim] contains phase){barfDietPlan();return;}
     if (!($strings[all, prep, diet, farm, plan, sim] contains phase))
-        abort("Use teresBARF.ash diet-plan for the two-day dry run, or diet-snapshot to export live inputs. BARF execution remains disabled until the revised plan is reviewed.");
+        abort("Use teresBARF.ash diet-plan for a preview, run [paid-turn limit] to execute the revised diet, or diet-snapshot to export inputs.");
     if (command != "" && count(args) > 1 && turns <= 0)
         abort("An explicit BARF turn limit must be positive.");
     string[string] saved;
     foreach pref in $strings[script,subscript,inSpendAdv,autoSatisfyWithStash,autoSatisfyWithMall,
         autoSatisfyWithNPCs,autoSatisfyWithCoinmasters,autoBuyPriceLimit,autoFillMayoMinder,
-        _teresBarfTurnsRemaining,_teresBarfGearKey,_teresBarfEquipment,_teresBarfLimitedRun,_teresBarfMode,_teresBarfBattlefieldUnavailable,choiceAdventure1073,
+        _teresBarfTurnsRemaining,_teresBarfGearKey,_teresBarfEquipment,_teresBarfLimitedRun,_teresBarfMode,_teresBarfVhsEncounter,_teresBarfBattlefieldUnavailable,choiceAdventure1073,
         unconditionalOverride,maxOverride,famOverride,hatOverride,mainOverride,weaponOverride,
         offOverride,backOverride,shirtOverride,pantsOverride,acc1Override,acc2Override,acc3Override,famEquipOverride]
         saved[pref] = get_property(pref);

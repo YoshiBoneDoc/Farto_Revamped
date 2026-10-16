@@ -180,7 +180,7 @@ void barfSimulation(){
         foreach spot, target in outfit print("[SIM] Training outfit " + spot + ": " + target + ".");
     } else foreach spot,target in barfFarmingOutfit(next) print("[SIM] Fixed BARF outfit " + spot + ": " + target + ".");
     print("[SIM] Training only: one white candy heart/deviled candy egg when their buffs expire; Blue Swayed > 50 turns; Curiosity when expired; hardcoded XP outfit with stillsuit and sweatpants, with accessories swapped for timers.");
-    print("[SIM] Recurring actions: reserved goblin egg / Next Week and purple chains; keep recording VHS copies for Chest Mimic/Yeti below their XP goals, then Jill. BARF tourists are marked unbanishable, so skip Eagle recharge for Screech. Bullseye when red expires; BCZ + yellow-ray battlefield detours; Mobius, reanimation, sweat to 100, and three unique Laughing Stock fruits.");
+    print("[SIM] Recurring actions: reserved goblin egg / Next Week and purple chains; VHS copies train the Yeti to its charge goal, then use Stocking Mimic. BARF tourists are marked unbanishable, so skip Eagle recharge and tourist banish attempts. Bullseye when red expires; BCZ + yellow-ray battlefield detours; Mobius, reanimation, sweat to 100, and three unique Laughing Stock fruits.");
     print("[SIM] Before each XP-training fight, retrieve enough love songs of icy revenge to hold at least 10.");
     print("[SIM] Exact future outfit/stats are not maximized in this preview. Values below use current gear and cached/fetched prices.");
     int[effect] coverage;
@@ -189,6 +189,6 @@ void barfSimulation(){
     barfSimBuffs(coverage);
     print("[SIM] Adventure at Barf Mountain; reassess familiar, gear and diet before encounters; refresh profitable buffs periodically.","blue");
     print("[SIM] Combat: preserve goblin chaining and special timer actions; Chest Mimic/Yeti throw love songs of icy revenge until the fight ends, without shards, stalling, Extract or Bowl; other farming fights use the existing Pastalord flow.");
-    print("[SIM] Lubrication choice: temporarily wear available lubrishoes, choose option 1, restore shoes. Stop on losses or unresolved choices.");
+    print("[SIM] Lubrication choice: temporarily wear available lubrishoes, choose option 1, restore shoes. Warn and recover after losses; stop on unresolved choices.");
     print("[SIM] Finish when paid-turn limit is reached or adventures/profitable diet run out; preserve adventure reserve; run daily workshed and profit summary; no automatic nightcap.","blue");
 }
