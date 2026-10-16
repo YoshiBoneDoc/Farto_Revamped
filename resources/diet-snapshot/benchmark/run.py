@@ -9,20 +9,17 @@ import tempfile
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--mode',choices=['baseline','cache','early','bare','farm','combinedBare','combined'],default='combined')
-parser.add_argument('--workload',choices=['layers','schedule','practical','full','checks','frontier-checks','planner-checks','pour-checks','live-checks','live-native-checks','production','ingredient-checks'],default='layers')
-parser.add_argument('--width',type=int,default=16,help='Retained beam states per layer (default: 16).')
-parser.add_argument('--timeout-seconds',type=int,default=120,help='Full-search deadline, checked between parent expansions (default: 120).')
+parser.add_argument('--workload',choices=['schedule','practical','checks','frontier-checks','planner-checks','pour-checks','live-checks','live-native-checks','production','ingredient-checks'],default='practical')
 parser.add_argument('--jar',type=Path,default=Path.home()/'Downloads/KoLmafia.app/Contents/app/KoLmafia-29366.jar')
 parser.add_argument('--java-home',type=Path,default=Path.home()/'Library/Java/JavaVirtualMachines/temurin-25.0.4.1/Contents/Home')
-parser.add_argument('--reference',type=Path,help='Require exactly matching frontier, fixed schedule, or all completed practical trials from a baseline log.')
+parser.add_argument('--reference',type=Path,help='Require exactly matching fixed schedule, or all completed practical trials from a baseline log.')
 parser.add_argument('--profile',action='store_true',help='Measure inclusive native timings and call counts in the offline harness only.')
 parser.add_argument('--output',type=Path,help='Keep generated harness and log here; otherwise use a new temporary directory.')
 parser.add_argument('--source',type=Path,help='Benchmark another saved production source against the same frozen inputs.')
 parser.add_argument('--setting',action='append',default=[],metavar='NAME=VALUE',help='Set an isolated benchmark preference; repeat as needed.')
 args=parser.parse_args()
-if args.width<1 or args.timeout_seconds<1:parser.error('--width and --timeout-seconds must be positive.')
 if any('=' not in setting for setting in args.setting):parser.error('--setting requires NAME=VALUE.')
-if args.reference and args.workload not in ('layers','schedule','practical'):parser.error('--reference supports layers, schedule or practical workloads.')
+if args.reference and args.workload not in ('schedule','practical'):parser.error('--reference supports schedule or practical workloads.')
 fixture=Path(__file__).resolve().parent
 repo=fixture.parents[2]
 snapshot=fixture.parent
@@ -61,21 +58,23 @@ else:
     '''+s[b:]
     if fixed_milk:s=s.replace('int barfDietCurrentPrice(item it){','int barfDietCurrentPrice(item it){\n if(it==$item[milk of magnesium])return 100;',1)
 a=s.index('void barfDietBuildItems()');s=s[:a]+s[a:].replace('historical_price(it)','benchFrozenPrices[it]')
-a=s.index('boolean barfDietReadStash(){');b=s.index('\nrecord barfDietEntry',a)
-s=s[:a]+'boolean barfDietReadStash(){return true;}\n'+s[b:]
-a=s.index('void barfDietReadColdOffer(){');b=s.index('\nint barfDietTrainingGoal',a)
-s=s[:a]+'void barfDietReadColdOffer(){barfDietColdOfferPrice=0;barfDietColdOfferStore=0;}\n'+s[b:]
+def replace_ash_function(source, signature, replacement):
+    start=source.index(signature)
+    masked=re.sub(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*.*?\*/',lambda m:' '*len(m[0]),source,flags=re.S)
+    end=masked.index('{',start)+1;depth=1
+    while depth:
+        depth+=(masked[end]=='{')-(masked[end]=='}');end+=1
+    return source[:start]+replacement+source[end:]
+s=replace_ash_function(s,'boolean barfDietReadStash(){','boolean barfDietReadStash(){return true;}')
+if 'void barfDietReadColdOffer(){' in s:
+    s=replace_ash_function(s,'void barfDietReadColdOffer(){','void barfDietReadColdOffer(){barfDietColdOfferPrice=0;barfDietColdOfferStore=0;}')
 s=s.replace('if (count(barfGreedCandies) == 0) barfGreedCandies = sweet_synthesis_pair($effect[Synthesis: Greed],8);','')
-s=s.replace('import teresBarfSupport.ash;','import teresBarfSupport.ash;\nint[item] benchFrozenPrices;boolean[item] benchFrozenBuyable;\nint[string] benchCounts;int benchDeadline;int benchLayers;boolean benchTimedOut;',1)
-s=s.replace('void barfDietOffer(barfTwoDayState s){','void barfDietOffer(barfTwoDayState s){\n benchCounts["offers"]+=1;',1)
+s=s.replace('import teresBarfSupport.ash;','import teresBarfSupport.ash;\nint[item] benchFrozenPrices;boolean[item] benchFrozenBuyable;\nint[string] benchCounts;',1)
 s=s.replace('barfTwoDayState barfDietConsumeState(barfTwoDayState source,barfTwoDayItem entry,boolean retain,int yeti,boolean bare){','barfTwoDayState barfDietConsumeState(barfTwoDayState source,barfTwoDayItem entry,boolean retain,int yeti,boolean bare){\n benchCounts["consumes"]+=1;',1)
 s=s.replace('float barfDietScore(barfTwoDayState s){','float barfDietScore(barfTwoDayState s){\n benchCounts["scores"]+=1;',1)
 s=s.replace('float barfDietRateAtStageUncached(barfTwoDayState s,barfTwoDayStage stage){','float barfDietRateAtStageUncached(barfTwoDayState s,barfTwoDayStage stage){\n benchCounts["rateMisses"]+=1;',1)
 s=s.replace('while(remaining>0){\n        int nextStage=','while(remaining>0){\n        benchCounts["farmBlocks"]+=1;\n        int nextStage=',1)
 s=s.replace('if(best>0){\n            barfDietFarmPrefix prefix=', 'if(best>0){\n            benchCounts["forecastHits"]+=1;\n            barfDietFarmPrefix prefix=',1)
-s=s.replace('for step from 1 to maxSteps{\n        clear(barfDietFrontier);','for step from 1 to maxSteps{\n        benchLayers=step;int layerStarted=now_to_int();clear(benchCounts);\n        clear(barfDietFrontier);',1)
-s=s.replace('foreach i,s in beam{\n            if(now_to_int()-lastUpdate', 'foreach i,s in beam{\n            if(benchDeadline>0&&now_to_int()>=benchDeadline){benchTimedOut=true;return best;}\n            if(now_to_int()-lastUpdate',1)
-s=s.replace('if(count(beam)==0)break;','print("LAYER "+step+" ms="+(now_to_int()-layerStarted));foreach k,v in benchCounts print("COUNT "+k+"="+v);\n        if(count(beam)==0)break;',1)
 if args.profile:
     s=s.replace('int[string] benchCounts;', 'int[string] benchProfileCalls;int[string] benchProfileMillis;int[string] benchCounts;',1)
     wrappers=[]
@@ -105,7 +104,7 @@ for row in (snapshot/'mallprices.txt').read_text().splitlines()[1:]:
 for row in (snapshot/'teres-barf-diet-prices.tsv').read_text().splitlines():
     key,value=row.split('\t',1);prices[int(key)]=int(value.split('\\t')[0])
 setup='''string snapshotBeam(){
- barfDietFastGear=true;barfDietBaseReady=false;barfDietBaseModes="";
+ barfDietFastGear=true;barfDietBaseModes="";
  barfTwoDayRollover=145;barfTwoDayWeightCalibration=(13006.6/660.0+14040.76/692.5)/2*167;
  foreach it in $items[]{barfDietPrices[it]=-1;barfDietBuyable[it]=false;}
 '''
@@ -123,7 +122,7 @@ setup+='''
  barfDietDailyTable();barfTwoDayState initial=barfDietInitialState();
  barfDietBuildItems();barfDietPruneItems(initial);barfDietEnsureFillers();
  if(!BENCH_RECIPE_PRICING&&count(barfTwoDayItems)!=171)abort("Frozen candidate pool changed: "+count(barfTwoDayItems)+"; expected 171.");
- print("FROZEN SNAPSHOT: 2026-10-13, "+count(barfTwoDayItems)+" candidates, width "+get_property("benchWidth")+"; no game requests/actions. Income is provisional.");
+ print("FROZEN SNAPSHOT: 2026-10-13, "+count(barfTwoDayItems)+" candidates; practical planner; no game requests/actions. Income is provisional.");
  initial.uses["requiredChestXP"]=950;initial.uses["requiredYetiCharge"]=2000;
  initial.uses["allCool"]=1;initial.uses["coldRequired"]=initial.yetiDouble?1:0;
  initial.uses["initialColdRequired"]=initial.uses["coldRequired"];
@@ -137,14 +136,10 @@ if recipe_pricing:
  barfGreedCandies[0]''',1)
 entry='''
 
-void benchFrontier(){
- foreach i,st in barfDietFrontier print("FRONTIER STATUS "+i+" encounters="+st.turns+" mask="+st.mask+" stooper="+st.stooper+" coldRequired="+st.uses["coldRequired"]+" liver="+st.drunkenness+" yetiXP="+st.yetiXP+" yetiDouble="+st.yetiDouble+" adventures="+st.adventures);
- foreach i,st in barfDietFrontier {print("EXACT "+i+" "+barfDietExactStateKey(st));print("FRONTIER "+i+" score="+barfDietScore(st)+" cash="+st.cash+" income="+st.income+" cost="+st.cost+" adv="+st.adventures+" key="+barfDietStateKey(st)+" schedule="+replace_string(st.schedule,"\\n"," / "));}
-}
+// BENCH_HELPERS
 string benchmarkRun(barfTwoDayState initial){
  string mode=get_property("benchMode");
  barfDietResetSearchCaches();barfDietMemoize=mode!="baseline";
- barfDietSkipDuplicates=mode=="early"||mode=="combined";
  barfDietSkipBare=mode=="early"||mode=="bare"||mode=="combinedBare"||mode=="combined";
  barfDietShareFarmForecasts=mode=="farm"||mode=="combinedBare"||mode=="combined";
  initial.uses["coolSlots"]=7;initial.uses["initialCoolSlots"]=7;
@@ -171,20 +166,13 @@ string benchmarkRun(barfTwoDayState initial){
   }
   print("PRACTICAL ms="+(now_to_int()-begin)+" encounters="+plan.turns+" combined="+barfDietScore(plan)+" replay="+(plan.cash>=0&&barfDietReplay(initial,plan))+" targets="+barfDietMeetsTargets(plan));
   if(plan.cash>=0)barfDietReport(plan,-1);
- }else{
-  boolean full=get_property("benchWorkload")=="full";
-  set_property("teresBarfDietSearchSteps",full?"160":"3");
-  if(full)benchDeadline=begin+get_property("benchTimeoutSeconds").to_int()*1000;
-  barfTwoDayState plan=barfDietSearch(initial,get_property("benchWidth").to_int(),false);
-  print("BEAM ms="+(now_to_int()-begin)+" layers="+benchLayers+" timedOut="+benchTimedOut+" finished="+plan.finished+" cash="+plan.cash);
-  benchFrontier();
-  if(plan.cash>=0){print("BEAM VALIDATION replay="+barfDietReplay(initial,plan)+" targets="+barfDietMeetsTargets(plan));barfDietReport(plan,-1);}
  }
+
  return "OK";
 }
 '''
 if args.workload=='pour-checks':
-    entry=entry.replace('void benchFrontier()', (fixture/'pour_checks.ash').read_text()+'\nvoid benchFrontier()',1)
+    entry=entry.replace('// BENCH_HELPERS', (fixture/'pour_checks.ash').read_text()+'\n// BENCH_HELPERS',1)
     entry=entry.replace('int begin=now_to_int();','int begin=now_to_int();\n if(get_property("benchWorkload")=="pour-checks")return pourChecks(initial);',1)
 if args.workload=='ingredient-checks':
     live=(repo/'scripts/TeresMimicDietLive.ash').read_text()
@@ -197,13 +185,13 @@ if args.workload=='ingredient-checks':
                 ('storage_amount(','benchIngredientNoStock('),('buy(','benchIngredientBuy('),('create(','benchIngredientCreate(')]:
         acquire=acquire.replace(a,b)
     ingredient_checks=(fixture/'ingredient_live_checks.ash').read_text()+'\n'+acquire+'\n'+(fixture/'ingredient_checks.ash').read_text()
-    entry=entry.replace('void benchFrontier()',ingredient_checks+'\nvoid benchFrontier()',1)
+    entry=entry.replace('// BENCH_HELPERS',ingredient_checks+'\n// BENCH_HELPERS',1)
     entry=entry.replace('int begin=now_to_int();','int begin=now_to_int();\n if(get_property("benchWorkload")=="ingredient-checks")return ingredientChecks(initial);',1)
-entry=entry.replace('void benchFrontier()', (fixture/'checks.ash').read_text()+'\nvoid benchFrontier()',1)
+entry=entry.replace('// BENCH_HELPERS', (fixture/'checks.ash').read_text()+'\n// BENCH_HELPERS',1)
 if 'boolean barfDietFillDominates(' in s:
     frontier_checks=(fixture/'frontier_checks.ash').read_text()
     frontier_checks+='\nstring frontierChecks(barfTwoDayState initial){partialFrontierChecks(initial);return "OK";}\n'
-    entry=entry.replace('void benchFrontier()',frontier_checks+'\nvoid benchFrontier()',1)
+    entry=entry.replace('// BENCH_HELPERS',frontier_checks+'\n// BENCH_HELPERS',1)
     entry=entry.replace('int begin=now_to_int();','int begin=now_to_int();\n if(get_property("benchWorkload")=="frontier-checks")return frontierChecks(initial);',1)
 if 'barfDietExtraState(' in s:
     planner_checks=(fixture/'planner_checks.ash').read_text()
@@ -211,7 +199,7 @@ if 'barfDietExtraState(' in s:
         planner_checks=planner_checks[planner_checks.index('string plannerChecks('):].replace(' consumptionLoopChecks(initial);\n','',1)
     if 'barfDietFillDominates(' not in s:
         planner_checks=planner_checks.replace('partialFrontierChecks(initial);\n','')
-    entry=entry.replace('void benchFrontier()', planner_checks+'\nvoid benchFrontier()',1)
+    entry=entry.replace('// BENCH_HELPERS', planner_checks+'\n// BENCH_HELPERS',1)
     entry=entry.replace('int begin=now_to_int();', 'int begin=now_to_int();\n if(get_property("benchWorkload")=="planner-checks")return plannerChecks(initial);',1)
     entry=entry.replace('if(plan.cash>=0)barfDietReport(plan,-1);', '''if(get_property("benchValidateTrials").to_boolean()){
    int verified=0;foreach key,trial in barfDietTrials if(trial.cash>=0){
@@ -228,7 +216,7 @@ if args.workload=='live-native-checks':
     # acquisition and native modifier/effect calculations under test.
     live=live.replace('use(1,$item[How to Avoid Scams])','cli_execute("dietnativefixture tourist-20")',1)
     s+='\n'+live+'\n'
-    entry=entry.replace('void benchFrontier()', (fixture/'live_native_checks.ash').read_text()+'\nvoid benchFrontier()',1)
+    entry=entry.replace('// BENCH_HELPERS', (fixture/'live_native_checks.ash').read_text()+'\n// BENCH_HELPERS',1)
     entry=entry.replace('int begin=now_to_int();','int begin=now_to_int();\n if(get_property("benchWorkload")=="live-native-checks")return liveNativeChecks(initial);',1)
 if args.workload=='live-checks':
     # Only the irreversible adapters are substituted. Keep the production driver,
@@ -265,7 +253,7 @@ void benchLiveOde(int q){benchLiveTrace+="ode:"+q+";";}
 boolean benchLiveSynthesis(int q,item a,item b){benchLiveTrace+="synthesis:"+a+":"+b+";";return true;}
 '''
     s+='\n'+declarations+live+'\n'
-    entry=entry.replace('void benchFrontier()', (fixture/'live_checks.ash').read_text()+'\nvoid benchFrontier()',1)
+    entry=entry.replace('// BENCH_HELPERS', (fixture/'live_checks.ash').read_text()+'\n// BENCH_HELPERS',1)
     entry=entry.replace('int begin=now_to_int();','int begin=now_to_int();\n if(get_property("benchWorkload")=="live-checks")return liveChecks(initial);',1)
 if args.profile:
     entry=entry.replace('return "OK";\n}', 'foreach name,calls in benchProfileCalls print("PROFILE "+name+" calls="+calls+" inclusive_ms="+benchProfileMillis[name]);\n return "OK";\n}')
@@ -275,7 +263,7 @@ subprocess.run([str(javac),'-cp',str(args.jar),str(out/'SnapshotBench.java')],ch
 log=out/'output.log'
 with log.open('w') as stream:
     result=subprocess.run([str(java),'-Xmx2g','-Djava.awt.headless=true',f'-Duser.home={home}',
-        '-cp',f'{args.jar}:{out}','SnapshotBench',args.mode,args.workload,str(out/'benchmark.ash'),str(snapshot),str(args.width),str(args.timeout_seconds),*args.setting],
+        '-cp',f'{args.jar}:{out}','SnapshotBench',args.mode,args.workload,str(out/'benchmark.ash'),str(snapshot),*args.setting],
         stdout=stream,stderr=subprocess.STDOUT)
 for row in log.read_text().splitlines():
     if row.startswith(('FROZEN','SCHEDULE ms=','PRACTICAL ms=','PRACTICAL COUNT ','PROFILE ','BEAM ','CHECKS ','PARTIAL FRONTIER CHECKS ','JOINT BUFF CHECKS ','CLEARING RETRY CHECKS ','MARGINAL HELPER CHECKS ','FOOD XP CHECKS ','PLANNER CHECKS ','LIVE CHECKS ','LIVE NATIVE ','VALIDATED COMPLETE TRIALS ','PRODUCTION ','INGREDIENT CHECKS ','Runtime result=')):print(row)
@@ -284,9 +272,7 @@ if result.returncode:raise SystemExit(result.returncode)
 if 'Runtime result=OK' not in log.read_text():raise SystemExit('Native benchmark did not complete; inspect the full output for parse/runtime errors.')
 if args.reference:
     reference=args.reference.read_text().splitlines();current=log.read_text().splitlines()
-    if args.workload=='layers':
-        prefixes=('EXACT ','FRONTIER ') if any(row.startswith('EXACT ') for row in reference) else ('FRONTIER ',)
-    elif args.workload=='practical':prefixes=('PRACTICAL EXACT ','PRACTICAL ROWS ','TRIAL EXACT ','VALIDATED COMPLETE TRIALS ')
+    if args.workload=='practical':prefixes=('PRACTICAL EXACT ','PRACTICAL ROWS ','TRIAL EXACT ','VALIDATED COMPLETE TRIALS ')
     else:prefixes=('SCHEDULE ROWS ',)
     expected=[row for row in reference if row.startswith(prefixes) and not row.startswith('FRONTIER STATUS ')]
     actual=[row for row in current if row.startswith(prefixes) and not row.startswith('FRONTIER STATUS ')]

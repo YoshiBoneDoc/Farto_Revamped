@@ -78,7 +78,7 @@ barfTwoDayState barfLiveObserveFresh(){
     // Forecast caches belong to one physical snapshot. In particular, a used
     // capacity resource is now part of Mafia's limits, not a simulated extra.
     barfDietResetSearchCaches();clear(barfTwoDayStages);clear(barfTwoDayInitialEffects);clear(barfDietDropIncomeCache);clear(barfDietEffectCache);
-    barfDietBaseReady=false;barfDietBaseModes="";
+    barfDietBaseModes="";
     return barfLiveObserve();
 }
 

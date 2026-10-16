@@ -1,5 +1,8 @@
 import teresBarfSupport.ash;
 
+// One practical planner remains. Legacy optimizer comments are preserved below;
+// implementations are recoverable from checkpoint 6b679da and documented in docs/DIET_OPTIMIZER_AUDIT.md.
+
 int[item] barfDietStashStock;
 int barfDietOwnedAmount(item it){
     return item_amount(it)+closet_amount(it)+storage_amount(it)+barfDietStashStock[it];
@@ -23,23 +26,7 @@ boolean barfDietReadStash(){
     }
 }
 
-record barfDietEntry {
-    item food;
-    int size;
-    int limit;
-    int price;
-    float adventures;
-    effect buff;
-    int duration;
-    string kind;
-};
 
-record barfDietResult {
-    float profit;
-    float adventures;
-    int[item] quantities;
-    int[item] boosted;
-};
 
 item[int] barfGreedCandies;
 
@@ -48,209 +35,25 @@ item[int] barfSynthesisCandies(){
     return barfGreedCandies;
 }
 
-boolean barfDietEligible(item target){
-    if (target.levelreq > my_level()) return false;
-    if (target == $item[Affirmation Cookie] && get_property("_affirmationCookieEaten").to_boolean()) return false;
-    if (target == $item[spaghetti breakfast]
-        && (my_fullness() > 0 || get_property("_spaghettiBreakfastEaten").to_boolean())) return false;
-    if (target == $item[ghost pepper] && (get_property("ghostPepperTurnsLeft").to_int() > 0
-        || my_hp() < 1500 || numeric_modifier("Hot Resistance") < 9)) return false;
-    if (target == $item[Gets-You-Drunk] && (get_property("getsYouDrunkTurnsLeft").to_int() > 0
-        || my_hp() < 1500 || numeric_modifier("Spooky Resistance") < 9)) return false;
-    return target.tradeable || barfDietOwnedAmount(target) > 0;
-}
 
-float barfConsumableAdventures(item target){
-    float result = averageAdventures(target);
-    if (target.fullness > 0){
-        if (have_skill($skill[Gourmand]) || have_skill($skill[Neurogourmet])) result += target.fullness;
-        if (contains_text(target.notes, "PIZZA") && have_skill($skill[Pizza Lover])) result += target.fullness;
-        if (contains_text(target.notes, "SAUCY") && have_skill($skill[Saucemaven]))
-            result += $classes[Pastamancer, Sauceror] contains my_class() ? 5 : 3;
-        if (target == $item[ghost pepper]) result += 9;
-    } else if (target.inebriety > 0){
-        if (have_skill($skill[The Ode to Booze])) result += target.inebriety;
-        if (have_skill($skill[Rowdy Drinker])) result += target.inebriety;
-        if (contains_text(target.notes, "WINE")){
-            string[int] bounds = split_string(target.adventures, "-");
-            int lo = bounds[0].to_int();
-            int hi = count(bounds) == 2 ? bounds[1].to_int() : lo;
-            float bonus = 0;
-            for n from lo to hi {
-                int base = n;
-                if (have_effect($effect[Refined Palate]) > 0){ bonus += floor(n * 0.25); base = floor(n * 1.25); }
-                if (available_amount($item[mafia pinky ring]) > 0) bonus += round(base * 0.125);
-            }
-            result += bonus / max(1, hi - lo + 1);
-        }
-        if (target == $item[Gets-You-Drunk]) result += 9;
-        if (contains_text(target.notes,"BEER") && have_effect($effect[Salty Mouth]) > 0) result += 5;
-    }
-    return result;
-}
 
-barfDietEntry[int] barfDietCandidates(string organ){
-    boolean[item] foods;
-    if (organ == "food"){
-        foods = $items[jumping horseradish, Boris's bread, prize turkey, roasted vegetable focaccia,
-            roasted vegetable of Jarlsberg, baked veggie ricotta casserole, spaghetti breakfast,
-            Affirmation Cookie, ghost pepper, Knob pasty, browser cookie, cold hi mein,
-            bat wing stir-fry, ratatouille de Jarlsberg, gnocchetti di Nietzsche,
-            fettucini Inconnu, fishy fish lasagna, Dreadsylvanian stew, Dreadsylvanian cold pocket,
-            Dreadsylvanian hot pocket, Dreadsylvanian sleaze pocket, Dreadsylvanian spooky pocket,
-            Dreadsylvanian stink pocket, tin cup of mulligan stew];
-    } else if (organ == "booze"){
-        foods = $items[party beer bomb, TRIO cup of beer, Sacramento wine, Temps Tempranillo,
-            astral pilsner, perfect dark and stormy, perfect negroni, perfect old-fashioned,
-            Dreadsylvanian cold-fashioned, Dreadsylvanian dank and stormy, Dreadsylvanian grimlet,
-            Dreadsylvanian hot toddy, Dreadsylvanian slithery nipple, Hodgman's blanket,
-            Gets-You-Drunk, Feliz Navidad, Smoking Pope];
-    } else {
-        foods = $items[voodoo snuff, antimatter wad, blood-drive sticker, transdermal smoke patch,
-            beggin' cologne, body spradium, coffee pixie stick, powdered gold];
-    }
-    string additions = get_property("teresBarf" + (organ == "food" ? "Foods" : organ == "booze" ? "Drinks" : "SpleenItems"));
-    if (additions != "") foreach index, name in split_string(additions, "\\s*;\\s*") {
-        item extra = to_item(name);
-        if (extra != $item[none]) foods[extra] = true;
-    }
-    barfDietEntry[int] result;
-    foreach target in foods {
-        int size = organ == "food" ? target.fullness : organ == "booze" ? target.inebriety : target.spleen;
-        if (size <= 0 || !barfDietEligible(target)) continue;
-        int price = barfPrice(target);
-        if (price < 0 || price > barfSetting("MaxItemPrice", 100000)) continue;
-        barfDietEntry entry;
-        entry.food = target; entry.size = size; entry.limit = 100;
-        entry.price = price; entry.adventures = barfConsumableAdventures(target);
-        entry.buff = effect_modifier(target, "Effect");
-        entry.duration = numeric_modifier(target, "Effect Duration").to_int();
-        entry.kind = organ;
-        if (!target.tradeable) entry.limit = barfDietOwnedAmount(target);
-        if ($items[Affirmation Cookie, spaghetti breakfast, ghost pepper, Gets-You-Drunk] contains target)
-            entry.limit = 1;
-        if (target == $item[Boris's bread]) entry.limit = max(0, 3 - get_property("_teresBarfBorisBread").to_int());
-        if (target == $item[ghost pepper] || target == $item[Gets-You-Drunk]){
-            if (barfHorizon() < 4) continue;
-        }
-        result[count(result)] = entry;
-    }
-    if (organ == "spleen" && have_skill($skill[Sweet Synthesis])){
-        item[int] pair = barfSynthesisCandies();
-        int price = 0; int pieces = 0;
-        foreach index, candy in pair { int p = barfPrice(candy); if (p < 0 || candy == $item[none]) return result; price += p; pieces += 1; }
-        if (pieces == 2){
-            barfDietEntry entry;
-            entry.food = $item[none]; entry.kind = "synthesis"; entry.size = 1; entry.limit = 100;
-            entry.price = price; entry.buff = $effect[Synthesis: Greed]; entry.duration = 30;
-            result[count(result)] = entry;
-        }
-    }
-    return result;
-}
 
-float barfDietValue(barfDietEntry entry, int quantity, int doubled, int horizon, int adventureValue){
-    int existing = min(horizon, have_effect(entry.buff));
-    int useful = max(0, min(horizon, existing + (quantity+(entry.kind == "food" ? doubled : 0)) * entry.duration) - existing);
-    float value = quantity * (entry.adventures * adventureValue - entry.price)
-        + useful * barfEffectRate(entry.buff);
-    if (entry.kind == "booze" && contains_text(entry.food.notes,"BEER")
-        && have_effect($effect[Salty Mouth]) > 0) value -= max(0,quantity-min(1,doubled))*5.0*adventureValue;
-    return value;
-}
 
-float barfDietValue(barfDietEntry entry, int quantity, int horizon, int adventureValue){
-    int salty = entry.kind == "booze" && contains_text(entry.food.notes,"BEER")
-        && have_effect($effect[Salty Mouth]) > 0 ? 1 : 0;
-    return barfDietValue(entry,quantity,salty,horizon,adventureValue);
-}
+
+
+
+
+
 
 // Bounded knapsack by effect group: repeats never credit buff turns past the horizon.
 // Foods with the same effect compete in one group, avoiding duplicate buff value.
-barfDietResult barfOptimizeDiet(barfDietEntry[int] candidates, int room, int horizon, int adventureValue, int foodDoubles){
-    string[int] groups;
-    int[int] groupFor;
-    foreach i, entry in candidates {
-        string name = entry.buff == $effect[none] || barfEffectRate(entry.buff) <= 0
-            ? "item:" + i : "effect:" + entry.buff;
-        int group = -1;
-        foreach g, label in groups if (label == name) group = g;
-        if (group < 0){ group = count(groups); groups[group] = name; }
-        groupFor[i] = group;
-    }
-    int doubles = 0;
-    if (count(candidates) > 0 && candidates[0].kind == "food")
-        doubles = min(room,foodDoubles);
-    if (count(candidates) > 0 && candidates[0].kind == "booze" && have_effect($effect[Salty Mouth]) > 0)
-        doubles = min(room,1);
-    float[int,int,int] score;
-    int[int,int,int] selected;
-    int[int,int,int] quantities;
-    int[int,int,int] previous;
-    int[int,int,int] previousDoubles;
-    for space from 0 to room for boost from 0 to doubles score[0,space,boost] = 0;
-    foreach group, label in groups {
-        for space from 0 to room for boost from 0 to doubles {
-            score[group+1,space,boost] = score[group,space,boost];
-            selected[group+1,space,boost] = -1; previous[group+1,space,boost] = space;
-            previousDoubles[group+1,space,boost] = boost;
-            foreach index, entry in candidates {
-                if (groupFor[index] != group) continue;
-                int limit = min(entry.limit, space / entry.size);
-                if (limit <= 0) continue;
-                for quantity from 1 to limit {
-                    int rest = space - quantity * entry.size;
-                    int usableBoosts = entry.kind == "food" && entry.duration > 0 ? quantity
-                        : entry.kind == "booze" && contains_text(entry.food.notes,"BEER") ? 1 : 0;
-                    for doubled from 0 to min(usableBoosts,boost){
-                        float value = score[group,rest,boost-doubled]
-                            + barfDietValue(entry,quantity,doubled,horizon,adventureValue);
-                        if (value > score[group+1,space,boost]){
-                            score[group+1,space,boost] = value; selected[group+1,space,boost] = index;
-                            quantities[group+1,space,boost] = quantity; previous[group+1,space,boost] = rest;
-                            previousDoubles[group+1,space,boost] = boost-doubled;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    barfDietResult result;
-    int space = room;
-    result.profit = score[count(groups),room,doubles];
-    int group = count(groups);
-    while (group > 0){
-        int index = selected[group,space,doubles];
-        if (index >= 0){
-            int quantity = quantities[group,space,doubles];
-            result.quantities[candidates[index].food] += quantity;
-            result.boosted[candidates[index].food] += doubles-previousDoubles[group,space,doubles];
-            result.adventures += candidates[index].adventures * quantity;
-        }
-        int nextSpace = previous[group,space,doubles];
-        doubles = previousDoubles[group,space,doubles]; space = nextSpace; group -= 1;
-    }
-    return result;
-}
 
-barfDietResult barfOptimizeDiet(barfDietEntry[int] candidates, int room, int horizon, int adventureValue){
-    return barfOptimizeDiet(candidates,room,horizon,adventureValue,get_property("legendaryNoodlesStomach").to_int());
-}
 
-int barfOrganRoom(string organ){
-    if (organ == "food") return max(0, fullness_limit() - my_fullness());
-    if (organ == "booze") return max(0, inebriety_limit() - my_inebriety());
-    return max(0, spleen_limit() - my_spleen_use());
-}
 
-void barfDietPrint(string organ, int room){
-    barfDietEntry[int] candidates = barfDietCandidates(organ);
-    barfDietResult plan = barfOptimizeDiet(candidates,room,barfHorizon(),barfAdventureValue());
-    print("BARF " + organ + " plan: " + plan.adventures + " expected adventures; "
-        + round(plan.profit) + " estimated net value.", "blue");
-    foreach target, quantity in plan.quantities
-        print("  " + quantity + " x " + (target == $item[none] ? "Synthesis: Greed" : to_string(target)), "blue");
-}
+
+
+
+
 
 void barfOde(int size){
     if (!have_skill($skill[The Ode to Booze])) return;
@@ -262,266 +65,32 @@ void barfOde(int size){
     }
 }
 
-void barfCoolDrink(){
-    if (!have_familiar($familiar[Cooler Yeti]) || $familiar[Cooler Yeti].experience < 625
-        || have_effect($effect[Looking Cool]) >= barfHorizon()
-        || get_property("coolerYetiMode") != "") return;
-    familiar saved = my_familiar();
-    string choiceScript = get_property("choiceAdventureScript");
-    try {
-        set_property("choiceAdventureScript", "");
-        use_familiar($familiar[Cooler Yeti]);
-        visit_url("main.php?talktoyeti=1",false,true);
-        if (!handling_choice() || last_choice() != 1560) abort("BARF could not talk to Cooler Yeti.");
-        run_choice(3);
-        if (handling_choice() && last_choice() == 1560) run_choice(1);
-        if (get_property("coolerYetiMode") != "effect") abort("BARF could not cool the next drink.");
-        set_property("_teresBarfYetiXPSpent",get_property("_teresBarfYetiXPSpent").to_int()+225);
-    } finally { set_property("choiceAdventureScript",choiceScript); use_familiar(saved); }
-}
 
-boolean barfConsumeEntry(barfDietEntry entry){
-    if (entry.kind == "synthesis"){
-        int before = my_spleen_use();
-        item[int] pair = barfSynthesisCandies();
-        if (count(pair) != 2) abort("BARF could not select synthesis candies.");
-        foreach index, candy in pair if (!barfAcquire(candy,entry.price)) abort("BARF could not acquire synthesis candy.");
-        if (pair[0] == pair[1] && item_amount(pair[0]) < 2){
-            int price = barfPrice(pair[0]);
-            if (buy(1,pair[0],price) != 1) abort("BARF needs two of the selected synthesis candy.");
-        }
-        if (!sweet_synthesis(1,pair[0],pair[1]) || my_spleen_use() <= before)
-            abort("BARF Sweet Synthesis failed.");
-        return true;
-    }
-    if (!barfAcquire(entry.food,min(entry.price+100,barfSetting("MaxItemPrice",100000))))
-        abort("BARF could not acquire " + entry.food + " within the price limit.");
-    if (entry.kind == "food"){
-        if (!eat(1,entry.food)) abort("BARF could not eat " + entry.food);
-        if (entry.food == $item[Boris's bread]) set_property("_teresBarfBorisBread",get_property("_teresBarfBorisBread").to_int()+1);
-    } else if (entry.kind == "booze"){
-        barfOde(entry.size); barfCoolDrink();
-        item ring = equipped_item($slot[acc3]);
-        try {
-            if (contains_text(entry.food.notes,"WINE") && available_amount($item[mafia pinky ring]) > 0)
-                equip($slot[acc3],$item[mafia pinky ring]);
-            if (!drink(1,entry.food)) abort("BARF could not drink " + entry.food);
-        } finally { equip($slot[acc3],ring); }
-    } else if (!chew(1,entry.food)) abort("BARF could not chew " + entry.food);
-    if (my_inebriety() > inebriety_limit()) abort("BARF diet unexpectedly overdrank.");
-    return true;
-}
 
-void barfBeerWish(){
-    if (barfOrganRoom("booze") <= 0 || have_effect($effect[Salty Mouth]) > 0
-        || available_amount($item[cursed monkey's paw]) == 0
-        || get_property("_monkeyPawWishesUsed").to_int() >= 5) return;
-    barfDietEntry[int] candidates = barfDietCandidates("booze");
-    float bestBeer = -1; float bestOther = -1;
-    foreach index, entry in candidates {
-        float value = barfDietValue(entry,1,barfHorizon(),barfAdventureValue())/entry.size;
-        if (contains_text(entry.food.notes,"BEER")) bestBeer = max(bestBeer,value+5.0*barfAdventureValue()/entry.size);
-        else bestOther = max(bestOther,value);
-    }
-    if (bestBeer > bestOther && bestBeer > 0)
-        if (!cli_execute("monkeypaw effect Salty Mouth") || have_effect($effect[Salty Mouth]) == 0)
-            abort("BARF could not acquire Salty Mouth from the unused paw wish.");
-}
 
-boolean barfFillOrgan(string organ, int reserve){
-    boolean changed = false;
-    for iteration from 1 to 100 {
-        if (get_property("_teresBarfLimitedRun").to_boolean()
-            && my_adventures() >= barfHorizon()+barfSetting("ReserveAdventures",0)) break;
-        int room = max(0,barfOrganRoom(organ)-reserve);
-        if (room <= 0) break;
-        if (organ == "booze") barfBeerWish();
-        barfDietEntry[int] candidates = barfDietCandidates(organ);
-        barfDietResult plan = barfOptimizeDiet(candidates,room,barfHorizon(),barfAdventureValue());
-        int best = -1; float bestRate = -999999;
-        foreach index, entry in candidates {
-            if (plan.quantities[entry.food] <= 0) continue;
-            float rate = barfEffectRate(entry.buff);
-            if (plan.boosted[entry.food] > 0) rate += 1000000;
-            if (entry.food == $item[spaghetti breakfast]) rate += 2000000;
-            if (best < 0 || rate > bestRate){ best = index; bestRate = rate; }
-        }
-        if (best < 0) break;
-        print("BARF diet: " + (candidates[best].kind == "synthesis" ? "Synthesis: Greed" : to_string(candidates[best].food)),"blue");
-        barfConsumeEntry(candidates[best]); changed = true;
-    }
-    return changed;
-}
 
-boolean barfDistill(boolean finish){
-    int drams = get_property("familiarSweat").to_int();
-    int adventures = round(drams ** 0.4);
-    if (drams < 10 || barfOrganRoom("booze") < 1) return false;
-    barfDietResult alternative = barfOptimizeDiet(barfDietCandidates("booze"),1,barfHorizon(),barfAdventureValue());
-    if ((!finish && adventures < barfSetting("DistillAdventures",12))
-        || adventures * barfAdventureValue() <= alternative.profit) return false;
-    string choiceScript = get_property("choiceAdventureScript");
-    try {
-        set_property("choiceAdventureScript","");
-        visit_url("inventory.php?action=distill");
-        if (!handling_choice() || last_choice() != 1476) abort("BARF could not open the stillsuit.");
-        int before = my_inebriety();
-        run_choice(1);
-        if (my_inebriety() <= before) abort("BARF stillsuit drinking failed.");
-    } finally { set_property("choiceAdventureScript",choiceScript); }
-    return true;
-}
 
-float barfExtraOrganValue(string organ, int quantity){
-    barfDietEntry[int] candidates = barfDietCandidates(organ);
-    int room = barfOrganRoom(organ);
-    return barfOptimizeDiet(candidates,room+quantity,barfHorizon(),barfAdventureValue()).profit
-        - barfOptimizeDiet(candidates,room,barfHorizon(),barfAdventureValue()).profit;
-}
 
-boolean barfClearOrgans(){
-    boolean changed = false;
-    if (get_property("_teresBarfLimitedRun").to_boolean()
-        && my_adventures() >= barfHorizon()+barfSetting("ReserveAdventures",0)) return false;
-    if (my_fullness() > 1 && have_skill($skill[Aug. 16th: Roller Coaster Day!])
-        && !get_property("_aug16Cast").to_boolean() && get_property("_augSkillsCast").to_int() < 5
-        && $skill[Aug. 16th: Roller Coaster Day!].dailylimit > 0){
-        int before = my_fullness();
-        if (!use_skill(1,$skill[Aug. 16th: Roller Coaster Day!]) || my_fullness() >= before)
-            abort("BARF could not free fullness with Roller Coaster Day.");
-        changed = true;
-    }
-    if (have_skill($skill[Sweat Out Some Booze]) && get_property("_sweatOutSomeBoozeUsed").to_int() < 3
-        && get_property("sweat").to_int() >= 25 && my_inebriety() >= 3){
-        int before = my_inebriety();
-        if (!use_skill(1,$skill[Sweat Out Some Booze]) || my_inebriety() >= before)
-            abort("BARF could not sweat out booze.");
-        changed = true;
-    }
-    foreach target in $items[distention pill, synthetic dog hair pill, spice melange, mojo filter]{
-        string used = target == $item[distention pill] ? "_distentionPillUsed"
-            : target == $item[synthetic dog hair pill] ? "_syntheticDogHairPillUsed"
-            : target == $item[spice melange] ? "spiceMelangeUsed" : "currentMojoFilters";
-        if (target == $item[mojo filter] ? get_property(used).to_int() >= 3 : get_property(used).to_boolean()) continue;
-        float value = 0;
-        if (target == $item[distention pill] && my_fullness() > 0) value = barfExtraOrganValue("food",1);
-        if (target == $item[synthetic dog hair pill] && my_inebriety() > 0) value = barfExtraOrganValue("booze",1);
-        if (target == $item[spice melange] && my_fullness() >= 3 && my_inebriety() >= 3)
-            value = barfExtraOrganValue("food",3) + barfExtraOrganValue("booze",3);
-        if (target == $item[mojo filter] && my_spleen_use() > 0) value = barfExtraOrganValue("spleen",1);
-        int price = barfPrice(target);
-        if (value <= 0 || price < 0 || price >= value) continue;
-        if (barfAcquire(target,floor(value))){
-            if (!use(1,target)) abort("BARF could not use " + target);
-            changed = true;
-        }
-    }
-    return changed;
-}
+
+
+
+
+
+
+
 
 // Compare organ-clearing meals with the diet they displace, including the refill.
-boolean barfOrganTrades(int liverReserve){
-    boolean changed = false;
-    for iteration from 1 to 12 {
-        barfDietEntry best;
-        float bestGain = 0;
-        foreach target in $items[extra-greasy slider, jar of fermented pickle juice, Mr. Burnsger, Doc Clock's thyme cocktail]{
-            string organ = target.fullness > 0 ? "food" : "booze";
-            int size = organ == "food" ? target.fullness : target.inebriety;
-            int room = max(0,barfOrganRoom(organ)-(organ == "booze" ? liverReserve : 0));
-            if (size > room || !barfDietEligible(target)) continue;
-            string cleared = $items[extra-greasy slider, jar of fermented pickle juice] contains target
-                ? "spleen" : target == $item[Mr. Burnsger] ? "booze" : "food";
-            int amount = cleared == "spleen" ? 5 : 2;
-            int used = cleared == "spleen" ? my_spleen_use() : cleared == "food" ? my_fullness() : my_inebriety();
-            if (used < amount) continue;
-            int price = barfPrice(target);
-            if (price < 0 || price > barfSetting("MaxItemPrice",100000)) continue;
-            barfDietEntry[int] alternatives = barfDietCandidates(organ);
-            float displaced = barfOptimizeDiet(alternatives,room,barfHorizon(),barfAdventureValue()).profit
-                - barfOptimizeDiet(alternatives,room-size,barfHorizon(),barfAdventureValue()).profit;
-            float gain = barfConsumableAdventures(target)*barfAdventureValue()-price
-                + barfExtraOrganValue(cleared,amount)-displaced;
-            if (gain > bestGain){
-                best = new barfDietEntry(target,size,1,price,barfConsumableAdventures(target),
-                    $effect[none],0,organ);
-                bestGain = gain;
-            }
-        }
-        if (bestGain <= 0) break;
-        print("BARF organ trade: " + best.food + " (estimated extra value " + round(bestGain) + ").","blue");
-        barfConsumeEntry(best); changed = true;
-        barfFillOrgan("spleen",0);
-    }
-    return changed;
-}
-
-boolean barfLegendaryFood(){
-    int room = barfOrganRoom("food");
-    if (room < 2 || get_property("legendaryNoodlesStomach").to_int() > 0) return false;
-    barfDietEntry[int] candidates = barfDietCandidates("food");
-    int value = barfAdventureValue();
-    float without = barfOptimizeDiet(candidates,room,barfHorizon(),value,0).profit;
-    float withDoubles = barfOptimizeDiet(candidates,room-1,barfHorizon(),value,3).profit;
-    item best = $item[none]; float gain = 0;
-    foreach pasta in $items[Tubetto Gelatto, Gnocci Domani, Formica e Pepe]{
-        int price = barfPrice(pasta);
-        float benefit = withDoubles + barfConsumableAdventures(pasta)*value - price - without;
-        if (price >= 0 && benefit > gain){ best = pasta; gain = benefit; }
-    }
-    if (best == $item[none]) return false;
-    string choiceScript = get_property("choiceAdventureScript");
-    string choice = get_property("choiceAdventure1599");
-    try {
-        set_property("choiceAdventureScript",""); set_property("choiceAdventure1599",5);
-        if (!barfAcquire(best,barfPrice(best)) || !eat(1,best)) abort("BARF legendary pasta failed.");
-        if (handling_choice() && last_choice() == 1599) run_choice(5);
-        if (get_property("legendaryNoodlesStomach").to_int() <= 0)
-            abort("BARF legendary pasta did not provide food buff charges.");
-    } finally { set_property("choiceAdventureScript",choiceScript); set_property("choiceAdventure1599",choice); }
-    return true;
-}
-
-void barfDietPrepare(){
-    // Prevent organ-changing Mayo automation from invalidating the planner.
-    if (get_property("mayoInMouth") != "") abort("BARF diet needs the queued Mayo handled before planning.");
-    set_property("autoFillMayoMinder",false);
-    if (barfOrganRoom("food") > 0 && !get_property("_milkOfMagnesiumUsed").to_boolean()){
-        int price = barfPrice($item[milk of magnesium]);
-        if (price >= 0 && price < 5 * barfAdventureValue() && barfAcquire($item[milk of magnesium],5*barfAdventureValue()))
-            use(1,$item[milk of magnesium]);
-    }
-}
 
 
-boolean barfDietStep(boolean finish){
-    // A short test run must not buy a full day's diet it will not use.
-    if (get_property("_teresBarfLimitedRun").to_boolean()
-        && my_adventures() >= barfHorizon()+barfSetting("ReserveAdventures",0)) return false;
-    barfDietPrepare();
-    boolean changed = barfDistill(finish);
-    boolean reserveSuit = available_amount($item[tiny stillsuit]) > 0 && !finish;
-    if (barfFillOrgan("spleen",0)) changed = true;
-    // Breakfast must precede every other food, including legendary pasta.
-    if (my_fullness() == 0){
-        barfDietEntry[int] foods = barfDietCandidates("food");
-        barfDietResult initial = barfOptimizeDiet(foods,barfOrganRoom("food"),barfHorizon(),barfAdventureValue());
-        if (initial.quantities[$item[spaghetti breakfast]] > 0)
-            foreach index, entry in foods if (entry.food == $item[spaghetti breakfast]){
-                barfConsumeEntry(entry); changed = true; break;
-            }
-    }
-    if (barfLegendaryFood()) changed = true;
-    if (barfOrganTrades(reserveSuit ? 1 : 0)) changed = true;
-    if (barfFillOrgan("food",0)) changed = true;
-    barfBeerWish();
-    if (barfFillOrgan("booze",reserveSuit ? 1 : 0)) changed = true;
-    if (barfClearOrgans()){
-        changed = true;
-        barfFillOrgan("spleen",0); barfFillOrgan("food",0); barfFillOrgan("booze",reserveSuit ? 1 : 0);
-    }
-    return changed;
-}
+
+
+// Prevent organ-changing Mayo automation from invalidating the planner.
+
+
+
+// A short test run must not buy a full day's diet it will not use.
+// Breakfast must precede every other food, including legendary pasta.
+
 
 // Two-day planner inputs. This exports read-only runtime data; it never consumes.
 string barfDietCell(string value){ return replace_string(replace_string(value,"\t"," "),"\n"," "); }
@@ -619,37 +188,16 @@ barfTwoDayStage[int] barfTwoDayStages;
 int[effect] barfTwoDayInitialEffects;
 item[int] barfTwoDayCapacityItems = {$item[devilbone corset],$item[angelbone chopsticks],
     $item[angelbone dice],$item[devilbone rosary],$item[angelbone totem],$item[devilbone greaves]};
-int barfTwoDayRollover; int barfTwoDayRolloverGear; int barfTwoDayClanGain; string barfTwoDayRolloverGoal;
+int barfTwoDayRollover;  int barfTwoDayClanGain; string barfTwoDayRolloverGoal;
 float barfTwoDayWeightCalibration = 0;
 string barfTwoDayWarnings;
 float barfTwoDayCopiedWeight;
 barfTwoDayState[string] barfDietComparisons;
 float[int] barfDietDropIncomeCache;
-int barfDietColdOfferPrice; int barfDietColdOfferStore;
 
-void barfDietParseColdOffer(string page){
-    barfDietColdOfferPrice=0;barfDietColdOfferStore=0;
-    matcher rows=create_matcher("(?is)<tr[^>]*graybelow[^>]*>.*?</tr>",replace_string(page,"&amp;","&"));
-    while(rows.find()){
-        string row=rows.group(0);
-        if(contains_text(row,"graybelow limited"))continue;
-        matcher stock=create_matcher("stock[^>]*>([0-9,]+)<",row);
-        matcher offer=create_matcher("whichstore=([0-9]+)&searchitem=([0-9]+)&searchprice=([0-9]+)",row);
-        if(!stock.find())continue;
-        string quantity=replace_string(stock.group(1),",","");
-        int amount=to_int(quantity);
-        if(amount<1||!offer.find())continue;
-        if(offer.group(2).to_int()!=to_int($item[Dreadsylvanian cold-fashioned]))continue;
-        int price=offer.group(3).to_int();
-        if(price>0&&(barfDietColdOfferPrice==0||price<barfDietColdOfferPrice)){
-            barfDietColdOfferPrice=price;barfDietColdOfferStore=offer.group(1).to_int();
-        }
-    }
-}
-void barfDietReadColdOffer(){
-    barfDietParseColdOffer(visit_url("mall.php?category=allitems&sortresultsby=price&nolimits=0&justitems=0&x_cheapest=5&pudnuggler="
-        +url_encode('"Dreadsylvanian cold-fashioned"'),false,true));
-}
+
+
+
 
 int barfDietTrainingGoal(barfTwoDayState s,boolean chest){
     int goal=s.uses["trainingOverride"]>0?s.uses[chest?"chestGoal":"yetiGoal"]:barfSetting(chest?"ChestXP":"YetiXP",chest?950:2000);
@@ -685,8 +233,8 @@ int[item] barfDietDailyLimits;
 int[item] barfDietPrices;
 boolean[item] barfDietBuyable;
 boolean barfDietFastGear;
-boolean barfDietBaseReady;
-item[slot] barfDietBaseGear;
+
+
 item[slot] barfDietSpecGear;
 string barfDietBaseModes;
 
@@ -824,10 +372,6 @@ item barfDietProjectedFamiliarGear(familiar farmer,int trainer){
 }
 
 boolean barfDietFixedGear(int mask,familiar farmer,int trainer){
-    if(!barfDietBaseReady){
-        foreach spot,it in barfBaselineOutfit()barfDietBaseGear[spot]=it;
-        barfDietBaseReady=true;
-    }
     item[slot] gear=barfPlannedOutfit(mask,farmer,trainer);
     if(trainer==0)gear[$slot[familiar]]=barfDietProjectedFamiliarGear(farmer,0);
     int[item] required;
@@ -966,8 +510,8 @@ float barfDietTomorrowValue(barfTwoDayState s){
 boolean barfDietMemoize;
 item[int] barfDietExtraMenu;
 boolean barfDietExtraMenuReady;
-boolean barfDietSkipDuplicates;boolean barfDietSkipBare;boolean barfDietShareFarmForecasts;
-boolean[string] barfDietExactSeen;
+boolean barfDietSkipBare;boolean barfDietShareFarmForecasts;
+
 record barfDietFarmPrefix {barfTwoDayState state;int segment;int stage;};
 barfDietFarmPrefix[int] barfDietFarmPrefixes;
 string barfDietFarmParentKey;
@@ -978,8 +522,8 @@ void barfDietResetSearchCaches(){
     clear(barfDietExtraMenu);barfDietExtraMenuReady=false;
     clear(barfDietRateCache);clear(barfDietItemIncomeCache);
     clear(barfDietFutureCache);clear(barfDietTomorrowCache);clear(barfDietEffectCaps);
-    clear(barfDietExactSeen);clear(barfDietFarmPrefixes);barfDietFarmParentKey="";
-    barfDietMemoize=true;barfDietSkipDuplicates=true;barfDietSkipBare=true;barfDietShareFarmForecasts=true;
+    clear(barfDietFarmPrefixes);barfDietFarmParentKey="";
+    barfDietMemoize=true;barfDietSkipBare=true;barfDietShareFarmForecasts=true;
 }
 string barfDietEffectKey(barfTwoDayState s,boolean exact){
     string key="";
@@ -1094,11 +638,7 @@ int barfDietTurnsToDelayedAdventure(barfTwoDayState s,item it){
     }
     return 201;
 }
-boolean barfDietActualFarmLegal(barfTwoDayState observed,int paid){
-    barfTwoDayState actual=barfDietClone(observed);actual.minimumAdventures=actual.adventures;
-    remove actual.uses["forecastMode"];
-    return barfDietFarmLegal(actual,paid);
-}
+
 
 // All state fields except schedule text. Forecasts rebase their suffix onto the
 // caller's schedule; no organs, stock, XP, buffs, financial totals or policy flags
@@ -1854,9 +1394,7 @@ float barfDietCandidateRank(barfTwoDayItem e,barfTwoDayState s,float rate){
     float tomorrow=!barfDietPrepReplaces(e.buff)?max(0,numeric_modifier(e.buff,"Familiar Weight"))*barfTwoDayWeightCalibration:0;
     return ((e.average+e.delayedAverage)*rate-e.price+buff+tomorrow)/size;
 }
-float barfDietCandidateRank(barfTwoDayItem e,barfTwoDayState s){
-    return barfDietCandidateRank(e,s,barfDietRateAtStage(s,barfDietFarmingStage(s)));
-}
+
 boolean barfDietLimitedCandidate(barfTwoDayItem e){
     return e.dailyRemaining<100||e.crafted||(e.target!=$item[none]&&!barfDietBuyable[e.target]);
 }
@@ -1879,132 +1417,26 @@ void barfDietPruneItems(barfTwoDayState s){
     clear(barfTwoDayItems);foreach i,e in kept barfTwoDayItems[i]=e;
 }
 
-string barfDietStateKey(barfTwoDayState s){
-    string key=s.fullness+":"+s.drunkenness+":"+s.spleen+":"+barfDietStageKey(s)+":"+floor(s.minimumAdventures)+":"+s.sweat+":"+s.pantsSweat+":"+s.noodles+":"+s.yetiXP+":"+s.shotglass+":"+s.chestXP+":"+s.yetiDouble+":"+s.aioli+":"+s.whet+":"+s.milk+":"+s.spork;
-    key+=":"+(s.turns%31)+":"+max(0,s.earlyJillTurns-s.turns);
-    foreach id,turns in s.effects if(turns>0)key+=":"+id+"="+turns+(s.retained[id]?"r":"");
-    foreach name,uses in s.uses if(uses>0)key+=":"+name+"="+uses;
-    return key;
-}
 
-barfTwoDayState[int] barfDietFrontier;
-float[string] barfDietSeen;
-float[int] barfDietFrontierScores;
-int barfDietWidth;
-void barfDietOffer(barfTwoDayState s){
-    if(s.cash<0||s.cash>my_meat()+s.liquidIncome)return;
-    if(barfDietSkipDuplicates){
-        string exact=barfDietExactStateKey(s);
-        if(barfDietExactSeen contains exact)return;
-        barfDietExactSeen[exact]=true;
-    }
-    float score=barfDietScore(s);string key=barfDietStateKey(s);
-    if((barfDietSeen contains key)&&barfDietSeen[key]>=score)return;
-    barfDietSeen[key]=score;
-    int worst=-1;float worstScore=1000000000000.0;
-    foreach i,a in barfDietFrontier if(barfDietFrontierScores[i]<worstScore){worst=i;worstScore=barfDietFrontierScores[i];}
-    if(count(barfDietFrontier)<barfDietWidth){int index=count(barfDietFrontier);barfDietFrontier[index]=s;barfDietFrontierScores[index]=score;}
-    else if(score>worstScore){barfDietFrontier[worst]=s;barfDietFrontierScores[worst]=score;}
-}
 
-void barfDietOfferConsumption(barfTwoDayState source,barfTwoDayItem entry,boolean retain){
-    barfTwoDayState prepared=barfDietConsumeState(source,entry,retain,0);
-    barfDietOffer(prepared);
-    if(!barfDietSkipBare||!barfDietBareMatches(source,prepared))
-        barfDietOffer(barfDietConsumeBare(source,entry,retain,0));
-}
 
-barfTwoDayState barfDietSearch(barfTwoDayState initial,int width,boolean earlyFill){
-    barfTwoDayState[int] beam;beam[0]=barfDietClone(initial);
-    if(initial.milk==0&&!get_property("_milkOfMagnesiumUsed").to_boolean()&&initial.uses["milk"]==0)
-        beam[0]=barfDietResourceState(beam[0],"milk");
-    barfTwoDayState best;best.cash=-1;float bestScore=-1000000000000.0;
-    barfDietWidth=width;clear(barfDietSeen);
-    int maxSteps=barfSetting("DietSearchSteps",160);
-    int started=now_to_int();int lastUpdate=started;
-    string mode=earlyFill?"immediate-fill comparison":"two-day plan";
-    print("BARF diet search starting: "+mode+", "+count(barfTwoDayItems)+" candidates, beam width "+width+".","blue");
-    for step from 1 to maxSteps{
-        clear(barfDietFrontier);clear(barfDietFrontierScores);clear(barfDietSeen);clear(barfDietExactSeen);
-        foreach i,s in beam{
-            if(now_to_int()-lastUpdate>=10000){
-                print("BARF diet search: "+mode+", step "+step+"/"+maxSteps+", state "+(i+1)+"/"+count(beam)+", "+((now_to_int()-started)/1000)+" seconds elapsed.","blue");
-                lastUpdate=now_to_int();
-            }
-            if(s.finished){if(barfDietScore(s)>bestScore){best=s;bestScore=barfDietScore(s);}continue;}
-            barfTwoDayState finish=barfDietFinishState(s);
-            if(finish.cash>=0&&barfDietScore(finish)>bestScore){best=finish;bestScore=barfDietScore(finish);}
-            int maximum=max(0,floor(s.uses["forecastMode"]>0?s.adventures:s.minimumAdventures)-max(0,200-barfTwoDayRollover-barfDietNightcapMinimum()));
-            foreach id,keep in s.retained if(keep)maximum=min(maximum,s.effects[id]-5);
-            boolean normalFilled=s.fullness>=barfDietFullLimit(s)&&s.drunkenness>=barfDietLiverLimit(s)&&s.spleen>=barfDietSpleenLimit(s);
-            if(!earlyFill||normalFilled){
-                int[int] farmTargets={1,5,25,100,maximum};boolean[int] farmed;
-                // Include effect expiry and each attainable stillsuit yield threshold.
-                foreach id,left in s.effects if(left>5&&left-5<=maximum)farmTargets[count(farmTargets)]=left-5;
-                int target=round(s.sweat**0.4)+1;
-                int drams=max(10,ceil((target-0.5)**2.5));while(round(drams**0.4)<target)drams+=1;
-                int paid=ceil(max(0,drams-s.sweat)*(barfSetting("CombatsBetweenNC",30)+1.0)/barfSetting("CombatsBetweenNC",30));
-                farmTargets[count(farmTargets)]=paid;
-                foreach j,n in farmTargets if(n>0&&n<=maximum&&!(farmed contains n)){
-                    farmed[n]=true;barfDietOffer(barfDietFarmState(s,n));
-                }
-            }
-            foreach j,e in barfTwoDayItems{
-                if(!barfDietLowQuality(e.target))barfDietOfferConsumption(s,e,false);
-                if(!earlyFill&&barfDietCanRetain(e.buff)){
-                    barfDietOfferConsumption(s,e,true);
-                }
-                if(!barfDietLowQuality(e.target)&&e.drunkenness>0&&e.average>0&&s.yetiXP>=225){
-                    if(barfDietDuration(s,$effect[Looking Cool])<100)barfDietOffer(barfDietConsumeState(s,e,false,1));
-                    if(s.yetiDouble)barfDietOffer(barfDietConsumeState(s,e,false,2));
-                }
-            }
-            barfDietOffer(barfDietDistillState(s));
-            foreach action in $strings[sweat,aug16,mojo,melange,doghair,distention,sweettooth,voraci,sobrie,noodleSpleen]
-                barfDietOffer(barfDietResourceState(s,action));
-            foreach buff in $effects[Braaaaaains,Frosty,Let's Go Shopping!,Covetous Robbery,Low on the Hog,
-                Leisurely Amblin',Down With Chow,Chow Downed,Salty Mouth]
-                barfDietOffer(barfDietResourceState(s,"wish:"+to_int(buff)));
-            barfDietOffer(barfDietResourceState(s,"wish:1701"));
-            // Introduce only one item per transition; Jill remains until all six are introduced.
-            for bit from 0 to 5 if(!barfDietBit(s.mask,bit)&&(!earlyFill||normalFilled))barfDietOffer(barfDietCapacityState(s,bit));
-            if(s.mask==63)barfDietOffer(barfDietStooperState(s));
-        }
-        clear(beam);foreach i,s in barfDietFrontier beam[i]=s;
-        if(count(beam)==0)break;
-        if(step%5==0||step==1){
-            print("BARF diet search: "+mode+", "+step+" actions; "+count(beam)+" states retained; "+((now_to_int()-started)/1000)+" seconds elapsed.","blue");
-            lastUpdate=now_to_int();
-        }
-    }
-    return best;
-}
 
-boolean barfDietRolloverFromMaximizer(){
-    string name=get_property("teresBarfRolloverOutfit");
-    string goal="adv, -tie";
-    item[int] pieces=outfit_pieces(name);
-    if(name!=""&&count(pieces)>0){
-        goal="adv";foreach i,it in pieces goal+=", equip "+it;
-        string farmer=get_property("teresBarfRolloverFamiliar");if(farmer!="")goal+=", switch "+farmer;
-    }else{
-        barfTwoDayWarnings+="No saved rollover outfit was supplied. The owned-gear adventure maximizer is used as a provisional rollover outfit; it cannot verify your quoted gear-only +145 without the outfit name.\n";
-    }
-    if(my_path()==$path[Hat Trick]&&equipped_item($slot[hat])!=$item[none])goal+=", equip "+equipped_item($slot[hat]);
-    if(!maximize(goal,true))return false;
-    barfTwoDayRolloverGear=0;foreach i,it in pieces barfTwoDayRolloverGear+=round(numeric_modifier(it,"Adventures"));
-    // Installed Mafia's Adventures modifier already includes camp, passives, resolution,
-    // circadian rhythms, hare/gibberer and borrowed-time adjustments. Base forty is separate.
-    barfTwoDayClanGain=barfSetting("ClanRolloverGain",0);
-    int temporary=0;foreach ef,t in my_effects()if(t>0)temporary+=max(0,round(numeric_modifier(ef,"Adventures")));
-    barfTwoDayRollover=40+round(numeric_modifier("Generated:_spec","Adventures"))-temporary+barfTwoDayClanGain;
-    barfTwoDayRolloverGoal=goal;
-    if(get_property("teresBarfClanRolloverGain")=="")barfTwoDayWarnings+="Clan furniture rollover gain has not been verified. Reserve uses zero for that additional source; set teresBarfClanRolloverGain to a verified value only if it is absent from Mafia's modifier.\n";
-    return true;
-}
+
+
+
+
+
+
+// Include effect expiry and each attainable stillsuit yield threshold.
+// Introduce only one item per transition; Jill remains until all six are introduced.
+
+
+// Installed Mafia's Adventures modifier already includes camp, passives, resolution,
+// circadian rhythms, hare/gibberer and borrowed-time adjustments. Base forty is separate.
+
 
 boolean barfDietRollover(){
-    barfTwoDayRolloverGear=0;barfTwoDayClanGain=barfSetting("ClanRolloverGain",0);
+    barfTwoDayClanGain=barfSetting("ClanRolloverGain",0);
     barfTwoDayRollover=barfSetting("RolloverGain",145)+barfTwoDayClanGain;
     barfTwoDayRolloverGoal=get_property("teresBarfRolloverOutfit");
     print("Rollover reserve uses "+barfTwoDayRollover+" total adventures, including base adventures. Default: your manually checked 145; change with set teresBarfRolloverGain=<total>. No rollover maximization.","blue");
@@ -2109,7 +1541,7 @@ barfTwoDayState barfDietQuickExtras(barfTwoDayState source){
 }
 boolean barfDietQuickExpired(){return barfDietQuickDeadline>0&&now_to_int()>=barfDietQuickDeadline;}
 int barfDietOrganUsed(barfTwoDayState s,string organ){return organ=="food"?s.fullness:organ=="booze"?s.drunkenness:s.spleen;}
-int barfDietOrganLimit(barfTwoDayState s,string organ){return organ=="food"?barfDietFullLimit(s):organ=="booze"?barfDietLiverLimit(s):barfDietSpleenLimit(s);}
+
 int barfDietOrganSize(barfTwoDayItem e,string organ){
     if(organ=="food")return e.drunkenness==0&&e.spleen==0?e.fullness:0;
     if(organ=="booze")return e.fullness==0&&e.spleen==0?e.drunkenness:0;
@@ -2901,7 +2333,7 @@ void barfDietPlan(boolean candidatesOnly){
     barfDietPlanReady=false;
     clear(barfDietRecipePrices);clear(barfDietPricingRecipe);
     barfDietResetSearchCaches();
-    clear(barfTwoDayInitialEffects);clear(barfTwoDayStages);clear(barfDietDropIncomeCache);clear(barfDietPrices);clear(barfDietBuyable);clear(barfDietEffectCache);clear(barfDietBaseGear);clear(barfDietSpecGear);barfDietBaseReady=false;barfDietBaseModes="";barfDietFastGear=true;barfTwoDayWarnings="";
+    clear(barfTwoDayInitialEffects);clear(barfTwoDayStages);clear(barfDietDropIncomeCache);clear(barfDietPrices);clear(barfDietBuyable);clear(barfDietEffectCache);clear(barfDietSpecGear);barfDietBaseModes="";barfDietFastGear=true;barfTwoDayWarnings="";
     if(get_property("autoFillMayoMinder").to_boolean())barfTwoDayWarnings+="This plan assumes Mayo automation is disabled for execution. Queued Mayo is rejected; optional Mayo preparations are not evaluated.\n";
     if(!can_interact()){print("The two-day diet needs aftercore access.","red");return;}
     if(my_inebriety()>inebriety_limit()){print("Already overdrunk; no further farming/normal diet can be planned today.","red");return;}

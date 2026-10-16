@@ -35,10 +35,8 @@ public class SnapshotBench {
   KoLCharacter.setFullness(Integer.parseInt(state.get("fullness")));KoLCharacter.setInebriety(Integer.parseInt(state.get("drunkenness")));KoLCharacter.setSpleenUse(Integer.parseInt(state.get("spleen")));KoLCharacter.setAdventuresLeft(Integer.parseInt(state.get("adventures")));
   KoLCharacter.recalculateAdjustments();
   net.sourceforge.kolmafia.request.CharPaneRequest.setCanInteract(true);
-  Preferences.setString("benchMode",args[0]);Preferences.setString("benchWorkload",args.length>1?args[1]:"layers");
-  Preferences.setString("benchWidth",args.length>4?args[4]:"16");
-  Preferences.setString("benchTimeoutSeconds",args.length>5?args[5]:"120");
-  for(int i=6;i<args.length;i++){String[] setting=args[i].split("=",2);Preferences.setString(setting[0],setting[1]);}
+  Preferences.setString("benchMode",args[0]);Preferences.setString("benchWorkload",args.length>1?args[1]:"practical");
+  for(int i=4;i<args.length;i++){String[] setting=args[i].split("=",2);Preferences.setString(setting[0],setting[1]);}
   if(args[1].equals("live-native-checks"))new net.sourceforge.kolmafia.textui.command.AbstractCommand(){
    public void run(String command,String action){
     // Test-only callbacks change physical in-memory state within one ASH run.
