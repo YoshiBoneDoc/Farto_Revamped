@@ -1,0 +1,25 @@
+{
+  "raw_log_sha256": "1b5bb022c5544f84a1e0a1e67af3f2f5f1ae324a16c01279bdc448dae317298f",
+  "settings": {
+    "benchCookingAccess": true,
+    "teresBarfDietPlanSeconds": 90
+  },
+  "reported_metrics": [
+    "Diet planning finished in 90 seconds after 45 comparisons; fill states 105192, dominated 95, width-pruned 77191, joint buff pairs 172; gain over fallback 100538 Meat.",
+    "Yeti charging: target 2000 reached once; projected peak 2008 XP. No repeated refill to that target after spending XP. Required end reserve: 0 XP.",
+    "Trainer ending XP: Chest 955, Yeti 658; songs budgeted 34. Trainer buff opportunity costs are included.",
+    "Training: 0 Chest + 35 Yeti paid encounters; supplies 23166 Meat; farming income foregone versus Jill in those same encounters 74285. Both are already reflected in net profit, not added again.",
+    "Looking Cool: starts at 0 turns; 7 refreshes; 673 covered / 0 uncovered paid encounters; ends at 27 turns. Its +100% Meat and Item bonuses are removed for uncovered encounters.",
+    "Stillsuit: 3 pour(s), 11 + 10 + 10 = 31 adventures, 3 liver. Each pour uses all sweat available then; ordinary drinks compete for the same liver in complete-plan comparisons. New Buzzed bonuses receive no value.",
+    "Cash purchases budget: 81708; estimated liquid farming income 2750240. Item values do not fund purchases unless sold.",
+    "Farming: 673 expected paid encounters (adaptive, replan from each actual roll); estimated income 3021010 Meat. Opportunity costs 397545; today's net 2623465; tomorrow's distinct-effect value 150234; combined 2773699.",
+    "Retain Down With Chow: +10.0 lb, 5 turns.",
+    "Retain [1701]Hip to the Jive: +10.0 lb, 15 turns.",
+    "Retain Joy: +10.0 lb, 35 turns.",
+    "Retain Smart Drunk: +20 lb, ONE turn. Vintage is the final consumption; farming cannot follow it.",
+    "Minimum adventures to leave BEFORE Vintage: 5. Vintage yield 50; conservative TOTAL rollover 145 (base included, not added again); conservative remaining adventures 55; projected tomorrow 200."
+  ],
+  "complete_trial_record_sha256": [],
+  "exact_comparison_records_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "ordered_native_map_export": "baseline-preview-90-plan.tsv"
+}
