@@ -766,7 +766,7 @@ boolean barfDietWineRingLegal(barfTwoDayState s,int liver){
         ||s.drunkenness+liver-(liver==1&&s.shotglass>0?1:0)<=stage.drunkenness+s.uses["extraLiver"]-1;
 }
 boolean barfDietTuxLegal(barfTwoDayState s){
-    return available_amount($item[tuxedo shirt])>0
+    return available_amount($item[tuxedo shirt])>0&&can_equip($item[tuxedo shirt])
         &&(!barfDietBit(s.mask,0)||s.fullness<=barfDietStage(s).fullness+s.uses["extraFullness"]-1);
 }
 
@@ -984,6 +984,7 @@ barfTwoDayState barfDietConsumeState(barfTwoDayState source,barfTwoDayItem entry
     string[int] bounds=split_string(entry.target.adventures,"-");
     int lo=entry.minimum.to_int();int hi=count(bounds)>1?bounds[1].to_int():lo;
     if(entry.target==$item[Affirmation Cookie]){lo=9;hi=9;}
+    boolean tuxedo=entry.average>0&&entry.drunkenness>0&&contains_text(entry.target.notes,"MARTINI")&&barfDietTuxLegal(source);
     if (entry.target.inebriety>0&&yeti>0){
         if (s.yetiXP<(yeti==2?400:225)||(!s.yetiDouble&&yeti==2)){s.cash=-1;return s;}
         int xp=yeti==2?400:225;s.yetiXP-=xp;s.uses["yetiXPSpent"]+=xp;
@@ -998,13 +999,13 @@ barfTwoDayState barfDietConsumeState(barfTwoDayState source,barfTwoDayItem entry
     for raw from lo to hi{
         float gain=barfDietYield(entry.target,raw,s);
         if(yeti==2)gain+=raw;
-        if(raw==lo)minimum=gain;
+        if(raw==lo)minimum=gain-(tuxedo?1:0);
         mean+=gain/max(1,hi-lo+1);
     }
     string prep="";
     if(entry.drunkenness>0&&have_skill($skill[The Ode to Booze]))prep+="Ode;";
     if(entry.drunkenness>0&&contains_text(entry.target.notes,"WINE")&&barfDietWineRingLegal(source,entry.drunkenness))prep+="mafia pinky ring;";
-    if(entry.drunkenness>0&&contains_text(entry.target.notes,"MARTINI")&&barfDietTuxLegal(source))prep+="tuxedo shirt;";
+    if(tuxedo)prep+="tuxedo shirt;";
     float rate=0;
     // Only newly acquired helpers use this rate; bare mode cannot acquire any.
     if(!bare&&entry.average>0&&(entry.fullness>0||entry.drunkenness>0))
@@ -1415,34 +1416,49 @@ barfTwoDayState barfDietFinishState(barfTwoDayState a){
     return s;
 }
 
+float barfDietCandidateAverage(barfTwoDayItem e,barfTwoDayState s){
+    float average=e.average;
+    if(e.drunkenness>0&&(contains_text(e.target.notes,"WINE")||contains_text(e.target.notes,"MARTINI"))){
+        int lo=e.minimum.to_int();int hi=round(2*e.average-e.minimum);
+        average=0;
+        for raw from lo to hi average+=barfDietYield(e.target,raw,s)/max(1,hi-lo+1);
+    }
+    return average;
+}
 float barfDietCandidateRank(barfTwoDayItem e,barfTwoDayState s,float rate){
     int size=max(1,e.fullness+e.drunkenness+e.spleen);
     float buff=min(e.duration,max(0,s.minimumAdventures))*barfBaseMeat()*numeric_modifier(e.buff,"Meat Drop")/100;
     float tomorrow=!barfDietPrepReplaces(e.buff)?max(0,numeric_modifier(e.buff,"Familiar Weight"))*barfTwoDayWeightCalibration:0;
-    return ((e.average+e.delayedAverage)*rate-e.price+buff+tomorrow)/size;
+    float average=barfDietCandidateAverage(e,s);
+    return ((average+e.delayedAverage)*rate-e.price+buff+tomorrow)/size;
 }
 
 boolean barfDietLimitedCandidate(barfTwoDayItem e){
     return e.dailyRemaining<100||e.crafted||(e.target!=$item[none]&&!barfDietBuyable[e.target]);
 }
-void barfDietPruneItems(barfTwoDayState s){
-    barfTwoDayItem[int] kept;float[int] ranks;
+void barfDietPruneItems(barfTwoDayState s,boolean extraMartinis){
+    barfTwoDayItem[int] kept;float[int] ranks;float[int] baseRanks;
     float rate=barfDietRateAtStage(s,barfDietFarmingStage(s));
-    foreach i,e in barfTwoDayItems ranks[i]=barfDietCandidateRank(e,s,rate);
     foreach i,e in barfTwoDayItems{
-        int better=0;
+        ranks[i]=barfDietCandidateRank(e,s,rate);
+        baseRanks[i]=ranks[i]+(e.average-barfDietCandidateAverage(e,s))*rate/max(1,e.fullness+e.drunkenness+e.spleen);
+    }
+    foreach i,e in barfTwoDayItems{
+        int better=0;int baseBetter=0;
         if(e.target!=$item[Dreadsylvanian cold-fashioned]&&e.special==""&&!barfDietLimitedCandidate(e))foreach j,f in barfTwoDayItems{
             if(i==j||f.fullness!=e.fullness||f.drunkenness!=e.drunkenness||f.spleen!=e.spleen||f.special!=e.special)continue;
             if(barfDietLimitedCandidate(f))continue;
             if(barfDietRelevantEffect(e.buff)&&(f.buff!=e.buff||f.duration!=e.duration))continue;
             if(ranks[j]>ranks[i]||(ranks[j]==ranks[i]&&j<i))better+=1;
-            if(better>=4)break;
+            if(baseRanks[j]>baseRanks[i]||(baseRanks[j]==baseRanks[i]&&j<i))baseBetter+=1;
+            if(better>=4&&baseBetter>=4)break;
         }
-        if(better<4)kept[count(kept)]=e;
+        if(baseBetter<4||(extraMartinis&&contains_text(e.target.notes,"MARTINI")&&better<4))kept[count(kept)]=e;
         else if(e.target!=$item[none])barfDietCandidateStatus[e.target]="Outside regular-fill shortlist";
     }
     clear(barfTwoDayItems);foreach i,e in kept barfTwoDayItems[i]=e;
 }
+void barfDietPruneItems(barfTwoDayState s){barfDietPruneItems(s,true);}
 
 
 // Include effect expiry and each attainable stillsuit yield threshold.

@@ -245,7 +245,9 @@ void barfLiveRejectUnsupported(barfTwoDayState plan){
 
 barfTwoDayState barfLiveRemaining(){
     clear(barfDietExtraMenu);barfDietExtraMenuReady=false;barfTwoDayWarnings="";
-    barfTwoDayState initial=barfLiveObserveFresh();barfDietBuildItems();barfDietPruneItems(initial);barfDietEnsureFillers();
+    // Live low rolls can change the cooling XP needed by a newly chosen drink mix.
+    // Use the established shortlist until those reserve changes are modeled end to end.
+    barfTwoDayState initial=barfLiveObserveFresh();barfDietBuildItems();barfDietPruneItems(initial,false);barfDietEnsureFillers();
     barfDietLateMenu menu;
     foreach n,it in barfLiveLateItems{
         boolean found=false;
