@@ -1,0 +1,178 @@
+{
+  "source_sha256": "b26a7bc272dfd12e73720cd1d796ba0716a0fb142a187c23da04227f352bbc3f",
+  "cases": [
+    {
+      "name": "cookie",
+      "returncode": 0,
+      "seconds": 6.155135083012283,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nCHECKS COOKIE OK: discovery, eligibility, exact nine adventure yield, shared daily counter and source isolation\nRuntime result=OK continue=true total seconds=1.434714292\nFull output: /private/tmp/diet-v2-regressions/cookie/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "fill_cache",
+      "returncode": 0,
+      "seconds": 11.053031333023682,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nCHECKS FILL CACHE OK: exact outcomes, rebased schedules, stock/buffs/XP/cash/policy/capacity separation and reset\nRuntime result=OK continue=true total seconds=6.947921542\nFull output: /private/tmp/diet-v2-regressions/fill_cache/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "preparation_cache",
+      "returncode": 0,
+      "seconds": 10.877619041828439,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nCHECKS PREPARATION CACHE OK: different retained menus, complete state/schedule equality, caller rebasing, XP separation and reset\nRuntime result=OK continue=true total seconds=6.844460625\nFull output: /private/tmp/diet-v2-regressions/preparation_cache/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "capacity",
+      "returncode": 0,
+      "seconds": 10.988788291811943,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nAUDIT RESULT capacity-policy=1 ms=218 combined=2770910.4098018697 gain=4542.589047580492 encounters=675 replay=true targets=true\nAUDIT RESULT capacity-policy=8 ms=231 combined=2768800.920363234 gain=2433.099608944729 encounters=673 replay=true targets=true\nAUDIT RESULT capacity-policy=9 ms=233 combined=2773564.700284355 gain=7196.879530065693 encounters=675 replay=true targets=true\nAUDIT RESULT capacity-policy=2 ms=248 combined=2767867.455216192 gain=1499.6344619030133 encounters=673 replay=true targets=true\nAUDIT RESULT capacity-policy=10 ms=201 combined=2769415.791330975 gain=3047.9705766858533 encounters=673 replay=true targets=true\nAUDIT RESULT capacity-policy=4 ms=203 combined=2761045.2401091275 gain=-5322.580645161681 encounters=673 replay=true targets=true\nAUDIT RESULT capacity-policy=12 ms=163 combined=2768800.920363234 gain=2433.099608944729 encounters=673 replay=true targets=true\nAUDIT RESULT capacity-policy=7 ms=208 combined=2768248.7539411928 gain=1880.933186903596 encounters=675 replay=true targets=true\nAUDIT RESULT capacity-policy=15 ms=210 combined=2773889.2486714516 gain=7521.427917162422 encounters=675 replay=true targets=true\nCHECKS CAPACITY OK: native organ grouping, reserved-space deferral, identical shared prefix and complete legal profitable continuations\nRuntime result=OK continue=true total seconds=6.797833709\nFull output: /private/tmp/diet-v2-regressions/capacity/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "prefix_cache",
+      "returncode": 0,
+      "seconds": 5.278514083009213,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nCHECKS PREFIX CACHE OK: exact reuse, eight-entry bound, LRU eviction, caller isolation and snapshot reset\nRuntime result=OK continue=true total seconds=1.282995584\nFull output: /private/tmp/diet-v2-regressions/prefix_cache/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "memoization_scope",
+      "returncode": 0,
+      "seconds": 6.037671875208616,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nCHECKS MEMOIZATION SCOPE OK: later-policy normalization, caller restoration, exact uncached outcomes\nRuntime result=OK continue=true total seconds=2.107562917\nFull output: /private/tmp/diet-v2-regressions/memoization_scope/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "quantity",
+      "returncode": 0,
+      "seconds": 4.900193040957674,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nQUANTITY CASE neutral quantities with daily stock outcomes=2 expanded=28 -> 25 skipped=3 ms=15 -> 7\nQUANTITY CASE existing one-shot helpers retain order-sensitive outcomes outcomes=12 expanded=52 -> 58 skipped=2 ms=18 -> 18\nQUANTITY CASE retained-relevant effects remain explicit outcomes=8 expanded=44 -> 48 skipped=0 ms=21 -> 14\nQUANTITY CASE shotglass zero-organ transition outcomes=1 expanded=6 -> 6 skipped=0 ms=3 -> 2\nCHECKS QUANTITY OK: exhaustive outcome equivalence, canonical neutral quantities, daily stock, helpers/effects, shotglass and caller isolation\nRuntime result=OK continue=true total seconds=0.93795225\nFull output: /private/tmp/diet-v2-regressions/quantity/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "joint_cache",
+      "returncode": 0,
+      "seconds": 9.131307916948572,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nAUDIT RESULT reconstructed=old combined=2776320.6092582834 expected=2776320.6092582834\nCHECKS JOINT CACHE OK: native suffix equivalence, retired stock, shared ingredients, daily headroom, liquidity, fixed-continuation bound and reset\nRuntime result=OK continue=true total seconds=5.176815375\nFull output: /private/tmp/diet-v2-regressions/joint_cache/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "chocolate",
+      "returncode": 0,
+      "seconds": 5.045110333012417,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nCHECKS CHOCOLATE OK: six exact native state/schedule matches; reference_ms=148 basket_ms=29\nRuntime result=OK continue=true total seconds=1.055749333\nFull output: /private/tmp/diet-v2-regressions/chocolate/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "extra_cache",
+      "returncode": 0,
+      "seconds": 4.91184345795773,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nCHECKS EXTRA CACHE OK: starting-state scope, liquidity, native equivalence, caller isolation and reset\nRuntime result=OK continue=true total seconds=0.93861725\nFull output: /private/tmp/diet-v2-regressions/extra_cache/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "score_kernel",
+      "returncode": 0,
+      "seconds": 5.674761457834393,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nCHECKS SCORE KERNEL OK: 906 exact native scores; reference_ms=695 cached_ms=158\nRuntime result=OK continue=true total seconds=1.68935475\nFull output: /private/tmp/diet-v2-regressions/score_kernel/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "trial_cache",
+      "returncode": 0,
+      "seconds": 11.842727375216782,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nCHECKS TRIAL CACHE OK: inactive-only normalization, exact native winner and metadata isolation; active timing stays distinct\nRuntime result=OK continue=true total seconds=7.874035625\nFull output: /private/tmp/diet-v2-regressions/trial_cache/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "late_event",
+      "returncode": 0,
+      "seconds": 11.611892000073567,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nCHECKS LATE EVENTS OK: native objective/replay, late-only capacity, financial dominance, effects/stock and caller isolation; DFS_ms=1489 topological_ms=660\nRuntime result=OK continue=true total seconds=7.620473208\nFull output: /private/tmp/diet-v2-regressions/late_event/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "checks",
+      "returncode": 0,
+      "seconds": 6.028608208056539,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nCHECKS OK: prefix/expiry/training/rounding, exact keys, stock/cash, cache mutation/reset, quantity equivalence and helper-order counterexample\nRuntime result=OK continue=true total seconds=2.044331166\nFull output: /private/tmp/diet-v2-regressions/checks/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "frontier-checks",
+      "returncode": 0,
+      "seconds": 8.024843625025824,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nPARTIAL FRONTIER CHECKS OK: safe resource-equivalent dominance; stock-distinct states preserved\nJOINT BUFF CHECKS OK: 172 legal combinations ranked; 8 retained for complete-plan comparison\nCLEARING RETRY CHECKS OK: rejected Melange becomes usable after an intervening clear/refill\nRuntime result=OK continue=true total seconds=3.969865458\nFull output: /private/tmp/diet-v2-regressions/frontier-checks/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "planner-checks",
+      "returncode": 0,
+      "seconds": 13.037265749881044,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nPARTIAL FRONTIER CHECKS OK: safe resource-equivalent dominance; stock-distinct states preserved\nJOINT BUFF CHECKS OK: 172 legal combinations ranked; 8 retained for complete-plan comparison\nCLEARING RETRY CHECKS OK: rejected Melange becomes usable after an intervening clear/refill\nFOOD XP CHECKS OK: real meal/recipe costs, fewer trainer encounters/songs, exact combat-only XP through expiry, completed goals, parent-state isolation and fixed 100k cold-fashioned\nPLANNER CHECKS OK: fixed milk, extra yields/counters/cash/stock, fixture-gated marginal helpers, finite-stock fill recovery\nRuntime result=OK continue=true total seconds=8.946006583\nFull output: /private/tmp/diet-v2-regressions/planner-checks/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "pour-checks",
+      "returncode": 0,
+      "seconds": 22.32929449994117,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nCHECKS POURS OK: actual sweat/yields, multiple pours/liver, skipped reservations, checkpoint splits, complete replay/targets, low-organ melange retry and once-only clearing; no game actions.\nRuntime result=OK continue=true total seconds=18.349959292\nFull output: /private/tmp/diet-v2-regressions/pour-checks/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "ingredient-checks",
+      "returncode": 0,
+      "seconds": 4.982239292003214,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nINGREDIENT CHECKS OK: all 15 Cookbookbat recipes and lifetime limits, nested prices, owned meals, raw purchases, shared stock, parent-state isolation, unknown prices, martini valuation and real live acquisition routing with recording adapters.\nRuntime result=OK continue=true total seconds=1.011911125\nFull output: /private/tmp/diet-v2-regressions/ingredient-checks/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "live-checks",
+      "returncode": 0,
+      "seconds": 53.574614957906306,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nLIVE CHECKS OK: 130 shared gear configurations; recorded real consumption dispatch (helpers, Ode, ring, Yeti, identical candy pair); actual reserves/cooling/retention; resume/day reset; simulated full/limited runs, low rolls, free encounter, lost training fight, checkpoint replanning and final-nightcap gating. No game actions.\nRuntime result=OK continue=true total seconds=49.643730666\nFull output: /private/tmp/diet-v2-regressions/live-checks/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "live-native-checks",
+      "returncode": 1,
+      "seconds": 4.922679417068139,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nFull output: /private/tmp/diet-v2-regressions/live-native-checks/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "production",
+      "returncode": 0,
+      "seconds": 14.154419583035633,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nPRODUCTION OK: actual entry, completed comparison replays, dry-run gate; ms=9271\nRuntime result=OK continue=true total seconds=10.14400925\nFull output: /private/tmp/diet-v2-regressions/production/output.log\n",
+      "stderr": ""
+    },
+    {
+      "name": "paired-score",
+      "returncode": 0,
+      "seconds": 25.73446441697888,
+      "output": "FROZEN SNAPSHOT: 20261013, 175 candidates; practical planner; no game requests/actions. Income is provisional.\nCHECKS SCORE SCHEDULE OK: four alternating native schedules exact; reference_ms=11938 kernel_ms=8067\nRuntime result=OK continue=true total seconds=21.3263255\nFull output: /private/tmp/diet-v2-regressions/paired-score/output.log\n",
+      "stderr": ""
+    }
+  ],
+  "native_fixture_followup": {
+    "reason": "Old fixture required location restoration; current user code intentionally maintains Barf Mountain. Native checks now allow the original or Barf context while requiring identical Barf modifiers.",
+    "working_source_passed": true,
+    "committed_source_passed": true,
+    "output": [
+      "LIVE NATIVE BARF CHECKS OK: 36 location/duration/outfit forecasts, BARF location, guide cost/stock/block accounting, scoring cache and live upkeep",
+      "LIVE NATIVE TOURIST CHECKS OK: both tourists reject Sea *dent/Spring Kick; Yeti/Stocking VHS priority replaces eagle recharge",
+      "LIVE NATIVE CHECKS OK: real observer/cache invalidation after three capacity changes, Sobrie organ result, missing-coin fallback, last-minute hook reserves/cooling/retention, consecutive/free losses and mood restoration; no game requests."
+    ],
+    "source_test": "resources/diet-snapshot/benchmark/live_native_checks.ash"
+  },
+  "summary": {
+    "passed_cases_after_fixture_update": 22,
+    "total_cases": 22,
+    "original_run_failures": [
+      "live-native-checks: stale location-restoration assertion"
+    ],
+    "all_other_original_cases_passed": true
+  }
+}
