@@ -2389,6 +2389,103 @@ barfTwoDayState barfDietJointCapacity(barfTwoDayState initial,barfTwoDayState in
     return best;
 }
 
+// Joint late equipment, consumption and farming events; no arbitrary beam width.
+barfTwoDayState[string,int] barfDietEventLabels;
+barfTwoDayState barfDietEventBest;barfTwoDayState barfDietEventInitial;barfDietLateMenu barfDietEventMenu;boolean barfDietEventDistill;
+int barfDietEventVisited;int barfDietEventDominated;int barfDietEventComplete;int barfDietEventExpanded;
+record barfDietEventNode {barfTwoDayState state;int id;};
+barfDietEventNode[int,int] barfDietEventFrontier;
+int[string,int] barfDietEventLabelIds;boolean[int] barfDietEventActive;
+int barfDietEventLevel(barfTwoDayState s){
+    int level=s.turns;foreach bit in $ints[0,1,2,3,4,5]if(barfDietBit(s.mask,bit))level+=1;
+    foreach name,used in s.uses if(starts_with(name,"stock:"))level+=used;
+    foreach action in $strings[sweat,aug16,mojo,melange,doghair,distention,sweettooth,voraci,sobrie,noodleSpleen]level+=s.uses[action];
+    return level;
+}
+string barfDietEventKey(barfTwoDayState source){
+    barfTwoDayState s=barfDietClone(source);s.income=0;s.cost=0;s.cash=0;s.liquidIncome=0;s.schedule="";
+    return barfDietExactStateKey(s);
+}
+// Call only after the complete future-gameplay key matches. More spending
+// is not an advantage: retain incomparable profit/available-cash pairs.
+boolean barfDietEventDominates(barfTwoDayState a,barfTwoDayState b){
+    return a.income-a.cost>=b.income-b.cost&&a.liquidIncome-a.cash>=b.liquidIncome-b.cash;
+}
+void barfDietEventOffer(barfTwoDayState s){
+    if(s.cash<0||!barfDietFundingLegal(s))return;
+    string key=barfDietEventKey(s);int[int] removeSlots;
+    foreach i,old in barfDietEventLabels[key]{
+        if(barfDietEventDominates(old,s)){barfDietEventDominated+=1;return;}
+        if(barfDietEventDominates(s,old))removeSlots[count(removeSlots)]=i;
+    }
+    foreach n,i in removeSlots {barfDietEventActive[barfDietEventLabelIds[key,i]]=false;remove barfDietEventLabels[key,i];remove barfDietEventLabelIds[key,i];}
+    int labelSlot=0;foreach i,old in barfDietEventLabels[key]labelSlot=max(labelSlot,i+1);
+    barfDietEventLabels[key,labelSlot]=barfDietClone(s);barfDietEventVisited+=1;
+    barfDietEventLabelIds[key,labelSlot]=barfDietEventVisited;barfDietEventActive[barfDietEventVisited]=true;
+    barfDietEventNode node;node.state=s;node.id=barfDietEventVisited;barfDietEventFrontier[barfDietEventLevel(s),node.id]=node;
+}
+void barfDietEventExpand(barfTwoDayState s){
+    string key=barfDietEventKey(s);barfDietEventExpanded+=1;
+    if(s.mask==63){
+        barfTwoDayState next=barfDietQuickPrepareTail(s,barfDietEventMenu,barfDietEventDistill);
+        if(next.cash>=0)next=barfDietQuickComplete(next,barfDietEventMenu);
+        if(barfDietMeetsTargets(next)){
+            barfDietEventComplete+=1;
+            if(barfDietScore(next)>barfDietScore(barfDietEventBest)&&barfDietReplay(barfDietEventInitial,next))barfDietEventBest=next;
+        }
+    }
+    // Filling can be deferred across several late equipment changes. Farm legality
+    // and all organ/resource transitions are still supplied by the production model.
+    barfTwoDayState filled=barfDietQuickFillStage(s,barfDietEventMenu,barfDietEventDistill);
+    if(filled.cash>=0)filled=barfDietQuickResources(filled,barfDietEventMenu,barfDietEventDistill,true);
+    if(filled.cash>=0)filled=barfDietQuickFarm(filled,barfDietEventMenu,barfDietEventDistill);
+    if(filled.cash>=0&&barfDietEventKey(filled)!=key)barfDietEventOffer(filled);
+    foreach bit in $ints[0,1,2,3,4,5] if(!barfDietBit(s.mask,bit)){
+        barfTwoDayState next=barfDietCapacityState(s,bit);
+        if(next.cash>=0)barfDietEventOffer(next);
+    }
+}
+
+void barfDietEventVisit(barfTwoDayState root){
+    barfDietEventOffer(root);
+    while(count(barfDietEventFrontier)>0){
+        int nextLevel=0;foreach level in barfDietEventFrontier {nextLevel=level;break;}
+        int nextId=0;foreach id in barfDietEventFrontier[nextLevel] {nextId=id;break;}
+        barfDietEventNode node=barfDietEventFrontier[nextLevel,nextId];remove barfDietEventFrontier[nextLevel,nextId];
+        if(count(barfDietEventFrontier[nextLevel])==0)remove barfDietEventFrontier[nextLevel];
+        if(barfDietEventActive[node.id])barfDietEventExpand(node.state);
+    }
+}
+
+barfTwoDayState barfDietEventPlan(barfTwoDayState initial,barfTwoDayState incumbent){
+    clear(barfDietEventLabels);clear(barfDietEventLabelIds);clear(barfDietEventActive);clear(barfDietEventFrontier);
+    barfDietEventVisited=0;barfDietEventDominated=0;barfDietEventComplete=0;barfDietEventExpanded=0;
+    barfDietLateMenu menu;boolean distill=false;boolean finalPhase=false;
+    foreach n,row in split_string(incumbent.schedule,"\n"){
+        string[int] cells=split_string(row,"\t");
+        if(cells[0]=="phase"&&contains_text(row,"Final consumption:"))finalPhase=true;
+        if(cells[0]=="distill"&&finalPhase)distill=true;
+        if(cells[0]=="consume"&&cells[4].to_boolean())foreach i,e in barfTwoDayItems if(to_int(e.target)==cells[1].to_int()){
+            menu.indices[count(menu.indices)]=i;menu.fullness+=e.fullness;menu.drunkenness+=e.drunkenness;menu.spleen+=e.spleen;break;
+        }
+    }
+    barfTwoDayState prefix=barfDietReplayStart(initial,incumbent);
+    foreach n,row in split_string(incumbent.schedule,"\n"){
+        if(starts_with(row,"capacity\t"))break;
+        if(row!="")prefix=barfDietReplayAction(prefix,row);
+    }
+    if(prefix.cash<0||prefix.finished||prefix.stooper||barfDietStageKey(prefix)>=128)return incumbent;
+    barfDietEventInitial=initial;barfDietEventMenu=menu;barfDietEventDistill=distill;barfDietEventBest=barfDietClone(incumbent);
+    int started=now_to_int();barfDietEventVisit(prefix);
+    barfTwoDayState best=barfDietClone(barfDietEventBest);
+    clear(barfDietEventLabels);clear(barfDietEventLabelIds);clear(barfDietEventActive);clear(barfDietEventFrontier);
+    barfDietRememberComparison(best);
+    print("Late capacity events: "+barfDietEventExpanded+" expanded / "+barfDietEventVisited+" queued states; "+barfDietEventDominated+" financially dominated arrivals skipped; "
+        +barfDietEventComplete+" complete continuations; "+((now_to_int()-started)/1000.0)+" seconds; gain "
+        +round(barfDietScore(best)-barfDietScore(incumbent))+" Meat. Capacity equipment stays after the main farming block.","blue");
+    return best;
+}
+
 barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     int started=now_to_int();barfDietTrialStarted=started;barfDietTrialCount=0;
     barfDietFillGenerated=0;barfDietFillDominated=0;barfDietFillBeamPruned=0;
@@ -2559,6 +2656,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
         print("Fixed-continuation gap allowance: "+barfDietProfitGap()+" Meat; skipped forecasts can exceed the selected plan by at most "
             +ceil(max(0,barfDietJointSkippedCeiling-barfDietScore(best)))+" Meat. This does not bound unexplored whole-day diets.","blue");
     }
+    if(!barfDietQuickExpired()&&barfDietMeetsTargets(best))best=barfDietEventPlan(initial,best);
     if(barfDietQuickExpired())print("Planning safety limit reached; keeping the best complete diet. Incomplete alternatives have no claimed profit.","blue");
     print("Diet planning finished in "+((now_to_int()-started)/1000)+" seconds after "+barfDietTrialCount+" comparisons; fill states "+barfDietFillGenerated+", dominated "+barfDietFillDominated+", width-pruned "+barfDietFillBeamPruned+", joint buff pairs "+barfDietMenuPairsGenerated+"; gain over fallback "+round(barfDietScore(best)-barfDietQuickBaseline)+" Meat.","blue");
     barfDietSearchReport();

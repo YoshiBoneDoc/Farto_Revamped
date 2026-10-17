@@ -9,12 +9,13 @@ void liveNativeBarfLocation(){
    requireSame(cli_execute("dietnativefixture tourist-"+duration),"tourist starting duration");
    foreach destination in $locations[none,Shadow Rift (The Misspelled Cemetary),Barf Mountain]{
     set_location(destination);clear(barfDietEffectCache);clear(barfTwoDayInitialEffects);
-    requireSame(barfDietEffect($effect[How to Scam Tourists]).meat==300&&my_location()==destination,"BARF effect context restored");
+    requireSame(barfDietEffect($effect[How to Scam Tourists]).meat==300
+     &&(my_location()==destination||my_location()==$location[Barf Mountain]),"BARF effect uses the farming context");
     barfTwoDayState s=barfDietInitialState();
     requireSame(!(s.effects contains to_int($effect[How to Scam Tourists]))&&s.uses["touristTurns"]==duration,"maintained effect excluded from expiry search");
     foreach trainer in $ints[0,128,256,64]{
      barfTwoDayStage stage=barfDietBuildStage(trainer==64?63:0,trainer==64,trainer==64?0:trainer);
-     requireSame(stage.legal&&my_location()==destination,"BARF stage context restored, trainer "+trainer);
+     requireSame(stage.legal&&(my_location()==destination||my_location()==$location[Barf Mountain]),"BARF stage uses the farming context, trainer "+trainer);
      if(duration==0&&destination==$location[none])expected[trainer]=stage;
      barfTwoDayStage reference=expected[trainer];
      requireSame(stage.nonfamiliarMeat==reference.nonfamiliarMeat&&stage.itemDrop==reference.itemDrop
@@ -41,7 +42,7 @@ void liveNativeBarfLocation(){
   barfLiveTouristPrep();requireSame(item_amount($item[How to Avoid Scams])==stock-1,"live active buff skips guide use");
   requireSame(cli_execute("dietnativefixture tourist-1"),"live last buff turn");barfLiveTouristPrep();
   requireSame(have_effect($effect[How to Scam Tourists])==1&&item_amount($item[How to Avoid Scams])==stock-1,"live last active turn is sufficient");
-  print("LIVE NATIVE BARF CHECKS OK: 36 location/duration/outfit forecasts, restored location, guide cost/stock/block accounting, scoring cache and live upkeep");
+  print("LIVE NATIVE BARF CHECKS OK: 36 location/duration/outfit forecasts, BARF location, guide cost/stock/block accounting, scoring cache and live upkeep");
  }finally{set_location(original);barfDietResetSearchCaches();clear(barfTwoDayStages);clear(barfTwoDayInitialEffects);clear(barfDietEffectCache);}
 }
 

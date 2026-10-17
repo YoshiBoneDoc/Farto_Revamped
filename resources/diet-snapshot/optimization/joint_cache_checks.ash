@@ -57,6 +57,19 @@ string auditRun(barfTwoDayState initial){
  int pruned=barfDietJointBoundPruned;
  barfTwoDayState omitted=barfDietJointContinue(source,referenceMenu,true,barfDietScore(result)+1,cache);
  requireSame(omitted.cash<0&&barfDietJointBoundPruned==pruned+1,"exact fixed-continuation value skips an inferior branch");
+ string originalGap=get_property("teresBarfDietProfitGap");
+ try{
+  set_property("teresBarfDietProfitGap",2000);
+  variant=barfDietClone(source);variant.income+=1000;
+  omitted=barfDietJointContinue(variant,referenceMenu,true,barfDietScore(result),cache);
+  requireSame(omitted.cash<0&&barfDietJointSkippedCeiling>=barfDietScore(result)+1000,"certified sub-2000 gain can skip its replay");
+  variant.income+=2000;
+  barfTwoDayState material=barfDietJointContinue(variant,referenceMenu,true,barfDietScore(result),cache);
+  requireSame(material.cash>=0&&barfDietScore(material)>barfDietScore(result)+2999,"gain above 2000 remains eligible");
+  set_property("teresBarfDietProfitGap",0);variant.income-=2000;
+  material=barfDietJointContinue(variant,referenceMenu,true,barfDietScore(result),cache);
+  requireSame(material.cash>=0,"zero allowance retains a profitable 1000-Meat fixed continuation");
+ }finally{set_property("teresBarfDietProfitGap",originalGap);}
  barfDietResetSearchCaches();requireSame(count(barfDietContinuationLive)==0&&count(barfDietContinuationOwned)==0,"dependency and stock caches reset with snapshot");
  print("CHECKS JOINT CACHE OK: native suffix equivalence, retired stock, shared ingredients, daily headroom, liquidity, fixed-continuation bound and reset");return "OK";
 }
