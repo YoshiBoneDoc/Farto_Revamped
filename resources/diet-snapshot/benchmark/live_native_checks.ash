@@ -50,6 +50,10 @@ string liveNativeSetup(barfTwoDayState initial){
  barfLivePolicy=barfDietClone(initial);barfLiveStarted=total_turns_played();barfLiveEarlyTurns=initial.earlyJillTurns;
  barfLiveHighWater=initial.yetiXP;barfLiveCharged=false;barfLiveCoolSlots=7;clear(barfLiveRetained);
  set_property("_teresBarfPlanDay","");set_property("_teresBarfPlanMask",initial.mask);set_property("_teresBarfPlanStooper",initial.stooper);
+ barfLivePolicy.uses["pourSweat1"]=211;barfLivePolicy.uses["pourSweat2"]=358;
+ barfTwoDayState observed=barfLiveObserveFresh();
+ requireSame(observed.uses["pourSweat1"]==211&&observed.uses["pourSweat2"]==358,"live replanning preserves independent pour thresholds");
+ remove barfLivePolicy.uses["pourSweat1"];remove barfLivePolicy.uses["pourSweat2"];
  return "OK";
 }
 string liveNativeWarm(){

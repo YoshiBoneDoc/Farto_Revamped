@@ -1286,8 +1286,32 @@ barfTwoDayState barfDietSkipPour(barfTwoDayState source,int checkpoint){
 }
 barfTwoDayState barfDietTimedPour(barfTwoDayState s,int checkpoint){
     if(!barfDietPourPending(s,checkpoint))return s;
+    if(s.uses["pourSweat"+checkpoint]>s.sweat)return s;
     if(s.sweat<10||s.drunkenness>=barfDietLiverLimit(s))return barfDietSkipPour(s,checkpoint);
     return barfDietDistillState(s,checkpoint);
+}
+int barfDietPourSweatForYield(int adventures){
+    int sweat=max(10,ceil((max(1,adventures)-0.5)**2.5));
+    while(round(sweat**0.4)<adventures)sweat+=1;
+    while(sweat>10&&round((sweat-1)**0.4)>=adventures)sweat-=1;
+    return sweat;
+}
+int barfDietPourWait(barfTwoDayState s,int checkpoint){
+    if(!barfDietPourPending(s,checkpoint))return -1;
+    int target=s.uses["pourSweat"+checkpoint];
+    if(target<=0)return checkpoint==2?max(0,s.uses["pourMidTurn"]-s.turns):-1;
+    if(s.sweat>=target)return 0;
+    if(barfSetting("CombatsBetweenNC",30)<=0)return -1;
+    barfTwoDayStage stage=barfDietStage(s);
+    // Recheck trainer transitions every turn; normal farming generates one
+    // inactive-suit dram per combat, with the same noncombat pattern as farming.
+    if(stage.farmer==$familiar[Chest Mimic]||stage.farmer==$familiar[Cooler Yeti])return 1;
+    int need=target-s.sweat;int low=1;int high=need*2+2;
+    while(low<high){
+        int middle=(low+high)/2;
+        if(barfDietForecastCombats(s.turns,middle)>=need)high=middle;else low=middle+1;
+    }
+    return low;
 }
 int barfDietPourReserve(barfTwoDayState s,boolean late){
     int slots=late?1:0;
@@ -2024,11 +2048,16 @@ barfTwoDayState barfDietQuickFillStage(barfTwoDayState s,barfDietLateMenu menu,b
 barfTwoDayState barfDietQuickResources(barfTwoDayState s,barfDietLateMenu menu,boolean distill,boolean deferredOnly);
 barfTwoDayState barfDietQuickFarm(barfTwoDayState s,barfDietLateMenu menu,boolean distill){
     int paid=barfDietQuickFarmable(s);
-    while(paid>0||(barfDietPourPending(s,2)&&s.turns>=s.uses["pourMidTurn"])){
-        if(barfDietPourPending(s,2)){
-            int beforePour=s.uses["pourMidTurn"]-s.turns;
+    while(true){
+        int checkpoint=-1;int beforePour=-1;
+        foreach candidate in $ints[1,2]{
+            int wait=barfDietPourWait(s,candidate);
+            if(wait>=0&&(beforePour<0||wait<beforePour)){checkpoint=candidate;beforePour=wait;}
+        }
+        if(paid<=0&&beforePour!=0)break;
+        if(checkpoint>=0){
             if(beforePour<=0){
-                s=barfDietTimedPour(s,2);if(s.cash<0)return s;
+                s=barfDietTimedPour(s,checkpoint);if(s.cash<0)return s;
                 s=barfDietQuickFillStage(s,menu,distill);if(s.cash<0)return s;
                 s=barfDietQuickResources(s,menu,distill,true);if(s.cash<0)return s;
                 paid=barfDietQuickFarmable(s);
@@ -2188,7 +2217,7 @@ barfTwoDayState barfDietQuickPrepareTail(barfTwoDayState source,barfDietLateMenu
     s=barfDietQuickFarm(s,menu,distill);if(s.cash<0)return s;
     // A short or interrupted day may never reach the middle checkpoint. Release
     // its reserved liver space instead of inventing sweat or leaving it empty.
-    if(barfDietPourPending(s,2))s=barfDietSkipPour(s,2);
+    foreach checkpoint in $ints[1,2]if(barfDietPourPending(s,checkpoint))s=barfDietSkipPour(s,checkpoint);
     s.schedule+="phase\tFinal consumption: retained familiar-weight buffs and any reserved stillsuit pour.\n";
     if(distill){s=barfDietDistillState(s);if(s.cash<0)return s;}
     return s;
@@ -2279,7 +2308,7 @@ barfTwoDayState barfDietQuickTrial(barfTwoDayState initial,barfDietLateMenu menu
 }
 barfTwoDayState barfDietQuickProfile(barfTwoDayState initial,barfTwoDayState selected){
     barfTwoDayState s=barfDietClone(initial);
-    foreach flag in $strings[noWhet,noSpork,noExtras,fillWidth,marginalHelpers,trainingFood,pourStages,pourMidTurn,capacityPolicy]s.uses[flag]=selected.uses[flag];
+    foreach flag in $strings[noWhet,noSpork,noExtras,fillWidth,marginalHelpers,trainingFood,pourStages,pourMidTurn,pourSweat1,pourSweat2,capacityPolicy]s.uses[flag]=selected.uses[flag];
     return s;
 }
 boolean barfDietReplay(barfTwoDayState initial,barfTwoDayState plan);
@@ -2486,6 +2515,69 @@ barfTwoDayState barfDietEventPlan(barfTwoDayState initial,barfTwoDayState incumb
     return best;
 }
 
+// Reuse the actual initial meals and training, then price later sweat events
+// against ordinary drinks. No completed training block forces a pour here.
+barfTwoDayState barfDietPourContinuation(barfTwoDayState s,barfDietLateMenu menu,boolean distill){
+    s=barfDietTimedPour(s,1);if(s.cash<0)return s;
+    s=barfDietQuickFillStage(s,menu,distill);if(s.cash<0)return s;
+    // Action replay restores gameplay state, not rejected-resource bookkeeping.
+    // Recheck clearers once so a deferred sweat/organ clear is not silently lost.
+    s=barfDietQuickResources(s,menu,distill);if(s.cash<0)return s;
+    s=barfDietQuickFarm(s,menu,distill);if(s.cash<0)return s;
+    s=barfDietQuickPrepareTail(s,menu,distill);if(s.cash<0)return s;
+    return barfDietQuickComplete(s,menu);
+}
+barfTwoDayState barfDietRetimePours(barfTwoDayState initial,barfTwoDayState incumbent){
+    // Refine the training-coupled policy when selected. Repeating this on the
+    // independent middle/final policies added work without gain in the controls.
+    if(!barfDietBit(incumbent.uses["pourStages"],1)||incumbent.uses["pourSweat1"]>0)return incumbent;
+    barfDietLateMenu menu;boolean distill=false;boolean finalPhase=false;
+    foreach n,row in split_string(incumbent.schedule,"\n"){
+        string[int] cells=split_string(row,"\t");
+        if(cells[0]=="phase"&&contains_text(row,"Final consumption:"))finalPhase=true;
+        if(cells[0]=="distill"&&finalPhase)distill=true;
+        if(cells[0]=="consume"&&cells[4].to_boolean())foreach i,e in barfTwoDayItems if(to_int(e.target)==cells[1].to_int()){
+            menu.indices[count(menu.indices)]=i;menu.fullness+=e.fullness;menu.drunkenness+=e.drunkenness;menu.spleen+=e.spleen;break;
+        }
+    }
+    barfTwoDayState prefix=barfDietReplayStart(initial,incumbent);boolean found=false;int remainingSweat=incumbent.sweat;
+    foreach n,row in split_string(incumbent.schedule,"\n"){
+        string[int] cells=split_string(row,"\t");
+        if(!found&&prefix.mask==0&&!prefix.stooper&&barfDietStageKey(prefix)<128&&prefix.turns>=prefix.earlyJillTurns
+            &&((cells[0]=="farm"&&cells[2].to_int()<128)||(cells[0]=="distill"&&count(cells)>4&&cells[4].to_int()>0)))found=true;
+        if(found){if(cells[0]=="distill")remainingSweat+=cells[1].to_int();}
+        else if(row!="")prefix=barfDietReplayAction(prefix,row);
+    }
+    if(!found||prefix.cash<0||(!barfDietPourPending(prefix,1)&&!barfDietPourPending(prefix,2)))return incumbent;
+    foreach flag in $strings[noExtras,fillWidth]prefix.uses[flag]=incumbent.uses[flag];
+    barfTwoDayState best=barfDietClone(incumbent);boolean bestDistill=distill;
+    int started=now_to_int();int tested=0;int valid=0;
+    foreach checkpoint in $ints[1,2]{
+        if(!barfDietPourPending(prefix,checkpoint))continue;
+        // Integer yields change only at these exact sweat thresholds. The range
+        // comes from this complete diet's sweat, not an arbitrary elapsed turn.
+        int maximum=round(remainingSweat**0.4);
+        for choice from -1 to maximum{
+            if(choice>0&&(barfDietPourSweatForYield(choice)<=prefix.sweat
+                ||round(barfDietPourSweatForYield(choice)**0.4)!=choice))continue;
+            if(choice==-1&&bestDistill)continue;
+            barfTwoDayState trial=barfDietClone(prefix);
+            trial.uses["pourStages"]=best.uses["pourStages"];
+            foreach other in $ints[1,2]trial.uses["pourSweat"+other]=best.uses["pourSweat"+other];
+            if(barfDietBit(trial.uses["pourStages"],checkpoint))trial.uses["pourStages"]-=(2**checkpoint).to_int();
+            if(choice>0){trial.uses["pourStages"]+=(2**checkpoint).to_int();trial.uses["pourSweat"+checkpoint]=barfDietPourSweatForYield(choice);}
+            boolean late=choice==-1?true:bestDistill;tested+=1;
+            barfTwoDayState next=barfDietPourContinuation(trial,menu,late);
+            if(!barfDietMeetsTargets(next))continue;valid+=1;
+            if(barfDietScore(next)>barfDietScore(best)&&barfDietReplay(initial,next)){best=next;bestDistill=late;}
+        }
+    }
+    barfDietRememberComparison(best);
+    print("Later stillsuit opportunities: "+tested+" continuations, "+valid+" met targets; "+((now_to_int()-started)/1000.0)
+        +" seconds; gain "+round(barfDietScore(best)-barfDietScore(incumbent))+" Meat; "+barfDietPourSummary(best)+". Initial meals/training reused; liver priced against ordinary drinks.","blue");
+    return best;
+}
+
 barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     int started=now_to_int();barfDietTrialStarted=started;barfDietTrialCount=0;
     barfDietFillGenerated=0;barfDietFillDominated=0;barfDietFillBeamPruned=0;
@@ -2657,6 +2749,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
             +ceil(max(0,barfDietJointSkippedCeiling-barfDietScore(best)))+" Meat. This does not bound unexplored whole-day diets.","blue");
     }
     if(!barfDietQuickExpired()&&barfDietMeetsTargets(best))best=barfDietEventPlan(initial,best);
+    if(!barfDietQuickExpired()&&barfDietMeetsTargets(best))best=barfDietRetimePours(initial,best);
     if(barfDietQuickExpired())print("Planning safety limit reached; keeping the best complete diet. Incomplete alternatives have no claimed profit.","blue");
     print("Diet planning finished in "+((now_to_int()-started)/1000)+" seconds after "+barfDietTrialCount+" comparisons; fill states "+barfDietFillGenerated+", dominated "+barfDietFillDominated+", width-pruned "+barfDietFillBeamPruned+", joint buff pairs "+barfDietMenuPairsGenerated+"; gain over fallback "+round(barfDietScore(best)-barfDietQuickBaseline)+" Meat.","blue");
     barfDietSearchReport();
@@ -2665,7 +2758,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
 
 barfTwoDayState barfDietReplayStart(barfTwoDayState initial,barfTwoDayState plan){
     barfTwoDayState s=barfDietClone(initial);
-    foreach flag in $strings[noWhet,noSpork,trainingOverride,chestGoal,yetiGoal,allCool,coldRequired,coolSlots,marginalHelpers,trainingFood,pourStages,pourMidTurn,capacityPolicy]s.uses[flag]=plan.uses[flag];
+    foreach flag in $strings[noWhet,noSpork,trainingOverride,chestGoal,yetiGoal,allCool,coldRequired,coolSlots,marginalHelpers,trainingFood,pourStages,pourMidTurn,pourSweat1,pourSweat2,capacityPolicy]s.uses[flag]=plan.uses[flag];
     s.uses["coldRequired"]=plan.uses["initialColdRequired"];s.uses["coolSlots"]=plan.uses["initialCoolSlots"];
     return s;
 }
