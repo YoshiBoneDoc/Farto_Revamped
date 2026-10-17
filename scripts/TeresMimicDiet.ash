@@ -481,12 +481,15 @@ float[string] barfDietFutureCache;float[string] barfDietTomorrowCache;
 int[int] barfDietEffectCaps;
 barfTwoDayState[string] barfDietFillCache;
 int barfDietFillCacheHits;int barfDietFillCacheMisses;
+barfTwoDayState[string] barfDietPreparationCache;
+int barfDietPreparationHits;int barfDietPreparationMisses;
 void barfDietResetSearchCaches(){
     clear(barfDietExtraMenu);barfDietExtraMenuReady=false;
     clear(barfDietRateCache);clear(barfDietItemIncomeCache);
     clear(barfDietFutureCache);clear(barfDietTomorrowCache);clear(barfDietEffectCaps);
     clear(barfDietFarmPrefixes);barfDietFarmParentKey="";
     clear(barfDietFillCache);barfDietFillCacheHits=0;barfDietFillCacheMisses=0;
+    clear(barfDietPreparationCache);barfDietPreparationHits=0;barfDietPreparationMisses=0;
     barfDietMemoize=true;barfDietSkipBare=true;barfDietShareFarmForecasts=true;
 }
 string barfDietEffectKey(barfTwoDayState s,boolean exact){
@@ -1682,6 +1685,7 @@ void barfDietSearchReport(){
         +" met targets, "+barfDietSearchMetrics["cached"]+" cached; pairs reached="+barfDietPairReached+", expired at entry="+barfDietPairExpiredAtEntry
         +", eligible="+barfDietMenuPairsGenerated+", top="+barfDietPairTop+".","blue");
     print("SEARCH exact fill cache: "+barfDietFillCacheHits+" hits, "+barfDietFillCacheMisses+" misses, "+count(barfDietFillCache)+" stored (maximum 64).","blue");
+    print("SEARCH preparation cache: "+barfDietPreparationHits+" hits, "+barfDietPreparationMisses+" misses, "+count(barfDietPreparationCache)+" stored (maximum 16).","blue");
     if(!get_property("teresBarfDietDiagnostics").to_boolean())return;
     foreach phase in $strings[estimate,fallback,XP,starting,pours,width,local,training,pairs,capacity,events,bundles]{
         if(barfDietSearchMetrics[phase+":ms"]==0&&barfDietSearchMetrics[phase+":attempted"]==0)continue;
@@ -1893,7 +1897,7 @@ barfTwoDayState barfDietQuickFinish(barfTwoDayState source){
     return best;
 }
 
-barfTwoDayState barfDietQuickSchedule(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
+barfTwoDayState barfDietQuickPrepare(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
     barfTwoDayState s=barfDietClone(initial);
     s.schedule+="phase\tStart: normal farming gear; eat/drink/chew the quantities below.\n";
     if(s.milk==0&&!get_property("_milkOfMagnesiumUsed").to_boolean()&&s.uses["milk"]==0){
@@ -1945,6 +1949,30 @@ barfTwoDayState barfDietQuickSchedule(barfTwoDayState initial,barfDietLateMenu m
     if(barfDietPourPending(s,2))s=barfDietSkipPour(s,2);
     s.schedule+="phase\tFinal consumption: retained familiar-weight buffs and any reserved stillsuit pour.\n";
     if(distill){s=barfDietDistillState(s);if(s.cash<0)return s;}
+    return s;
+}
+barfTwoDayState barfDietQuickPreparation(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
+    if(!barfDietMemoize)return barfDietQuickPrepare(initial,menu,distill);
+    // Before retained items are consumed, menu identity has no effect: only its
+    // reserved organ totals and the final-pour reservation reach these transitions.
+    string key=menu.fullness+":"+menu.drunkenness+":"+menu.spleen+":"+distill+":"+barfDietExactStateKey(initial);
+    if(barfDietPreparationCache contains key){
+        barfDietPreparationHits+=1;
+        barfTwoDayState cached=barfDietClone(barfDietPreparationCache[key]);
+        cached.schedule=initial.schedule+cached.schedule;return cached;
+    }
+    barfDietPreparationMisses+=1;
+    barfTwoDayState result=barfDietQuickPrepare(initial,menu,distill);
+    if(result.cash>=0&&!barfDietQuickExpired()){
+        if(count(barfDietPreparationCache)>=16)clear(barfDietPreparationCache);
+        barfTwoDayState cached=barfDietClone(result);
+        cached.schedule=substring(cached.schedule,length(initial.schedule));
+        barfDietPreparationCache[key]=cached;
+    }
+    return result;
+}
+barfTwoDayState barfDietQuickSchedule(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
+    barfTwoDayState s=barfDietQuickPreparation(initial,menu,distill);if(s.cash<0)return s;
     foreach i,index in menu.indices{
         s=barfDietQuickConsume(s,barfTwoDayItems[index],true);if(s.cash<0)return s;
     }
@@ -2329,7 +2357,7 @@ void barfDietCandidateReport(boolean details){
         print("  "+n+" — "+status+". Examples: "+examples[status]+".","orange");
     print("Limited-stock/crafted options, distinct relevant effects and ordinary unlimited-stock backups are retained separately. Each organ fill ranks its current legal candidates, then explores a smaller menu; if that cannot fill exactly, it retries the full shortlist.","blue");
     print("Nightcap, organ-clearing resources, meal helpers and non-organ adventure items (chocolates, tofu, clocks) are evaluated separately. Unsupported special/mixed-organ items are not silently counted as ordinary fill options.","blue");
-    print("Quality filter: skip crappy/decent/good food and drink except useful retained familiar-weight effects. Spleen items and unrated/unknown food/drink stay eligible.","blue");
+    print("Quality filter: skip crappy/decent/good food and drink except useful retained familiar-weight effects, modeled delayed adventures and Affirmation Cookie (9 base adventures, one/day). Spleen items and unrated/unknown food/drink stay eligible.","blue");
     if(!details){print("Use teresBARF.ash diet-candidates to list the priced candidates, costs, stock, effects and shortlist status without running the optimizer.","blue");return;}
     barfTwoDayItem[int] rows;foreach it,e in barfDietCandidateDetails rows[count(rows)]=e;
     sort rows by to_string(value.target);
