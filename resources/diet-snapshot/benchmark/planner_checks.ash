@@ -66,6 +66,8 @@ void foodExperienceChecks(barfTwoDayState initial){
  s.uses["yetiGoal"]=100000;meal=barfDietEarlyTrainingFood(s);
  plain=barfDietFarmState(s,60);fancy=barfDietFarmState(meal,60);
  int fights=floor(50.0*barfSetting("CombatsBetweenNC",30)/(barfSetting("CombatsBetweenNC",30)+1));
+ requireSame(barfDietTrainingSongXP()==5&&plain.uses["trainingSongXP"]-s.uses["trainingSongXP"]
+  ==5*(plain.uses["trainingSongs"]-s.uses["trainingSongs"]),"icy revenge grants exactly five extra familiar XP per training combat");
  requireSame(fancy.yetiXP-plain.yetiXP==10*fights,"XP is granted only for combats inside the 50-turn effect, not noncombats or later turns");
  requireSame(barfDietExactStateKey(barfDietEarlyTrainingFood(meal))==barfDietExactStateKey(meal),"do not buy another copy of an already active training effect");
  s.yetiXP=100000;s.uses["yetiCharged"]=1;
