@@ -86,6 +86,8 @@ boolean barfVhsDue(){ return barfWandererDue("spookyVHSTapeMonster", "spookyVHST
 
 familiar barfVhsFamiliar(){
     boolean charged=get_property("_teresBarfPlannedExecution").to_boolean()&&get_property("_teresBarfPlanYetiCharged").to_boolean();
+    if(have_familiar($familiar[Chest Mimic])&&$familiar[Chest Mimic].experience<barfSetting("ChestXP",950))
+        return $familiar[Chest Mimic];
     if(!charged&&have_familiar($familiar[Cooler Yeti])&&$familiar[Cooler Yeti].experience<barfSetting("YetiXP",2000))
         return $familiar[Cooler Yeti];
     if(have_familiar($familiar[Stocking Mimic]))return $familiar[Stocking Mimic];
@@ -250,9 +252,10 @@ boolean barfTrainingBuff(effect buff){
 }
 
 // Shared by the forecast and the live path; hooks must preserve capacity swaps.
-item[slot] barfPlannedOutfit(int mask,familiar farmer,int trainer){
+item[slot] barfPlannedOutfit(int mask,familiar farmer,int trainer,boolean chargePants){
     item[slot] gear=trainer>0?barfTrainingOutfit():barfBaselineOutfit();
     if(trainer==0){
+        if(chargePants&&available_amount($item[designer sweatpants])>0)gear[$slot[pants]]=$item[designer sweatpants];
         if(mask%2==1)gear[$slot[shirt]]=$item[devilbone corset];
         if((mask/2)%2==1)gear[$slot[acc3]]=$item[angelbone chopsticks];
         if((mask/4)%2==1)gear[$slot[acc2]]=$item[angelbone dice];
@@ -267,6 +270,7 @@ item[slot] barfPlannedOutfit(int mask,familiar farmer,int trainer){
     }
     return gear;
 }
+item[slot] barfPlannedOutfit(int mask,familiar farmer,int trainer){return barfPlannedOutfit(mask,farmer,trainer,false);}
 
 void barfTrainingBuffs(){
     foreach potion in $items[white candy heart, deviled candy egg]{
@@ -308,14 +312,16 @@ void barfGear(){
         int trainer=get_property("_teresBarfPlanTrainer").to_int();
         familiar farmer=trainer==128?$familiar[Chest Mimic]:trainer==256?$familiar[Cooler Yeti]
             :get_property("_teresBarfPlanStooper").to_boolean()?$familiar[Stooper]:$familiar[Jill-of-All-Trades];
-        // Free copies use the Yeti until charged, then the Stocking Mimic.
+        // Free copies train an eligible Mimic/Yeti before returning to Stocking Mimic.
         // Keep Stooper/capacity equipment once its extra organ space is occupied.
         if(barfVhsDue()&&get_property("_teresBarfPlanMask").to_int()==0&&!get_property("_teresBarfPlanStooper").to_boolean()){
-            farmer=barfVhsFamiliar();trainer=farmer==$familiar[Cooler Yeti]?256:0;
+            farmer=barfVhsFamiliar();
+            trainer=farmer==$familiar[Chest Mimic]?128:farmer==$familiar[Cooler Yeti]?256:0;
             set_property("_teresBarfPlanTrainer",trainer);
         }
         if(!use_familiar(farmer))abort("Planned BARF could not select "+farmer+".");
-        foreach spot,it in barfPlannedOutfit(get_property("_teresBarfPlanMask").to_int(),farmer,trainer)
+        foreach spot,it in barfPlannedOutfit(get_property("_teresBarfPlanMask").to_int(),farmer,trainer,
+            get_property("_teresBarfPlanSweatpants").to_boolean())
             if(equipped_item(spot)!=it&&!equip(spot,it))abort("Planned BARF could not equip "+it+" in "+spot+".");
         if(have_equipped($item[Jurassic Parka])&&get_property("parkaMode")!="kachungasaur"&&!cli_execute("parka kachungasaur"))abort("Could not set farming parka mode.");
         if(farmer==$familiar[Jill-of-All-Trades]&&get_property("ledCandleMode")!="ultraviolet"&&!cli_execute("ledcandle ultraviolet"))abort("Could not set farming candle mode.");
@@ -375,6 +381,14 @@ void barfKnuckleboneRests(){
     } finally { use_familiar(saved); }
 }
 
+boolean barfAccordionSong(effect buff){
+    // KoLmafia's skill.song flag is false for the classic AT buffs. The
+    // installed classskills table places songs at 6000-6028 and 6045-6046;
+    // later class expressions at 6036, 6042 and 6044 are deliberately excluded.
+    skill source=to_skill(buff);int id=source.id;
+    return ((id>=6000&&id<=6028)||(id==6045||id==6046))&&to_effect(source)==buff;
+}
+
 int barfSkillBuffCasts(skill source, int turns, int coverage, int manaAvailable){
     if (!have_skill(source)) return 0;
     effect buff = to_effect(source);
@@ -385,9 +399,9 @@ int barfSkillBuffCasts(skill source, int turns, int coverage, int manaAvailable)
     int availableCasts = source.dailylimit.to_int();
     if (availableCasts >= 0) casts = min(casts,availableCasts);
     if (casts <= 0) return 0;
-    if (source.song && coverage == 0){
+    if (barfAccordionSong(to_effect(source)) && coverage == 0){
         int songs = 0;
-        foreach active in my_effects() if (to_skill(active).song) songs += 1;
+        foreach active in my_effects() if (barfAccordionSong(active)) songs += 1;
         int capacity = 3 + (boolean_modifier("Four Songs") ? 1 : 0)
             + (have_skill($skill[Mariachi Memory]) ? 1 : 0);
         if (songs >= capacity) return 0;
@@ -487,7 +501,36 @@ void barfKiosk(boolean acceptJob){
     } finally { set_property("choiceAdventureScript",saved); }
 }
 
+void barfDinseyGarbage(){
+    if(get_property("_dinseyGarbageDisposed").to_boolean())return;
+    string saved=get_property("choiceAdventureScript");string savedChoice=get_property("choiceAdventure1067");int turn=total_turns_played();
+    try{
+        set_property("choiceAdventureScript","");set_property("choiceAdventure1067",0);
+        visit_url("place.php?whichplace=airport_stench&action=airport3_tunnels");
+        if(get_property("_dinseyGarbageDisposed").to_boolean())return;
+        if(!handling_choice()||last_choice()!=1067){
+            print("BARF: Maintenance Tunnels did not offer waste disposal today.","red");return;
+        }
+        string[int] choices=available_choice_options();
+        if(!(choices contains 6)){
+            print("BARF: Waste Disposal option 6 was unavailable; leaving the tunnel choice.","red");
+            boolean left=false;
+            foreach option,label in choices if(contains_text(to_lower_case(label),"leave")){run_choice(option);left=true;break;}
+            if(!left||handling_choice())abort("BARF could not leave Maintenance Tunnels cleanly.");
+            return;
+        }
+        run_choice(6);
+        if(handling_choice())abort("BARF waste disposal left an unresolved choice.");
+        if(total_turns_played()!=turn)abort("BARF waste disposal unexpectedly spent an adventure.");
+        if(!get_property("_dinseyGarbageDisposed").to_boolean())
+            print("BARF: waste disposal did not register; continuing without the FunFunds.","red");
+    }finally{set_property("choiceAdventureScript",saved);set_property("choiceAdventure1067",savedChoice);}
+}
+
 void barfPostAdventure(){
+    if (have_effect($effect[resined]) == 0
+        && (!use($item[distilled resin]) || have_effect($effect[resined]) == 0))
+        print("BARF could not refresh Get Resined after combat; distilled resin use failed.", "red");
     if (have_equipped($item[Portable Laughing Stock]))
         foreach fruit in $items[antique watermelon, classic banana, quince]
             if (item_amount(fruit) > get_property("_teresBarfFruitBefore" + to_int(fruit)).to_int())

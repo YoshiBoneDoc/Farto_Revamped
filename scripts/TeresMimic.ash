@@ -3,6 +3,7 @@
 import iotm.ash;
 import preadventure.ash;
 import farmingProfit.ash;
+import TeresMimicDiet.ash;
 
 string highStat = "";
 string lowStat = "";
@@ -198,6 +199,22 @@ void prepBuffs(){
 	// Golden dice random effects
 	if (get_property("_glennGoldenDiceUsed") == "false" && have_item($item[Glenn's golden dice]))
 		use($item[Glenn's golden dice]);
+    // Universal Seasoning
+    if (get_property("_universalSeasoningsUsed") == 0 && have_item($item[Universal Seasoning]))
+        use($item[universal seasoning]);
+    // Daily BCZ casts
+    int castsRemaining = max(0, 9 - get_property("_bczSweatEquityCasts").to_int());
+    if (castsRemaining > 0)
+        cli_execute("cast " + castsRemaining + " bcz: Sweat Equity");
+    castsRemaining = max(0, 6 - get_property("_bczSpinalTapasCasts").to_int());
+    if (castsRemaining > 0)
+        cli_execute("cast " + castsRemaining + " BCZ: Prepare Spinal Tapas");
+    castsRemaining = max(0, 6 - get_property("_bczBloodThinnerCasts").to_int());
+    if (castsRemaining > 0)
+        cli_execute("cast " + castsRemaining + " BCZ: Create Blood Thinner");
+    castsRemaining = max(0, 6 - get_property("_bczPheromoneCocktailCasts").to_int());
+    if (castsRemaining > 0)
+        cli_execute("cast " + castsRemaining + " BCZ: Craft a Pheromone Cocktail");
 
     setClan("stash");
     // effects that interfere with other buffs we need
@@ -236,11 +253,12 @@ void prepBuffs(){
         if (!to_boolean(get_property("_daycareSpa")))
             cli_execute("daycare mysticality");
     }
-
-    // fam weight
+    // Heartstone Pals
     int palsCastsRemaining = max(0, 5 - to_int(get_property("_heartstonePalsUsed")));
     if (palsCastsRemaining > 0)
         cli_execute("cast " + palsCastsRemaining + " Heartstone: %pals");
+
+    // fam weight
     string [int] famWeightEffects = {"Robot Friends", "Healthy Green Glow", "Chorale of Companionship", "Human-Fish Hybrid", "Whole Latte Love", "Shortly Stacked", "Thoughtful Empathy", "Leash of Linguini", "blood bond", "Empathy", "Black Tongue", "Man's Worst Enemy", "Kindly Resolve", "Human-Machine Hybrid", "Shrimpin' Ain't Easy", "Over-Familiar With Dactyls", "Loyal Tea", "Warm Shoulders", "One Foot Heavier", "Work For Hours a Week", "Panna Consideration", "Loyal as a Rock", "Candied Devil", "Wildsun Boon", "Only Dogs Love a Drunken Sailor", "Best Pals", "Heart of Green", "Bestial Sympathy", "Herder, Bitter, Fester, Stranger", "Party Soundtrack", "Shortly Wired", "Crocodile Tear", "Spiced Out", "offhand remarkable", "Billiards Belligerence", "A Girl Named Sue"};
     foreach i, effectName in famWeightEffects {
         effect ef = to_effect(effectName);
@@ -268,11 +286,15 @@ void prepBuffs(){
     }
 
     // meat drop
-    while (have_effect($effect[Merry Smithsness]) < 100){
+    while (have_effect($effect[Merry Smithsness]) < 800){
         if (item_amount($item[Flaskfull of Hollow]) == 0 && !retrieve_item(1, $item[Flaskfull of Hollow]))
             abort("Could not buy Flaskfull of Hollow.");
         if (!use(1, $item[Flaskfull of Hollow]))
             abort("Could not use Flaskfull of Hollow.");
+    }
+    while (have_effect($effect[How to Scam Tourists]) < 900){
+        retrieve_item(1, $item[How to Avoid Scams]);
+        use(1, $item[How to Avoid Scams]);
     }
     if (have_effect($effect[Winklered]) == 0)
         cli_execute("concert Winklered");
@@ -296,7 +318,7 @@ void prepBuffs(){
     // Additional farming buffs, acquired only when missing.
     foreach ef in $effects[Flapper Dancin', Polka Face,
         The Ballad of Richie Thingfinder, Earning Interest, Bet Your Autumn Dollar,
-        Sweat Equity, Heart of Pink, Tingling Feeling, Disco Leer]{
+        Sweat Equity, Heart of Pink, Disco Leer]{
         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef)))
             continue;
         if (have_effect(ef) == 0)
@@ -396,7 +418,7 @@ int prefFreeKillsLeft(string pref, int cap){
 // deal (looseFK()/weakMonsters() sources included). Keyed by the preference itself.
 int [string] freeKillCap = {
     "_cyberFreeFights": 10,
-    "_bczSweatBulletsCasts": 13,
+    "_bczSweatBulletsCasts": 11,
     "_gingerbreadMobHitUsed": 1,
     "_shatteringPunchUsed": 3,
     "_firedJokestersGun": 1,
@@ -537,22 +559,23 @@ void dieting(){
         if (get_property("_cupOf13sJewels") == 13){
             // alternatives: tombstone-shaped Crimboween cookie (40 turns) --> mach 1 airplane (80 turns)
             cli_execute("acquire papier Mach 1 airplane; acquire clockwork pirate skull");
-            if (mall_price($item[Affirmation Cookie]) < 6000){
-                cli_execute("acquire 4 Affirmation Cookie");
-                visit_url("inventory.php?action=cupof13s");
-                visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=9486&whichitem2=11890&whichitem3=1363");
-                visit_url("inventory.php?action=cupof13s");
-                visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=9486&whichitem2=9486&whichitem3=9486");
-            } else {
-                if (item_amount($item[asbestos meat stack]) < 4)
-                    cli_execute("make 4 asbestos meat stack");
-                cli_execute("acquire 4 asbestos meat stack");
-                visit_url("inventory.php?action=cupof13s");
-                visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=376&whichitem2=376&whichitem3=376");
-                visit_url("inventory.php?action=cupof13s");
-                visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=376&whichitem2=2200&whichitem3=1708");
-            }
+            cli_execute("acquire 4 Affirmation Cookie");
+            visit_url("inventory.php?action=cupof13s");
+            visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=11890&whichitem2=1363&whichitem3=9486");
+            visit_url("inventory.php?action=cupof13s");
+            visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=9486&whichitem2=9486&whichitem3=9486");
         }
+/*
+        } else {
+            if (item_amount($item[asbestos meat stack]) < 4)
+                cli_execute("make 4 asbestos meat stack");
+            cli_execute("acquire 4 asbestos meat stack");
+            visit_url("inventory.php?action=cupof13s");
+            visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=376&whichitem2=376&whichitem3=376");
+            visit_url("inventory.php?action=cupof13s");
+            visit_url("choice.php?option=1&whichchoice=1601&"+my_hash()+"&whichitem1=376&whichitem2=2200&whichitem3=1708");
+        }
+*/
         // END OF DAY DIET BUFFING SHOULD GO HERE - eodDiet();
 	}
 }
@@ -584,7 +607,7 @@ void goodies() {
     setClan("stash");
     if((item_amount($item[Brutal brogues]) == 0)){
         retrieve_item($item[bastille battalion control rig loaner voucher]);
-        cli_execute("bastille muscle");
+        cli_execute("bastille Brutalist Lava Gesture");
     }
     // Amulet coin
     if (available_amount($item[amulet coin]) == 0) {
@@ -593,6 +616,31 @@ void goodies() {
         use($item[box of Familiar Jacks]);
         use_familiar($familiar[Stocking Mimic]);
     }
+    // Forsee peril
+    while (get_property("_perilsForeseen") < 3){
+        cli_execute("throw peridot of peril at Torturebot");
+    }
+
+    // Collect today's catalog credits before spending the remaining picks on VHS tapes.
+    item catalog = item_amount($item[2002 Mr. Store Catalog]) + closet_amount($item[2002 Mr. Store Catalog]) > 0
+        ? $item[2002 Mr. Store Catalog] : $item[Replica 2002 Mr. Store Catalog];
+    if (item_amount(catalog) == 0 && closet_amount(catalog) > 0 && !take_closet(1, catalog))
+        abort("Could not retrieve the 2002 Mr. Store Catalog from the closet.");
+    if (item_amount(catalog) > 0 && !get_property("_2002MrStoreCreditsCollected").to_boolean()){
+        if (!use(1, catalog))
+            abort("Could not collect today's 2002 Mr. Store credits.");
+    }
+    if (get_property("_2002MrStoreCreditsCollected").to_boolean()){
+        visit_url("shop.php?whichshop=mrstore2002");
+        int credits = get_property("availableMrStore2002Credits").to_int();
+        if (credits > 0){
+            int tapes = item_amount($item[Spooky VHS Tape]);
+            if (!buy($coinmaster[Mr. Store 2002], credits, $item[Spooky VHS Tape])
+                || item_amount($item[Spooky VHS Tape]) - tapes != credits)
+                abort("Could not spend the remaining 2002 Mr. Store credits on Spooky VHS Tapes.");
+        }
+    }
+
 }
 
 // Workshed rotation: harvest TakerSpace before the morning train installation;
@@ -1733,10 +1781,21 @@ void cyberzone() {
 }
 
 // Final phase: use the remaining NC forces for boss quests; leave Coldform as-is.
-// Placeholder until the full-day diet projection supplies this value.
+int shadowWatersExpectedTurns(){
+    int manual=get_property("teresBarfExpectedAdventures").to_int();
+    if(manual>0){print("Shadow Waters: using manually configured "+manual+" BARF turns.","blue");return manual;}
+    int projected=barfDietProjectedPaidTurns();
+    if(projected>0){print("Shadow Waters: first complete diet projects "+projected+" paid BARF encounters.","blue");return projected;}
+    // If the exact schedule cannot be completed at this point, bank against a
+    // conservative current-state estimate so the remaining free kills continue.
+    int reserve=max(0,200-barfDietNightcapMinimum()-barfSetting("RolloverGain",145)-barfSetting("ClanRolloverGain",0));
+    int estimate=max(0,my_adventures()-reserve)
+        +max(0,17-my_fullness())*18+max(0,21-my_inebriety())*7+max(0,17-my_spleen_use())*3+100;
+    print("Shadow Waters: no complete diet projection; using a conservative "+estimate+"-turn current-state estimate. Set teresBarfExpectedAdventures to override it.","red");
+    return estimate;
+}
 void bankShadowWaters(){
-    int expected = get_property("teresBarfExpectedAdventures").to_int();
-    if (expected <= 0) expected = 700;
+    int expected = shadowWatersExpectedTurns();
     int target = expected + 30;
     string[string] saved;
     foreach pref in $strings[choiceAdventureScript, choiceAdventure1497, choiceAdventure1498, _teresRufusWatersOnly]
@@ -1887,11 +1946,9 @@ void uneffectBuff(){
 boolean looseFK(){
     set_property("maxOverride","familiar weight, equip eternity codpiece");
     // Prefer Sweat Bullets when affordable; flag an early stop before 9 casts.
-    if (sweatBulletsReady(62500)){
+    if (sweatBulletsReady(714025)){
         print ("FK is sweat");
         return true;
-    } else if (get_property("_bczSweatBulletsCasts").to_int() < 9){
-        print("Sweat Bullets is not affordable; checking other free-kill sources.", "blue");
     }
     if (get_property("_gingerbreadMobHitUsed") == "false"){
         print ("FK is gingerbread");
@@ -2561,6 +2618,49 @@ void debug() {
 
 }
 
+// Burn any leftover monkey paw wishes on Salty mouth + drinking a party beer bomb
+void dailyFKPawBeers(){
+    item beer=$item[party beer bomb];
+    int remaining=max(0,5-get_property("_monkeyPawWishesUsed").to_int());
+    if(remaining==0||available_amount($item[cursed monkey's paw])==0)return;
+    if(!have_skill($skill[The Ode to Booze])){
+        print("Skipping Salty Mouth wishes: The Ode to Booze is unavailable.","red");
+        return;
+    }
+    while(get_property("_monkeyPawWishesUsed").to_int()<5){
+        if(available_amount(beer)==0){
+            print("Stopping Salty Mouth wishes: no Party Beer Bomb remains to clear the effect.","red");
+            return;
+        }
+        if(my_inebriety()+beer.inebriety>inebriety_limit()){
+            print("Stopping Salty Mouth wishes: drinking a Party Beer Bomb would exceed liver capacity.","red");
+            return;
+        }
+        barfOde(beer.inebriety);
+        if(have_effect($effect[Salty Mouth])>0){
+            int existingBeer=available_amount(beer);
+            if(!drink(1,beer))abort("Could not drink Party Beer Bomb after acquiring Ode.");
+            if(available_amount(beer)>=existingBeer||my_inebriety()>inebriety_limit()
+                ||have_effect($effect[Salty Mouth])>0)
+                abort("Could not safely clear the existing Salty Mouth effect with Party Beer Bomb.");
+            continue;
+        }
+        int wishesBefore=get_property("_monkeyPawWishesUsed").to_int();
+        cli_execute("monkeypaw effect Salty Mouth");
+        if(get_property("_monkeyPawWishesUsed").to_int()!=wishesBefore+1
+            ||have_effect($effect[Salty Mouth])==0)
+            abort("Monkey Paw failed to grant Salty Mouth; stopping before drinking.");
+        barfOde(beer.inebriety);
+        int beerBefore=available_amount(beer);
+        if(!drink(1,beer))abort("Could not drink Party Beer Bomb after acquiring Ode.");
+        if(available_amount(beer)>=beerBefore||my_inebriety()>inebriety_limit())
+            abort("Party Beer Bomb was not consumed safely after acquiring Ode.");
+        if(have_effect($effect[Salty Mouth])>0)
+            abort("Party Beer Bomb did not clear Salty Mouth; stopping before another wish.");
+    }
+    print("Used remaining Monkey Paw wishes on Salty Mouth, clearing each with a Party Beer Bomb under Ode.","blue");
+}
+
 // Essentially main function for Hat Path aftercore - this is the old bulkFKD2 function
 void dailyFKs() {
     step("phase: dailyFKs start");
@@ -2637,6 +2737,8 @@ void dailyFKs() {
     step("phase: dailyFKs set fire to embezzlers with ~ Lucky! ~ sources");
     luckyEmbezzlers();
 
+    step("phase: dailyFKs ... Using remaining wishes for Salty Mouth + party beer bombs");
+    dailyFKPawBeers();
     // use NC forces at end so we dont waste effect turns meant for FKs when getting reward
     step("phase: dailyFKs NC force in Shadow Rift");
     shadowRiftForcers();
@@ -2675,6 +2777,24 @@ void dailyFKs() {
     // bulk items to buy: gingerbread cigarette (<1k)
     // law of averages
     // affirmation cookies for diet
+
+    // BARF STUFF:
+        Buffs:
+            - cranberry cordial
+            - blackberry polite
+            - baggie of powdered sugar
+            - flapper fly
+            - polka of plenty
+            Use if we have?:
+                - polka pop
+                - savings bond
+                - autumn dollar
+                - pork elf mouthwash
+            + any other calculated to be profitable buff
+        - hobo.js breakfast
+        - implement everything looks.... combat stuff
+        - day shortener
+        - shrunken zombie head stuff
 */
 
      // TODO: Choose Monster Habitats and Be Gregarious targets, then re-enable chainRoamingMonster() in unlockerCCS.ash.

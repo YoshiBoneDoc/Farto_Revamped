@@ -77,7 +77,7 @@ void barfDietSnapshot(){
         state["capacity."+to_int(it)]=numeric_modifier(it,"Stomach Capacity")+"\t"+numeric_modifier(it,"Liver Capacity")+"\t"+numeric_modifier(it,"Spleen Capacity");
     foreach pref in $strings[familiarSweat,sweat,_sweatOutSomeBoozeUsed,_milkOfMagnesiumUsed,milkOfMagnesiumActive,
         _fudgeSporkUsed,_saladForkUsed,_frostyMugUsed,miniKiwiAiolisUsed,whetstonesUsed,legendaryNoodlesStomach,
-        _legendaryNoodlesSpleen,_mimeArmyShotglassUsed,_coolerYetiAdventures,coolerYetiMode,_monkeyPawWishesUsed,
+        _legendaryNoodlesSpleen,_mimeArmyShotglassUsed,_coolerYetiAdventures,coolerYetiMode,
         currentMojoFilters,_distentionPillUsed,_syntheticDogHairPillUsed,spiceMelangeUsed,_sweetToothUsed,_voraciTeaUsed,
         _sobrieTeaUsed,_aug16Cast,_augSkillsCast,_speakeasyDrinksDrunk,extraRolloverAdventures,ledCandleMode,
         ghostPepperTurnsLeft,getsYouDrunkTurnsLeft,beGregariousCharges,beGregariousFightsLeft,beGregariousMonster,
@@ -180,6 +180,12 @@ barfTwoDayState barfDietClone(barfTwoDayState a){
     b.finished=a.finished;b.chestXP=a.chestXP;b.earlyJillTurns=a.earlyJillTurns;b.liquidIncome=a.liquidIncome;
     b.trainingCost=a.trainingCost;b.trainingOpportunity=a.trainingOpportunity;return b;
 }
+int barfDietSweatCastsRemaining(barfTwoDayState s){return max(0,3-get_property("_sweatOutSomeBoozeUsed").to_int()-s.uses["sweat"]);}
+boolean barfDietChargePants(barfTwoDayState s){
+    return have_skill($skill[Sweat Out Some Booze])&&available_amount($item[designer sweatpants])>0
+        &&!barfDietBit(s.mask,5)&&s.pantsSweat<100
+        &&(barfDietSweatCastsRemaining(s)>0||s.pantsSweat<75);
+}
 int barfDietStageKey(barfTwoDayState s){
     int key=s.mask+(s.stooper?64:0);
     if(s.mask==0&&!s.stooper&&s.turns>=s.earlyJillTurns){
@@ -187,7 +193,9 @@ int barfDietStageKey(barfTwoDayState s){
         else if(have_familiar($familiar[Chest Mimic])&&s.chestXP<barfDietTrainingGoal(s,true))key+=128;
         else if(have_familiar($familiar[Cooler Yeti])&&s.yetiXP<barfDietTrainingGoal(s,false))key+=256;
     }
-    return key;
+    // Negative keys distinguish the charging outfit without crossing the
+    // positive 128/256 trainer thresholds used by the planner and live path.
+    return key<128&&barfDietChargePants(s)?-key-1:key;
 }
 int barfDietDuration(barfTwoDayState s,effect ef){return max(0,s.effects[to_int(ef)]);}
 
@@ -208,16 +216,13 @@ record barfDietEffectData {
 barfDietEffectData[effect] barfDietEffectCache;
 barfDietEffectData barfDietEffect(effect buff){
     if(!(barfDietEffectCache contains buff)){
-        location previous=my_location();
         barfDietEffectData data;
         // Conditional native modifiers must describe the forecast destination,
         // even when the last real adventure was elsewhere.
-        try{
-            set_location($location[Barf Mountain]);
-            data.meat=numeric_modifier(buff,"Meat Drop");data.weight=numeric_modifier(buff,"Familiar Weight");
-            data.weightPercent=numeric_modifier(buff,"Familiar Weight Percent");data.experience=numeric_modifier(buff,"Familiar Experience");
-            data.itemDrop=numeric_modifier(buff,"Item Drop");data.smithsness=numeric_modifier(buff,"Smithsness");
-        }finally{set_location(previous);}
+        set_location($location[Barf Mountain]);
+        data.meat=numeric_modifier(buff,"Meat Drop");data.weight=numeric_modifier(buff,"Familiar Weight");
+        data.weightPercent=numeric_modifier(buff,"Familiar Weight Percent");data.experience=numeric_modifier(buff,"Familiar Experience");
+        data.itemDrop=numeric_modifier(buff,"Item Drop");data.smithsness=numeric_modifier(buff,"Smithsness");
         barfDietEffectCache[buff]=data;
     }
     return barfDietEffectCache[buff];
@@ -252,7 +257,7 @@ boolean barfDietRelevantEffect(effect buff){
     barfDietEffectData data=barfDietEffect(buff);
     return data.meat!=0||data.weight!=0||data.weightPercent!=0||data.experience!=0||data.itemDrop!=0
         ||data.smithsness!=0
-        ||$effects[Song of the Glorious Lunch,Barrel of Laughs,Refined Palate,Gar-ish,Beer Barrel Polka,Salty Mouth,Looking Cool,Smart Drunk] contains buff;
+        ||$effects[Refined Palate,Gar-ish,Salty Mouth,Looking Cool,Smart Drunk] contains buff;
 }
 
 int barfDietDailyUsed(string preference){
@@ -334,8 +339,8 @@ item barfDietProjectedFamiliarGear(familiar farmer,int trainer){
     return available_amount($item[tiny stillsuit])>0?$item[tiny stillsuit]:$item[none];
 }
 
-boolean barfDietFixedGear(int mask,familiar farmer,int trainer){
-    item[slot] gear=barfPlannedOutfit(mask,farmer,trainer);
+boolean barfDietFixedGear(int mask,familiar farmer,int trainer,boolean chargePants){
+    item[slot] gear=barfPlannedOutfit(mask,farmer,trainer,chargePants);
     if(trainer==0)gear[$slot[familiar]]=barfDietProjectedFamiliarGear(farmer,0);
     int[item] required;
     string speculation="speculate quiet; familiar "+farmer+barfDietBaseModes;
@@ -347,6 +352,7 @@ boolean barfDietFixedGear(int mask,familiar farmer,int trainer){
     clear(barfDietSpecGear);foreach spot,it in gear barfDietSpecGear[spot]=it;
     return true;
 }
+boolean barfDietFixedGear(int mask,familiar farmer,int trainer){return barfDietFixedGear(mask,farmer,trainer,false);}
 
 int barfDietStockCash(barfTwoDayState s,item target,int quantity,int price){
     if(target==$item[none])return quantity*price;
@@ -390,7 +396,7 @@ float barfDietDropIncome(float bonus){
     }
     return barfDietDropIncomeCache[key];
 }
-barfTwoDayStage barfDietBuildStageAtBarf(int mask,boolean stooper,int trainer){
+barfTwoDayStage barfDietBuildStageAtBarf(int mask,boolean stooper,int trainer,boolean chargePants){
     barfTwoDayStage stage;
     stage.mask=mask;stage.stooper=stooper;
     foreach i,it in barfTwoDayCapacityItems if (barfDietBit(mask,i)&&available_amount(it)==0){stage.error="Missing capacity item: "+it+".";return stage;}
@@ -398,12 +404,13 @@ barfTwoDayStage barfDietBuildStageAtBarf(int mask,boolean stooper,int trainer){
     if(!have_familiar(farmer)){stage.error="Familiar unavailable: "+farmer+".";return stage;}
     if(trainer==0&&!stooper&&available_amount($item[LED candle])==0){stage.error="Jill's LED candle is unavailable.";return stage;}
     string goal=barfDietStageGoal(mask,stooper);
+    if(chargePants)goal+=", equip designer sweatpants";
     if(trainer>0){
         goal="familiar experience, switch "+(trainer==128?"Chest Mimic":"Cooler Yeti")+", -equip PirateRealm eyepatch";
         foreach spot,it in barfTrainingOutfit()goal+=", equip "+it;
         if(my_path()==$path[Hat Trick]&&equipped_item($slot[hat])!=$item[none])goal+=", equip "+equipped_item($slot[hat]);
     }
-    if (!barfDietFixedGear(mask,farmer,trainer)){stage.error="Could not forecast the fixed BARF outfit and its required swaps. Check the equipped baseline and item ownership.";return stage;}
+    if (!barfDietFixedGear(mask,farmer,trainer,chargePants)){stage.error="Could not forecast the fixed BARF outfit and its required swaps. Check the equipped baseline and item ownership.";return stage;}
     item gear=barfDietFastGear?barfDietProjectedFamiliarGear(farmer,trainer):trainer>0?$item[tiny stillsuit]:stooper?barfFamiliarGear(farmer):$item[LED candle];
     stage.farmer=farmer;stage.familiarGear=gear;
     stage.fullness=fullness_limit()+round(numeric_modifier("Generated:_spec","Stomach Capacity")-numeric_modifier("Stomach Capacity"));
@@ -429,23 +436,24 @@ barfTwoDayStage barfDietBuildStageAtBarf(int mask,boolean stooper,int trainer){
     if(trainer==0&&!barfDietBit(mask,0))
         stage.nonfamiliarMeat+=numeric_modifier("JurassicParka:kachungasaur","Meat Drop")-numeric_modifier("JurassicParka:"+get_property("parkaMode"),"Meat Drop");
     stage.equipment=goal;stage.experience=1+numeric_modifier("Generated:_spec","Familiar Experience");
-    stage.sweatpants=trainer>0;
+    stage.sweatpants=barfDietSpecGear[$slot[pants]]==$item[designer sweatpants];
     float itemdrop=numeric_modifier("Generated:_spec","Item Drop");
     stage.itemDrop=itemdrop;stage.itemIncome=barfDietDropIncome(itemdrop);
     stage.legal=true;return stage;
 }
 
 barfTwoDayStage barfDietBuildStage(int mask,boolean stooper,int trainer){
-    location previous=my_location();
-    try{
-        set_location($location[Barf Mountain]);
-        return barfDietBuildStageAtBarf(mask,stooper,trainer);
-    }finally{set_location(previous);}
+    set_location($location[Barf Mountain]);
+    return barfDietBuildStageAtBarf(mask,stooper,trainer,false);
+}
+barfTwoDayStage barfDietBuildStage(int mask,boolean stooper,int trainer,boolean chargePants){
+    set_location($location[Barf Mountain]);
+    return barfDietBuildStageAtBarf(mask,stooper,trainer,chargePants);
 }
 
 barfTwoDayStage barfDietStage(barfTwoDayState s){
     int key=barfDietStageKey(s);
-    if (!(barfTwoDayStages contains key)) barfTwoDayStages[key]=barfDietBuildStage(s.mask,s.stooper,key>=256?256:key>=128?128:0);
+    if (!(barfTwoDayStages contains key)) barfTwoDayStages[key]=barfDietBuildStage(s.mask,s.stooper,key>=256?256:key>=128?128:0,key<0);
     return barfTwoDayStages[key];
 }
 
@@ -578,7 +586,6 @@ float barfDietLiquidRate(barfTwoDayState s,barfTwoDayStage stage){
 int barfDietNightcapMinimum(){
     int result=40;
     if (have_skill($skill[The Ode to Booze])) result+=10;
-    if (have_skill($skill[Rowdy Drinker])) result+=10;
     return result;
 }
 int barfDietProjectedStart(barfTwoDayState s,float remainingConsumption){
@@ -683,6 +690,13 @@ barfTwoDayState barfDietFarmState(barfTwoDayState source,int paid){
             }
             if(s.mask==0&&!s.stooper&&s.turns<s.earlyJillTurns)block=min(block,s.earlyJillTurns-s.turns);
         }
+        if(stage.sweatpants&&s.pantsSweat<100){
+            int goal=barfDietSweatCastsRemaining(s)>0?100:75;
+            if(s.pantsSweat<goal){
+                int ceiling=block;
+                for n from 1 to ceiling if(2*barfDietForecastCombats(s.turns,n)>=goal-s.pantsSweat){block=n;break;}
+            }
+        }
         // A truncated normal block cannot be reused for a longer horizon: doing so
         // changes floating-point addition grouping. Trainer turns and complete
         // effect-expiry blocks preserve the original arithmetic and row grouping.
@@ -718,7 +732,7 @@ barfTwoDayState barfDietFarmState(barfTwoDayState source,int paid){
                 // Explicit forecast input; actual song usage must be checked against the combat log.
                 int songs=1;int price=barfDietCurrentPrice($item[love song of icy revenge]);
                 if(price<0){s.cash=-1;return s;}s.cost+=songs*price;s.cash+=barfDietStockCash(s,$item[love song of icy revenge],songs,price);
-                s.uses["trainingSongs"]+=songs;s.uses["trainingSongXP"]+=barfDietTrainingSongXP();s.pantsSweat=min(100,s.pantsSweat+1);
+                s.uses["trainingSongs"]+=songs;s.uses["trainingSongXP"]+=barfDietTrainingSongXP();
             }
             s.trainingCost+=s.cost-costBefore;
             s.trainingOpportunity+=block*(barfDietRateAtStage(s,barfDietFarmingStage(s))-barfDietRateAtStage(s,stage));
@@ -728,6 +742,7 @@ barfTwoDayState barfDietFarmState(barfTwoDayState source,int paid){
         s.liquidIncome+=block*barfDietLiquidRate(s,stage);
         foreach id,left in s.effects s.effects[id]=max(0,left-block);
         if(combat&&available_amount($item[tiny stillsuit])>0)s.sweat+=combats*(stage.familiarGear==$item[tiny stillsuit]?3:1);
+        if(stage.sweatpants&&combat)s.pantsSweat=min(100,s.pantsSweat+2*combats);
         s.adventures-=block;
         s.minimumAdventures=s.uses["forecastMode"]>0
             ?max(max(0,200-barfTwoDayRollover-barfDietNightcapMinimum()),s.minimumAdventures-block):s.minimumAdventures-block;
@@ -774,8 +789,6 @@ float barfDietYield(item it,int base,barfTwoDayState s){
     float result=base;
     if(it.adventures=="0"||it.adventures=="")return result;
     if (it.fullness>0){
-        if (have_skill($skill[Gourmand])||have_skill($skill[Neurogourmet])) result+=it.fullness;
-        if (barfDietDuration(s,$effect[Song of the Glorious Lunch])>=it.fullness||barfDietDuration(s,$effect[Barrel of Laughs])>=max(5,it.fullness)) result+=it.fullness;
         if(s.uses["munchies"]<get_property("munchiesPillsUsed").to_int())result+=max(1,(12-base)/3);
         if (contains_text(it.notes,"PIZZA")&&have_skill($skill[Pizza Lover])) result+=it.fullness;
         if (contains_text(it.notes,"SAUCY")&&have_skill($skill[Saucemaven])) result+=$classes[Pastamancer,Sauceror] contains my_class()?5:3;
@@ -788,7 +801,6 @@ float barfDietYield(item it,int base,barfTwoDayState s){
         }
         if (contains_text(it.notes,"MARTINI")&&barfDietTuxLegal(s)) result+=2;
         if (have_skill($skill[The Ode to Booze])) result+=it.inebriety;
-        if (have_skill($skill[Rowdy Drinker])||barfDietDuration(s,$effect[Beer Barrel Polka])>=max(5,it.inebriety)) result+=it.inebriety;
     }
     return result;
 }
@@ -1331,19 +1343,14 @@ string barfDietPourSummary(barfTwoDayState s){
 barfTwoDayState barfDietResourceState(barfTwoDayState a,string action){
     barfTwoDayState s=barfDietClone(a);item it=$item[none];int price=0;
     if(s.finished){s.cash=-1;return s;}
-    if(contains_text(action,"wish:")){
-        effect buff=to_effect(substring(action,5).to_int());
-        if(available_amount($item[cursed monkey's paw])==0||get_property("_monkeyPawWishesUsed").to_int()+s.uses["wishes"]>=5
-            ||buff==$effect[none]){s.cash=-1;return s;}
-        s.effects[to_int(buff)]+=30;s.uses["wishes"]+=1;
-    }else if(action=="milk"){
+    if(action=="milk"){
         if(s.milk>0)return s;
         if(get_property("_milkOfMagnesiumUsed").to_boolean()||s.uses["milk"]>0){s.cash=-1;return s;}
         it=$item[milk of magnesium];price=100;s.milk=1;
     }else if(action=="sweat"){
-        if(!have_skill($skill[Sweat Out Some Booze])||s.pantsSweat<25||s.drunkenness<3
+        if(!have_skill($skill[Sweat Out Some Booze])||s.pantsSweat<25||s.drunkenness<1
             ||get_property("_sweatOutSomeBoozeUsed").to_int()+s.uses[action]>=3){s.cash=-1;return s;}
-        s.pantsSweat-=25;s.drunkenness-=3;
+        s.pantsSweat-=25;s.drunkenness-=1;
     }else if(action=="aug16"){
         if(!have_skill($skill[Aug. 16th: Roller Coaster Day!])||get_property("_aug16Cast").to_boolean()
             ||get_property("_augSkillsCast").to_int()+s.uses[action]>=5||s.uses[action]>0||s.fullness<2){s.cash=-1;return s;}
@@ -1385,6 +1392,8 @@ barfTwoDayState barfDietResourceState(barfTwoDayState a,string action){
 barfTwoDayState barfDietCapacityState(barfTwoDayState a,int bit){
     barfTwoDayState s=barfDietClone(a);
     if(s.finished||s.stooper||barfDietStageKey(s)>=128
+        ||(bit==5&&have_skill($skill[Sweat Out Some Booze])
+            &&(barfDietSweatCastsRemaining(s)>0||s.pantsSweat<75))
         ||(s.mask==0&&((have_familiar($familiar[Chest Mimic])&&s.chestXP<barfDietTrainingGoal(s,true))
         ||(have_familiar($familiar[Cooler Yeti])&&s.yetiXP<barfDietTrainingGoal(s,false))))||barfDietBit(s.mask,bit)){s.cash=-1;return s;}
     s.mask+=(2**bit).to_int();
@@ -1400,6 +1409,8 @@ barfTwoDayState barfDietStooperState(barfTwoDayState a){
 barfTwoDayState barfDietFinishState(barfTwoDayState a){
     barfTwoDayState s=barfDietClone(a);
     if((s.uses["allCool"]>0&&s.uses["coolUncovered"]>0)||s.uses["coldRequired"]>0){s.cash=-1;return s;}
+    if(have_skill($skill[Sweat Out Some Booze])
+        &&(barfDietSweatCastsRemaining(s)>0||s.pantsSweat<75)){s.cash=-1;return s;}
     if(s.finished||s.mask!=63||!s.stooper||s.fullness!=barfDietFullLimit(s)
         ||s.drunkenness!=barfDietLiverLimit(s)||s.spleen!=barfDietSpleenLimit(s)
         ||!barfDietRetentionLegal(s,0)){s.cash=-1;return s;}
@@ -1418,6 +1429,8 @@ barfTwoDayState barfDietFinishState(barfTwoDayState a){
 
 float barfDietCandidateAverage(barfTwoDayItem e,barfTwoDayState s){
     float average=e.average;
+    if(e.drunkenness>0&&contains_text(e.target.notes,"BEER")
+        &&barfDietDuration(s,$effect[Salty Mouth])>0)average+=5;
     if(e.drunkenness>0&&(contains_text(e.target.notes,"WINE")||contains_text(e.target.notes,"MARTINI"))){
         int lo=e.minimum.to_int();int hi=round(2*e.average-e.minimum);
         average=0;
@@ -1438,10 +1451,11 @@ boolean barfDietLimitedCandidate(barfTwoDayItem e){
 }
 void barfDietPruneItems(barfTwoDayState s,boolean extraMartinis){
     barfTwoDayItem[int] kept;float[int] ranks;float[int] baseRanks;
+    barfTwoDayState rankingState=barfDietClone(s);
     float rate=barfDietRateAtStage(s,barfDietFarmingStage(s));
     foreach i,e in barfTwoDayItems{
-        ranks[i]=barfDietCandidateRank(e,s,rate);
-        baseRanks[i]=ranks[i]+(e.average-barfDietCandidateAverage(e,s))*rate/max(1,e.fullness+e.drunkenness+e.spleen);
+        ranks[i]=barfDietCandidateRank(e,rankingState,rate);
+        baseRanks[i]=ranks[i]+(e.average-barfDietCandidateAverage(e,rankingState))*rate/max(1,e.fullness+e.drunkenness+e.spleen);
     }
     foreach i,e in barfTwoDayItems{
         int better=0;int baseBetter=0;
@@ -1492,6 +1506,7 @@ void barfDietEnsureFillers(){
 }
 
 string barfDietQuickFailure;
+boolean barfDietQuickNeedMoreCoolSlots;
 int barfDietQuickDeadline;
 float barfDietQuickBaseline;
 int barfDietFillGenerated;
@@ -2007,23 +2022,45 @@ barfTwoDayState barfDietQuickYetiDrink(barfTwoDayState source,boolean doubleDrin
         float value=barfDietScore(next);
         if(value>score){best=next;score=value;}
     }
-    if(best.cash<0)barfDietQuickFailure=doubleDrink?"Cannot reserve/consume one cold-fashioned with the 400-XP Yeti double.":
-        "Looking Cool cannot cover the next paid encounter: need 225 Yeti XP and a legal one-drunkenness drink. Train before its current coverage expires.";
+    if(best.cash<0){
+        barfDietQuickNeedMoreCoolSlots=!doubleDrink&&source.yetiXP>=225
+            &&source.drunkenness>=barfDietLiverLimit(source)
+            &&source.uses["coolRefreshes"]>=source.uses["coolSlots"];
+        barfDietQuickFailure=doubleDrink?"Cannot reserve/consume one cold-fashioned with the 400-XP Yeti double.":
+            "Looking Cool cannot cover the next paid encounter: need 225 Yeti XP and a legal one-drunkenness drink; "
+            +source.yetiXP+" XP, liver "+source.drunkenness+"/"+barfDietLiverLimit(source)+", "
+            +source.uses["coolRefreshes"]+"/"+source.uses["coolSlots"]+" refreshes used after "+source.turns+" paid turns.";
+    }
     return best;
 }
-barfTwoDayState barfDietQuickFarmTurns(barfTwoDayState source,int paid){
+barfTwoDayState barfDietQuickFillStage(barfTwoDayState s,barfDietLateMenu menu,boolean distill);
+barfTwoDayState barfDietQuickSweat(barfTwoDayState source,barfDietLateMenu menu,boolean distill){
+    barfTwoDayState s=barfDietClone(source);
+    while(barfDietSweatCastsRemaining(s)>0&&s.pantsSweat>=25&&s.drunkenness>=1){
+        s=barfDietResourceState(s,"sweat");if(s.cash<0)return s;
+        s=barfDietQuickFillStage(s,menu,distill);if(s.cash<0)return s;
+    }
+    return s;
+}
+barfTwoDayState barfDietQuickFarmTurns(barfTwoDayState source,int paid,barfDietLateMenu menu,boolean distill){
     barfTwoDayState s=barfDietClone(source);int remaining=paid;
     while(remaining>0){
+        s=barfDietQuickSweat(s,menu,distill);if(s.cash<0)return s;
         if(s.uses["allCool"]>0){
             if(barfDietDuration(s,$effect[Looking Cool])==0){s=barfDietQuickYetiDrink(s,false);if(s.cash<0)return s;}
             if(s.uses["coldRequired"]>0&&s.yetiXP>=400){s=barfDietQuickYetiDrink(s,true);if(s.cash<0)return s;}
         }
         int n=remaining;
         if(s.uses["allCool"]>0)n=min(n,barfDietDuration(s,$effect[Looking Cool]));
+        if(barfDietChargePants(s)&&barfDietSweatCastsRemaining(s)>0&&s.drunkenness>=1&&s.pantsSweat<25){
+            int ceiling=n;
+            for step from 1 to ceiling if(2*barfDietForecastCombats(s.turns,step)>=25-s.pantsSweat){n=step;break;}
+        }
         s=barfDietFarmState(s,n);barfDietTraceWallet(s);if(s.cash<0)return s;remaining-=n;
     }
-    return s;
+    return barfDietQuickSweat(s,menu,distill);
 }
+barfTwoDayState barfDietQuickFarmTurns(barfTwoDayState source,int paid){barfDietLateMenu empty;return barfDietQuickFarmTurns(source,paid,empty,false);}
 int barfDietQuickFarmable(barfTwoDayState s){
     int reserve=max(0,200-barfTwoDayRollover-barfDietNightcapMinimum());
     int paid=max(0,floor(s.adventures)-reserve);
@@ -2081,7 +2118,7 @@ barfTwoDayState barfDietQuickFarm(barfTwoDayState s,barfDietLateMenu menu,boolea
             }
             paid=min(paid,beforePour);
         }
-        s=barfDietQuickFarmTurns(s,paid);if(s.cash<0)return s;
+        s=barfDietQuickFarmTurns(s,paid,menu,distill);if(s.cash<0)return s;
         paid=barfDietQuickFarmable(s);
     }
     return s;
@@ -2089,7 +2126,7 @@ barfTwoDayState barfDietQuickFarm(barfTwoDayState s,barfDietLateMenu menu,boolea
 barfTwoDayState barfDietQuickFarm(barfTwoDayState s){barfDietLateMenu empty;return barfDietQuickFarm(s,empty,false);}
 boolean barfDietClearerNeedsFilling(barfTwoDayState s,string action){
     if(action=="melange")return s.fullness<3||s.drunkenness<3;
-    if(action=="sweat")return s.drunkenness<3||s.pantsSweat<25;
+    if(action=="sweat")return s.drunkenness<1||s.pantsSweat<25;
     if(action=="aug16")return s.fullness<2;
     if(action=="doghair"||action=="sobrie")return s.drunkenness<1;
     if(action=="mojo")return s.spleen<1;
@@ -2098,7 +2135,7 @@ boolean barfDietClearerNeedsFilling(barfTwoDayState s,string action){
 }
 barfTwoDayState barfDietQuickResources(barfTwoDayState s,barfDietLateMenu menu,boolean distill,boolean deferredOnly){
     s=barfDietClone(s);
-    string[int] actions={"sweat","sweat","sweat","aug16","mojo","mojo","mojo","melange","doghair","distention","sweettooth","voraci","sobrie","noodleSpleen"};
+    string[int] actions={"aug16","mojo","mojo","mojo","melange","doghair","distention","sweettooth","voraci","sobrie","noodleSpleen"};
     // Revisit earlier clearers only after an accepted clear/refill changes the state.
     for pass from 1 to count(actions){
         boolean changed=false;
@@ -2127,27 +2164,8 @@ barfTwoDayState barfDietQuickResources(barfTwoDayState s,barfDietLateMenu menu,b
     return barfDietQuickResources(s,menu,distill,false);
 }
 barfTwoDayState barfDietQuickFinish(barfTwoDayState source){
-    barfTwoDayState raw=barfDietClone(source);
-    barfTwoDayState best=barfDietFinishState(barfDietQuickFarm(raw));
-    for cast from 1 to 5{
-        if(barfDietQuickExpired())break;
-        barfTwoDayState chosen;chosen.cash=-1;float score=best.cash>=0?barfDietScore(best):-1000000000000.0;
-        foreach id in $ints[0,1701]{
-            boolean[effect] wishes;
-            if(id==1701)wishes[to_effect(1701)]=true;
-            else foreach buff in $effects[Covetous Robbery,Down With Chow,Frosty]wishes[buff]=true;
-            foreach buff in wishes{
-                barfTwoDayState next=barfDietResourceState(raw,"wish:"+to_int(buff));if(next.cash<0)continue;
-                if(barfDietCanRetain(buff))next.retained[to_int(buff)]=true;
-                barfTwoDayState complete=barfDietFinishState(barfDietQuickFarm(next));
-                if(complete.cash>=0&&barfDietScore(complete)>score){chosen=next;best=complete;score=barfDietScore(complete);}
-            }
-        }
-        if(chosen.cash<0)break;raw=chosen;
-    }
-    return best;
+    return barfDietFinishState(barfDietQuickFarm(source));
 }
-
 barfTwoDayState barfDietQuickStart(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
     barfTwoDayState s=barfDietClone(initial);
     s.schedule+="phase\tStart: normal farming gear; eat/drink/chew the quantities below.\n";
@@ -2158,15 +2176,16 @@ barfTwoDayState barfDietQuickStart(barfTwoDayState initial,barfDietLateMenu menu
     s=barfDietTimedPour(s,0);if(s.cash<0)return s;
     s=barfDietQuickExtras(s);if(s.cash<0)return s;
     s=barfDietQuickFillStage(s,menu,distill);if(s.cash<0)return s;
+    s=barfDietQuickSweat(s,menu,distill);if(s.cash<0)return s;
     s=barfDietQuickResources(s,menu,distill);
     if(s.mask==0){
-        if(s.turns<s.earlyJillTurns){int n=min(s.earlyJillTurns-s.turns,max(0,floor(s.adventures)-max(0,200-barfTwoDayRollover-barfDietNightcapMinimum())));if(n>0)s=barfDietQuickFarmTurns(s,n);}
+        if(s.turns<s.earlyJillTurns){int n=min(s.earlyJillTurns-s.turns,max(0,floor(s.adventures)-max(0,200-barfTwoDayRollover-barfDietNightcapMinimum())));if(n>0)s=barfDietQuickFarmTurns(s,n,menu,distill);}
         if(barfDietStageKey(s)>=128)s.schedule+="phase\tRecharge Chest Mimic / Cooler Yeti with the fixed XP outfit and stillsuit; return to Jill when targets are reached.\n";
         while(barfDietStageKey(s)>=128){
             if(barfDietQuickExpired()){s.cash=-1;return s;}
             int n=min(20,max(0,floor(s.adventures)-max(0,200-barfTwoDayRollover-barfDietNightcapMinimum())));
             if(n==0){s.cash=-1;return s;}
-            s=barfDietQuickFarmTurns(s,n);if(s.cash<0)return s;
+            s=barfDietQuickFarmTurns(s,n,menu,distill);if(s.cash<0)return s;
         }
         if(barfDietStageKey(s)>=128){s.cash=-1;return s;}
     }
@@ -2268,9 +2287,24 @@ barfTwoDayState barfDietQuickComplete(barfTwoDayState source,barfDietLateMenu me
         s=barfDietQuickConsume(s,barfTwoDayItems[index],true);if(s.cash<0)return s;
     }
     barfDietLateMenu empty;
+    barfTwoDayState reserved=barfDietClone(s);
+    int coolDrinks=max(0,s.uses["coolSlots"]-s.uses["coolRefreshes"]);
     if(s.uses["allCool"]>0){s.uses["coolSlots"]=s.uses["coolRefreshes"];s.schedule+="coolReserveRelease\n";}
-    s=barfDietQuickFillStage(s,empty,false);if(s.cash<0)return s;
-    return barfDietQuickFinish(s);
+    s=barfDietQuickFillStage(s,empty,false);
+    if(s.cash>=0)s=barfDietQuickFinish(s);
+    if(s.cash>=0||!barfDietQuickNeedMoreCoolSlots)return s;
+    // The final ordinary drink can add enough turns to outlast Looking Cool.
+    // Spend a reserved liver slot on a Yeti refresh before releasing any others.
+    for n from 1 to coolDrinks{
+        barfDietQuickNeedMoreCoolSlots=false;
+        reserved=barfDietQuickYetiDrink(reserved,false);if(reserved.cash<0)return reserved;
+        s=barfDietClone(reserved);
+        s.uses["coolSlots"]=s.uses["coolRefreshes"];s.schedule+="coolReserveRelease\n";
+        s=barfDietQuickFillStage(s,empty,false);
+        if(s.cash>=0)s=barfDietQuickFinish(s);
+        if(s.cash>=0||!barfDietQuickNeedMoreCoolSlots)return s;
+    }
+    return s;
 }
 barfTwoDayState barfDietQuickSchedule(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
     barfTwoDayState s=barfDietQuickPreparation(initial,menu,distill);if(s.cash<0)return s;
@@ -2278,6 +2312,7 @@ barfTwoDayState barfDietQuickSchedule(barfTwoDayState initial,barfDietLateMenu m
 }
 boolean barfDietMeetsTargets(barfTwoDayState plan){
     return plan.finished&&plan.cash>=0&&plan.uses["coolUncovered"]==0&&plan.uses["coldRequired"]==0
+        &&(!have_skill($skill[Sweat Out Some Booze])||(barfDietSweatCastsRemaining(plan)==0&&plan.pantsSweat>=75))
         &&(!have_familiar($familiar[Chest Mimic])||plan.chestXP>=plan.uses["requiredChestXP"])
         &&plan.uses["yetiHighWater"]>=plan.uses["requiredYetiCharge"]&&plan.yetiXP>=barfSetting("YetiReserveXP",0);
 }
@@ -2307,10 +2342,12 @@ barfTwoDayState barfDietQuickTrial(barfTwoDayState initial,barfDietLateMenu menu
     barfTwoDayState failed;failed.cash=-1;if(barfDietQuickExpired())return failed;
     int trialStarted=now_to_int();barfDietSearchMetrics["attempted"]+=1;barfDietSearchMetrics[barfDietSearchPhase+":attempted"]+=1;
     print("Diet comparison "+(barfDietTrialCount+1)+": "+label+"; "+((now_to_int()-barfDietTrialStarted)/1000)+" seconds elapsed.","blue");
+    barfDietQuickNeedMoreCoolSlots=false;
     barfTwoDayState next=barfDietQuickSchedule(initial,menu,distill);
-    for retry from 1 to 2{
-        if(next.cash>=0||barfDietQuickExpired()||initial.uses["allCool"]==0||initial.yetiXP<225)break;
+    for retry from 1 to 12{
+        if(next.cash>=0||barfDietQuickExpired()||!barfDietQuickNeedMoreCoolSlots)break;
         initial=barfDietClone(initial);initial.uses["coolSlots"]+=1;initial.uses["initialCoolSlots"]=initial.uses["coolSlots"];
+        barfDietQuickNeedMoreCoolSlots=false;
         next=barfDietQuickSchedule(initial,menu,distill);
     }
     if(!barfDietQuickExpired())barfDietTrials[key]=barfDietClone(next);
@@ -2594,7 +2631,7 @@ barfTwoDayState barfDietRetimePours(barfTwoDayState initial,barfTwoDayState incu
     return best;
 }
 
-barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
+barfTwoDayState barfDietQuickPlan(barfTwoDayState initial,boolean firstCompleteOnly){
     int started=now_to_int();barfDietTrialStarted=started;barfDietTrialCount=0;
     barfDietFillGenerated=0;barfDietFillDominated=0;barfDietFillBeamPruned=0;
     barfDietMenuPairsGenerated=0;clear(barfDietSearchMetrics);barfDietPairReached=false;barfDietPairExpiredAtEntry=false;barfDietPairTop=0;
@@ -2609,7 +2646,16 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     int estimateStarted=now_to_int();barfDietSearchPhase="estimate";
     barfTwoDayState estimate=barfDietQuickSchedule(initial,empty,false);
     barfDietSearchMetrics["estimate:ms"]=now_to_int()-estimateStarted;
-    if(estimate.cash<0)return estimate;
+    if(estimate.cash<0){
+        string reason=barfDietQuickFailure!=""?barfDietQuickFailure:"No specific blocker was recorded.";
+        print("Initial diet estimate failed: "+reason,"red");
+        print("Estimate state: fullness "+initial.fullness+"/"+barfDietFullLimit(initial)
+            +", liver "+initial.drunkenness+"/"+barfDietLiverLimit(initial)
+            +", spleen "+initial.spleen+"/"+barfDietSpleenLimit(initial)
+            +"; stillsuit sweat "
+            +get_property("sweat").to_int()+".","red");
+        return estimate;
+    }
     if(have_familiar($familiar[Cooler Yeti])){
         initial.uses["allCool"]=1;initial.uses["coldRequired"]=initial.yetiDouble?1:0;
         initial.uses["coolSlots"]=max(0,ceil((estimate.turns-barfDietDuration(initial,$effect[Looking Cool]))/100.0));
@@ -2620,6 +2666,9 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     if(best.cash<0||!barfDietMeetsTargets(best)){print("Practical fallback failed: "+barfDietQuickFailure,"red");best.cash=-1;return best;}
     barfDietQuickBaseline=barfDietScore(best);
     print("Complete fallback ready in "+((now_to_int()-started)/1000)+" seconds: "+best.turns+" farming encounters, combined value "+round(barfDietScore(best))+".","blue");
+    // Shadow Waters only needs a close turn count. Its extra 30-turn reward covers
+    // ordinary improvements to this first validated, complete schedule.
+    if(firstCompleteOnly)return best;
     // Normal planning finishes its finite comparisons; elapsed time never rejects a diet.
     int deadline=0;
     barfDietQuickDeadline=deadline;
@@ -2771,6 +2820,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     barfDietSearchReport();
     barfDietQuickDeadline=0;return best;
 }
+barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){return barfDietQuickPlan(initial,false);}
 
 barfTwoDayState barfDietReplayStart(barfTwoDayState initial,barfTwoDayState plan){
     barfTwoDayState s=barfDietClone(initial);
@@ -2882,6 +2932,8 @@ void barfDietReport(barfTwoDayState s,float baseline){
             print("  Looking Cool +100 after "+s.uses["coolRefreshTurn:"+n]+" paid encounters; duration then "+s.uses["coolRefreshDuration:"+n]+" turns.","blue");
         barfDietComparisonReport(s);
         print("Stillsuit: "+barfDietPourSummary(s)+". Each pour uses all sweat available then; ordinary drinks compete for the same liver in complete-plan comparisons. New Buzzed bonuses receive no value.","blue");
+        if(have_skill($skill[Sweat Out Some Booze]))print("Designer sweatpants: all 3 daily Sweat Out Some Booze uses accounted for at 25% each; "
+            +s.pantsSweat+"% charge retained. Training and paid BARF combats charge the pants until casts and the 75% reserve are complete.","blue");
         print("Ordered schedule:","blue");
         foreach i,row in split_string(s.schedule,"\n"){
             if(row=="")continue;string[int] c=split_string(row,"\t");
@@ -2898,10 +2950,11 @@ void barfDietReport(barfTwoDayState s,float baseline){
             else if(c[0]=="capacity")print("  equip "+barfTwoDayCapacityItems[c[1].to_int()]+"; mask="+c[2],"blue");
             else if(c[0]=="noodleSpleen")print("  eat 1 Tubetto Gelatto; choose spleen; preparations="+c[2]+"; adventures="+c[5]+" minimum / "+c[6]+" expected","blue");
             else if(c[0]=="extra")print("  use 1 "+to_item(c[1].to_int())+"; no organ space; adventures="+c[2]+" minimum / "+c[3]+" expected","blue");
-            else if(c[0]=="resource"&&index_of(c[1],"wish:")==0)print("  use a remaining free monkey-paw wish for "+to_effect(substring(c[1],5).to_int()),"blue");
             else if(c[0]=="resource")print("  "+(c[1]=="sweat"?"cast Sweat Out Some Booze":c[1]=="aug16"?"cast Aug. 16th: Roller Coaster Day!":"use 1 "+to_item(c[2].to_int()))+"; opportunity cost="+c[3],"blue");
             else if(c[0]=="phase")print("  "+c[1],"green");
-            else if(c[0]=="farm")print("  farm "+c[1]+" paid encounters in capacity stage "+c[2]+" (stage income recalculated per encounter)","blue");
+            else if(c[0]=="farm")print("  farm "+c[1]+" paid encounters in "
+                +(c[2].to_int()<0?"designer sweatpants charging stage "+(-c[2].to_int()-1):"capacity stage "+c[2])
+                +" (stage income recalculated per encounter)","blue");
             else if(c[0]=="distill")print("  pour ALL "+c[1]+" drams, gain "+c[2]+" adventures; Buzzed duration "+c[3],"blue");
             else if(c[0]=="pourSkip")continue;
             else print("  "+replace_string(row,"\t"," / "),"blue");
@@ -2922,7 +2975,7 @@ void barfDietReport(barfTwoDayState s,float baseline){
         print("Extrovermectin is evaluated only with a supplied measured copied-goblin payout and its matching weight (teresBarfCopiedGoblinMeat / CopiedGoblinWeight); 660-lb daily-block averages are not rescaled to 500 lb. No casing adventures are counted.","orange");
     print("Empirical calibration: "+round(barfTwoDayWeightCalibration)+" Meat per additional lb for the whole tomorrow block; ATM-only, excludes non-Mimic fights. Local proportional estimate around 660-700 lb; first 40 incremental lb at full credit, further pounds at "+min(100,barfSetting("WeightBeyond40Percent",50))+"% credit (teresBarfWeightBeyond40Percent). This taper is a conservative assumption, not measured diminishing returns. Today uses native familiar/gear modifiers separately.","blue");
     foreach i,line in split_string(barfTwoDayWarnings,"\n")if(line!="")print(line,"orange");
-    print("Practical planner: exact-size organ fills with conservative Pareto checks, a small candidate menu, fixed baseline gear and explicit capacity swaps, including bounded same-organ grouping and reserved-gear deferral comparisons. It compares complete starting diets, early familiar-XP food, greedy late-menu prefixes and the top 12 estimated joint buff pairs; accepted clear/refill state changes trigger another bounded clearer pass. Stillsuit allocations compare zero to four pours at sampled sweat splits against ordinary drinks using complete schedules; yields come from actual forecast sweat, not fixed amounts. Clearers are reconsidered after training and capacity refills as well as accepted clear/refill changes. Up to two improvement passes stop early when a pass finds no gain; normal planning has no wall-clock cutoff and finishes the finite comparisons. The complete fallback is secured first; no incomplete alternative can replace it. This remains a heuristic, not a claim of global optimality. Delayed payout/variable consumables, paid or unsupported recipes, random wine effects, paid wishes and future free-fight detours are excluded. Remaining free paw wishes compete under one shared daily budget. Training forecasts use actual starting XP, fixed trainer gear, active-stillsuit sweat, and your observed one-song kill per training combat, with +5 song XP added once to normal familiar XP; free VHS training can reduce paid training below this forecast. Fork/mug projections use the conservative base-only floor model (30%, or 50% for salad/beer); primary planners disagree on rounding/scope, so combined Yeti/helper expected yields remain an approximation. Expected farming uses mean yields; the reserve uses minimum yields. Farming counts and sweat forecasts are conditional: stop at the actual reserve and replan after every real action.","orange");
+    print("Practical planner: exact-size organ fills with conservative Pareto checks, a small candidate menu, fixed baseline gear and explicit capacity swaps, including bounded same-organ grouping and reserved-gear deferral comparisons. It compares complete starting diets, early familiar-XP food, greedy late-menu prefixes and the top 12 estimated joint buff pairs; accepted clear/refill state changes trigger another bounded clearer pass. Stillsuit allocations compare zero to four pours at sampled sweat splits against ordinary drinks using complete schedules; yields come from actual forecast sweat, not fixed amounts. Clearers are reconsidered after training and capacity refills as well as accepted clear/refill changes. Up to two improvement passes stop early when a pass finds no gain; normal planning has no wall-clock cutoff and finishes the finite comparisons. The complete fallback is secured first; no incomplete alternative can replace it. This remains a heuristic, not a claim of global optimality. Delayed payout/variable consumables, unsupported resource use, random wine effects and future free-fight detours are excluded. Training forecasts use actual starting XP, fixed trainer gear, active-stillsuit sweat, and your observed one-song kill per training combat, with +5 song XP added once to normal familiar XP; free VHS training can reduce paid training below this forecast. Fork/mug projections use the conservative base-only floor model (30%, or 50% for salad/beer); primary planners disagree on rounding/scope, so combined Yeti/helper expected yields remain an approximation. Expected farming uses mean yields; the reserve uses minimum yields. Farming counts and sweat forecasts are conditional: stop at the actual reserve and replan after every real action.","orange");
 }
 
 void barfDietCandidateReport(boolean details){
@@ -2972,7 +3025,7 @@ void barfDietCandidateReport(boolean details){
 barfTwoDayState barfDietPlannedInitial;
 barfTwoDayState barfDietPlanned;
 boolean barfDietPlanReady;
-void barfDietPlan(boolean candidatesOnly){
+void barfDietPlan(boolean candidatesOnly,boolean firstCompleteOnly){
     barfDietPlanReady=false;
     clear(barfDietRecipePrices);clear(barfDietPricingRecipe);
     barfDietResetSearchCaches();
@@ -2989,11 +3042,11 @@ void barfDietPlan(boolean candidatesOnly){
     int stomach=0;int liver=0;int spleen=0;
     foreach i,it in barfTwoDayCapacityItems{stomach+=round(numeric_modifier(it,"Stomach Capacity"));liver+=round(numeric_modifier(it,"Liver Capacity"));spleen+=round(numeric_modifier(it,"Spleen Capacity"));}
     print("Capacity equipment verified from Mafia modifiers: +"+stomach+" fullness, +"+liver+" liver, +"+spleen+" spleen; Stooper adds the final +1 liver.","blue");
-    print("Normal farming gear: your hardcoded BARF baseline, kachungasaur parka, Jill and her LED candle. Hat stays unchanged. Training and capacity swaps are forecast explicitly; no gear maximization.","blue");
+    print("Normal farming gear: your hardcoded BARF baseline, kachungasaur parka, Jill and her LED candle. Designer sweatpants temporarily replace the normal pants while charging for daily casts and the 75% reserve. Hat stays unchanged. Training and capacity swaps are forecast explicitly; no gear maximization.","blue");
     print("Milk of magnesium: fixed preparation at the start, unless already used or active; assume one 100-Meat daily offer.","blue");
     if(stomach!=2||liver!=2||spleen!=2){print("Capacity modifiers differ from the expected +2/+2/+2. Update the capacity item list before planning.","red");return;}
     // Current all-items prices are fetched once, then individual candidate costs use Mafia's price cache.
-    if(!get_property("teresBarfDietSkipPriceRefresh").to_boolean())mall_prices("allitems");
+    if(!firstCompleteOnly&&!get_property("teresBarfDietSkipPriceRefresh").to_boolean())mall_prices("allitems");
     if(!have_familiar($familiar[Cooler Yeti])){print("Looking Cool policy requires your Cooler Yeti; no plan generated.","red");return;}
     if(get_property("coolerYetiMode")!=""){print("Consume or clear the Yeti's currently pending drink enhancement, then replan so it is not overwritten or charged twice.","red");return;}
     barfDietDailyTable();barfTwoDayState initial=barfDietInitialState();
@@ -3007,17 +3060,27 @@ void barfDietPlan(boolean candidatesOnly){
         barfTwoDayCopiedWeight=familiar_weight($familiar[Stocking Mimic])+numeric_modifier("Generated:_spec","Familiar Weight")+numeric_modifier("Generated:_spec","Hidden Familiar Weight")
             +($familiar[Stocking Mimic].feasted?10:0)+$familiar[Stocking Mimic].soup_weight;
     barfDietBuildItems();barfDietPruneItems(initial);barfDietEnsureFillers();
-    barfDietCandidateReport(candidatesOnly);if(candidatesOnly)return;
+    if(!firstCompleteOnly)barfDietCandidateReport(candidatesOnly);
+    if(candidatesOnly)return;
     print("Searching the current-price shortlist with actual organs "+initial.fullness+"/"+barfDietFullLimit(initial)+", "+initial.drunkenness+"/"+barfDietLiverLimit(initial)+", "+initial.spleen+"/"+barfDietSpleenLimit(initial)+"; "+initial.adventures+" adventures; "+initial.sweat+" drams.","blue");
-    barfTwoDayState plan=barfDietQuickPlan(initial);
-    if(plan.cash>=0&&!barfDietReplay(initial,plan))abort("Diet schedule failed ordered replay; no actions are enabled.");
-    foreach label,alternative in barfDietComparisons if(!barfDietReplay(initial,alternative))abort("Diet comparison failed ordered replay: "+label+"; no actions are enabled.");
+    barfTwoDayState plan=barfDietQuickPlan(initial,firstCompleteOnly);
+    if(plan.cash>=0&&!barfDietReplay(initial,plan)){
+        if(firstCompleteOnly){print("Shadow Waters projection failed ordered replay; use the current-state estimate.","red");return;}
+        abort("Diet schedule failed ordered replay; no actions are enabled.");
+    }
+    if(!firstCompleteOnly)foreach label,alternative in barfDietComparisons if(!barfDietReplay(initial,alternative))abort("Diet comparison failed ordered replay: "+label+"; no actions are enabled.");
     if(plan.cash>=0&&barfDietMeetsTargets(plan)){
         barfDietPlannedInitial=barfDietClone(initial);barfDietPlanned=barfDietClone(plan);barfDietPlanReady=true;
     }
-    barfDietReport(plan,plan.cash<0?-1:barfDietQuickBaseline);
+    if(!firstCompleteOnly)barfDietReport(plan,plan.cash<0?-1:barfDietQuickBaseline);
 }
+void barfDietPlan(boolean candidatesOnly){barfDietPlan(candidatesOnly,false);}
 void barfDietPlan(){barfDietPlan(false);}
+int barfDietProjectedPaidTurns(){
+    barfDietPlan(false,true);
+    if(!barfDietPlanReady)return 0;
+    return barfDietPlanned.turns;
+}
 
 // Original diet notes and template, preserved for reference.
 /** ~ Custom Dieting Script for farming with Mimic ~

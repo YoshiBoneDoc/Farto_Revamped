@@ -514,7 +514,7 @@ int BCZcost(string BCZskill) {
 
 // Check the script's cast limit and next cost; callers check skill/equipment separately.
 boolean sweatBulletsReady(int moxieReserve) {
-    if (get_property("_bczSweatBulletsCasts").to_int() >= 13)
+    if (get_property("_bczSweatBulletsCasts").to_int() >= 12)
         return false;
     return (my_basestat($stat[submoxie]) - moxieReserve) > BCZcost("SweatBulletsCasts");
 }
@@ -663,7 +663,7 @@ void trainset() {
         (pos + 6) % 8: 2,
         (pos + 7) % 8: 19
     };
-    visit_url("choice.php?forceoption=0?whichchoice=1485&option=1"
+    visit_url("choice.php?forceoption=0&whichchoice=1485&option=1"
         + "&slot%5B0%5D=" + slots[0]
         + "&slot%5B1%5D=" + slots[1]
         + "&slot%5B2%5D=" + slots[2]
@@ -1305,7 +1305,7 @@ void beretBusking(string modifiers){
 // Inventory is authoritative on return; the quest-location preference may linger.
 void sendAutumnatonToShadowRift(){
     if(item_amount($item[autumn-aton])==0 || current_round()>0 || handling_choice())return;
-    if(!cli_execute("autumnaton send "+$location[Shadow Rift (The Misspelled Cemetary)]))
+    if(!cli_execute("autumnaton send Shadow Rift"))
         print("Could not send the autumn-aton to the Shadow Rift; inspect its available destinations.","red");
 }
 

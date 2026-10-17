@@ -337,6 +337,12 @@ void finishFreeKillFallback(){
 }
 
 void free_kill(string ptext) {
+    if (current_round() > 0 && have_effect($effect[Everything Looks Blue]) == 0
+        && item_amount($item[blue rocket]) > 0){
+        throw_item($item[blue rocket]);
+        if (have_effect($effect[Everything Looks Blue]) == 0)
+            abort("Blue rocket did not grant Everything Looks Blue; combat paused.");
+    }
     foreach sk in $skills[Spit jurassic acid, Darts: Aim for the Bullseye] {
         if (current_round() == 0)
             return;

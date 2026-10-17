@@ -40,6 +40,46 @@ void barfBeginDay(){
     }
 }
 
+void barfOneTimePrep(){
+    if(!can_interact()||!can_adventure($location[Barf Mountain])||my_inebriety()>inebriety_limit())
+        abort("BARF prep needs aftercore, Barf Mountain access, and a character who is not overdrunk.");
+    if(handling_choice()||current_round()>0||in_multi_fight())
+        abort("Resolve the pending choice or combat before BARF prep.");
+    int before=total_turns_played();
+    barfKnuckleboneRests();
+    barfKiosk(true);
+    barfDinseyGarbage();
+    barfPostAdventure();
+    if(available_amount($item[SongBoom&trade; BoomBox])>0
+        &&get_property("boomBoxSong")!="Total Eclipse of Your Meat"
+        &&get_property("_boomBoxSongsLeft").to_int()>0
+        &&!cli_execute("boombox meat"))print("BARF could not set the Meat boombox song.","red");
+    if(available_amount($item[Clan VIP Lounge key])>0){
+        string original=get_clan_name();
+        try{
+            setClan("VIP");
+            if(get_clan_name()=="Bonus Adventures from Hell"){
+                while(get_property("_poolGames").to_int()<3){
+                    int played=get_property("_poolGames").to_int();
+                    if(!cli_execute("pool 1")||get_property("_poolGames").to_int()<=played)break;
+                }
+                if(!get_property("_clanFortuneBuffUsed").to_boolean())cli_execute("fortune buff meat");
+            }else print("BARF could not access the VIP lounge for pool and fortune buffs.","red");
+        }finally{
+            if(get_clan_name()!=original&&(!cli_execute("/whitelist "+original)||get_clan_name()!=original))
+                abort("BARF could not restore clan "+original+" after VIP prep.");
+        }
+    }
+    if(!get_property("concertVisited").to_boolean()
+        &&get_property("sidequestArenaCompleted")=="fratboy")cli_execute("concert 2");
+    dailyBirdBuffs();
+    familiar originalFarmer=my_familiar();
+    try{
+        if(available_amount($item[Mayam Calendar])>0&&get_property("_mayamSymbolsUsed")=="")useMayamRings();
+    }finally{if(my_familiar()!=originalFarmer&&!use_familiar(originalFarmer))abort("BARF could not restore the familiar after Mayam prep.");}
+    if(total_turns_played()!=before)print("BARF prep used a turn; the diet will plan from the updated state.","red");
+}
+
 
 
 
@@ -49,14 +89,17 @@ void barfBeginDay(){
 // Refresh expired coverage after bonuses or new organ room extend the run.
 
 
-void barfRunPlanned(int turns){
+void barfRunPlanned(int turns,boolean prompted){
     if(get_property("mayoInMouth")!="")abort("Handle queued Mayo before executing an exact diet.");
+    barfLiveRequireOdeSlot();
+    barfOneTimePrep();
+    barfLivePreparePolka();
     barfBeginDay();
     barfDietPlan();if(!barfDietPlanReady)abort("No complete validated diet is available to execute.");
     string[string] saved;
     foreach pref in $strings[script,subscript,inSpendAdv,autoSatisfyWithStash,autoSatisfyWithMall,autoSatisfyWithNPCs,
         autoSatisfyWithCoinmasters,autoBuyPriceLimit,autoFillMayoMinder,autoTuxedo,autoPinkyRing,autoGarish,_teresBarfPlannedExecution,_teresBarfPlanMask,
-        _teresBarfPlanStooper,_teresBarfPlanTrainer,_teresBarfPlanMinimumAdventures,_teresBarfMode,_teresBarfVhsEncounter,_teresBarfTurnsRemaining,_teresBarfEquipment,
+        _teresBarfPlanStooper,_teresBarfPlanTrainer,_teresBarfPlanSweatpants,_teresBarfPlanMinimumAdventures,_teresBarfMode,_teresBarfVhsEncounter,_teresBarfTurnsRemaining,_teresBarfEquipment,
         unconditionalOverride,maxOverride,famOverride,hatOverride,mainOverride,weaponOverride,offOverride,backOverride,
         shirtOverride,pantsOverride,acc1Override,acc2Override,acc3Override,famEquipOverride]saved[pref]=get_property(pref);
     string savedMood=get_property("currentMood");boolean completed=false;beginFarmingReport();
@@ -70,8 +113,8 @@ void barfRunPlanned(int turns){
         set_property("autoTuxedo",false);set_property("autoPinkyRing",false);set_property("autoGarish",false);
         set_property("_teresBarfTurnsRemaining",turns>0?turns:barfDietPlanned.turns);
         foreach name in $strings[unconditional,max,fam,hat,main,weapon,off,back,shirt,pants,acc1,acc2,acc3,famEquip]set_property(name+"Override","");
-        print("LIVE BARF: executing the printed diet. A turn limit caps farming, not the diet purchases/consumption. Limited runs stop before end-of-day buffs and nightcap.","blue");
-        barfDietExecute(turns);completed=true;
+        print("LIVE BARF: executing the printed diet"+(prompted?" with test pauses":"")+". A turn limit caps farming, not the diet purchases/consumption. Limited runs stop before end-of-day buffs and nightcap.","blue");
+        barfDietExecute(turns,prompted);completed=true;
     }finally{
         try{finisher();}finally{
             try{barfLiveMood(savedMood);}finally{foreach pref,value in saved set_property(pref,value);finishFarmingReport(completed);}
@@ -80,7 +123,8 @@ void barfRunPlanned(int turns){
 }
 
 // The revised diet is staged as a dry run; the legacy execution body is kept for reference.
-// Explicit 'run' now executes the revised plan; the old phase aliases remain previews.
+// Explicit 'run' executes the revised plan; 'run-test' prompts between blocks.
+// The old phase aliases remain previews.
 void main(string command){
     if (command == "diet-snapshot"){ barfDietSnapshot(); return; }
     if (command == "diet-plan"){barfDietPlan();return;}
@@ -88,13 +132,13 @@ void main(string command){
     string[int] args = split_string(command,"\\s+");
     string phase = command == "" ? "all" : args[0].to_lower_case();
     int turns = count(args) > 1 ? args[1].to_int() : 0;
-    if(phase=="run"){
-        if(count(args)>2||(count(args)>1&&(!create_matcher("^[0-9]+$",args[1]).find()||turns<=0)))abort("Use teresBARF.ash run [positive paid-turn limit].");
-        barfRunPlanned(turns);return;
+    if(phase=="run"||phase=="run-test"){
+        if(count(args)>2||(count(args)>1&&(!create_matcher("^[0-9]+$",args[1]).find()||turns<=0)))abort("Use teresBARF.ash "+phase+" [positive paid-turn limit].");
+        barfRunPlanned(turns,phase=="run-test");return;
     }
     if ($strings[all,prep,diet,farm,plan,sim] contains phase){barfDietPlan();return;}
     if (!($strings[all, prep, diet, farm, plan, sim] contains phase))
-        abort("Use teresBARF.ash diet-plan for a preview, run [paid-turn limit] to execute the revised diet, or diet-snapshot to export inputs.");
+        abort("Use teresBARF.ash diet-plan for a preview, run [paid-turn limit] to execute, run-test [paid-turn limit] to pause between blocks, or diet-snapshot to export inputs.");
 
 }
 // MUST BANISH horrible tourist family AT START!!!!! COUNT AS 3 KILLS FOR THE NC ADVENTURE
