@@ -37,6 +37,13 @@ public class SnapshotBench {
   net.sourceforge.kolmafia.request.CharPaneRequest.setCanInteract(true);
   Preferences.setString("benchMode",args[0]);Preferences.setString("benchWorkload",args.length>1?args[1]:"practical");
   for(int i=4;i<args.length;i++){String[] setting=args[i].split("=",2);Preferences.setString(setting[0],setting[1]);}
+  // Explicit reconstruction assumption for exports omitting inactive familiar equipment.
+  if(Preferences.getBoolean("benchInactiveStillsuit")){
+   var inactive=KoLCharacter.usableFamiliar("Cooler Yeti");
+   if(inactive==null)throw new AssertionError("No Cooler Yeti for inactive-suit fixture");
+   inactive.setItem(ItemPool.get(ItemDatabase.getItemId("tiny stillsuit"),1));
+   System.out.println("FIXTURE ASSUMPTION: one owned tiny stillsuit on inactive Cooler Yeti; export omitted other familiar equipment.");
+  }
   if(args[1].equals("live-native-checks"))new net.sourceforge.kolmafia.textui.command.AbstractCommand(){
    public void run(String command,String action){
     // Test-only callbacks change physical in-memory state within one ASH run.

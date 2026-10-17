@@ -1,0 +1,12 @@
+{
+  "teres-barf-diet-prices.tsv": "847ece8f1da1163ca81981d9c84e1ab1584f062489d89c78210510b36c8d5899",
+  "teres-barf-diet-consumables.tsv": "dad23d19f3c3adf83823a702695241bc6516f0c651846f71add74d42ed7b3579",
+  "teres-barf-diet-state.tsv": "9dc909d568dae62281d825ec6649ccbe0eef16e795156dee4ae7541820116e43",
+  "teres-barf-diet-inventory.tsv": "b39fdc4f2429f3948e4e52bd6cb968848a442a24e98cc93a33ab63cbe0a60184",
+  "mallprices.txt": "12e0056f4a7cc365e8862d0636deb1f2dca1518a2ea4a6f96234eea3393381ad",
+  "explicit_reconstruction": {
+    "benchCookingAccess": true,
+    "benchInactiveStillsuit": true,
+    "note": "Export records active familiar gear only; one owned suit restored on inactive Cooler Yeti in memory. Awaiting confirmation."
+  }
+}

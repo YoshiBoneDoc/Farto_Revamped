@@ -9,7 +9,7 @@ import tempfile
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--mode',choices=['baseline','cache','early','bare','farm','combinedBare','combined'],default='combined')
-parser.add_argument('--workload',choices=['schedule','practical','checks','frontier-checks','planner-checks','pour-checks','live-checks','live-native-checks','production','ingredient-checks'],default='practical')
+parser.add_argument('--workload',choices=['schedule','practical','checks','frontier-checks','planner-checks','pour-checks','live-checks','live-native-checks','production','ingredient-checks','probe'],default='practical')
 parser.add_argument('--jar',type=Path,default=Path.home()/'Downloads/KoLmafia.app/Contents/app/KoLmafia-29366.jar')
 parser.add_argument('--java-home',type=Path,default=Path.home()/'Library/Java/JavaVirtualMachines/temurin-25.0.4.1/Contents/Home')
 parser.add_argument('--reference',type=Path,help='Require exactly matching fixed schedule, or all completed practical trials from a baseline log.')
@@ -17,14 +17,17 @@ parser.add_argument('--profile',action='store_true',help='Measure inclusive nati
 parser.add_argument('--output',type=Path,help='Keep generated harness and log here; otherwise use a new temporary directory.')
 parser.add_argument('--source',type=Path,help='Benchmark another saved production source against the same frozen inputs.')
 parser.add_argument('--setting',action='append',default=[],metavar='NAME=VALUE',help='Set an isolated benchmark preference; repeat as needed.')
+parser.add_argument('--snapshot',type=Path,help='Use a separate saved export directory; leaves the regression fixture unchanged.')
+parser.add_argument('--probe',type=Path,help='Read-only investigation ASH defining auditRun(initial); requires --workload probe.')
 args=parser.parse_args()
+if (args.workload=='probe') != bool(args.probe):parser.error('--probe and --workload probe must be used together.')
 if any('=' not in setting for setting in args.setting):parser.error('--setting requires NAME=VALUE.')
 if args.reference and args.workload not in ('schedule','practical'):parser.error('--reference supports schedule or practical workloads.')
 fixture=Path(__file__).resolve().parent
 repo=fixture.parents[2]
-snapshot=fixture.parent
+snapshot=args.snapshot.resolve() if args.snapshot else fixture.parent
 saved_state=dict(row.split('\t',1) for row in (snapshot/'teres-barf-diet-state.tsv').read_text().splitlines())
-if saved_state.get('day')!='20261013':parser.error('This fixture expects the saved October 13 snapshot; update benchmark expectations before using different inputs.')
+if not args.snapshot and saved_state.get('day')!='20261013':parser.error('This fixture expects the saved October 13 snapshot; update benchmark expectations before using different inputs.')
 out=args.output.resolve() if args.output else Path(tempfile.mkdtemp(prefix='teres-diet-benchmark-'))
 out.mkdir(parents=True,exist_ok=True)
 if not args.jar.is_file():parser.error('Supply the installed KoLmafia JAR with --jar.')
@@ -122,13 +125,14 @@ setup+='''
  barfDietDailyTable();barfTwoDayState initial=barfDietInitialState();
  barfDietBuildItems();barfDietPruneItems(initial);barfDietEnsureFillers();
  if(!BENCH_RECIPE_PRICING&&count(barfTwoDayItems)!=171)abort("Frozen candidate pool changed: "+count(barfTwoDayItems)+"; expected 171.");
- print("FROZEN SNAPSHOT: 2026-10-13, "+count(barfTwoDayItems)+" candidates; practical planner; no game requests/actions. Income is provisional.");
+ print("FROZEN SNAPSHOT: BENCH_SNAPSHOT_DAY, "+count(barfTwoDayItems)+" candidates; practical planner; no game requests/actions. Income is provisional.");
  initial.uses["requiredChestXP"]=950;initial.uses["requiredYetiCharge"]=2000;
  initial.uses["allCool"]=1;initial.uses["coldRequired"]=initial.yetiDouble?1:0;
  initial.uses["initialColdRequired"]=initial.uses["coldRequired"];
  return benchmarkRun(initial);
 }
 '''
+setup=setup.replace('BENCH_SNAPSHOT_DAY',saved_state['day'])
 setup=setup.replace('BENCH_RECIPE_PRICING','true' if recipe_pricing else 'false')
 if recipe_pricing:
     setup=setup.replace(' barfGreedCandies[0]',''' foreach it in $items[] if(!it.tradeable)remove barfDietPrices[it];
@@ -255,6 +259,11 @@ boolean benchLiveSynthesis(int q,item a,item b){benchLiveTrace+="synthesis:"+a+"
     s+='\n'+declarations+live+'\n'
     entry=entry.replace('// BENCH_HELPERS', (fixture/'live_checks.ash').read_text()+'\n// BENCH_HELPERS',1)
     entry=entry.replace('int begin=now_to_int();','int begin=now_to_int();\n if(get_property("benchWorkload")=="live-checks")return liveChecks(initial);',1)
+if args.probe:
+    anchor=' initial.uses["coolSlots"]=7;initial.uses["initialCoolSlots"]=7;\n int begin=now_to_int();'
+    assert entry.count(anchor)==1
+    entry=entry.replace(anchor,anchor+'\n return auditRun(initial);',1)
+    entry=entry.replace('// BENCH_HELPERS',args.probe.read_text()+'\n// BENCH_HELPERS',1)
 if args.profile:
     entry=entry.replace('return "OK";\n}', 'foreach name,calls in benchProfileCalls print("PROFILE "+name+" calls="+calls+" inclusive_ms="+benchProfileMillis[name]);\n return "OK";\n}')
 (out/'benchmark.ash').write_text(s+entry+setup)
@@ -266,7 +275,7 @@ with log.open('w') as stream:
         '-cp',f'{args.jar}:{out}','SnapshotBench',args.mode,args.workload,str(out/'benchmark.ash'),str(snapshot),*args.setting],
         stdout=stream,stderr=subprocess.STDOUT)
 for row in log.read_text().splitlines():
-    if row.startswith(('FROZEN','SCHEDULE ms=','PRACTICAL ms=','PRACTICAL COUNT ','PROFILE ','BEAM ','CHECKS ','PARTIAL FRONTIER CHECKS ','JOINT BUFF CHECKS ','CLEARING RETRY CHECKS ','MARGINAL HELPER CHECKS ','FOOD XP CHECKS ','PLANNER CHECKS ','LIVE CHECKS ','LIVE NATIVE ','VALIDATED COMPLETE TRIALS ','PRODUCTION ','INGREDIENT CHECKS ','Runtime result=')):print(row)
+    if row.startswith(('FROZEN','SCHEDULE ms=','PRACTICAL ms=','PRACTICAL COUNT ','PROFILE ','BEAM ','CHECKS ','PARTIAL FRONTIER CHECKS ','JOINT BUFF CHECKS ','CLEARING RETRY CHECKS ','MARGINAL HELPER CHECKS ','FOOD XP CHECKS ','PLANNER CHECKS ','LIVE CHECKS ','LIVE NATIVE ','VALIDATED COMPLETE TRIALS ','PRODUCTION ','INGREDIENT CHECKS ','AUDIT RESULT ','AUDIT FOOD ','AUDIT DELTA ','AUDIT INVALID ','AUDIT RESOURCE ','AUDIT BUDGET ','Runtime result=')):print(row)
 print('Full output:',log)
 if result.returncode:raise SystemExit(result.returncode)
 if 'Runtime result=OK' not in log.read_text():raise SystemExit('Native benchmark did not complete; inspect the full output for parse/runtime errors.')

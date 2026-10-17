@@ -1,0 +1,6 @@
+{
+  "production_sha256": "fc89274513e2ae84c21bd7d97bac2bd18708539921f15aaaa74838babb24ff67",
+  "production_source_matches_cleanup_commit": "5b90025",
+  "all_four_production_files_unchanged_during_investigation": true,
+  "supported_cli_dispatch_byte_identical_to_pre_cleanup": true
+}
