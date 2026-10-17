@@ -483,8 +483,8 @@ barfTwoDayState[string] barfDietFillCache;
 int barfDietFillCacheHits;int barfDietFillCacheMisses;
 barfTwoDayState[string] barfDietPreparationCache;
 int barfDietPreparationHits;int barfDietPreparationMisses;
-string barfDietCapacityStartKey;barfTwoDayState barfDietCapacityStartCache;
-boolean barfDietCapacityStartReady;int barfDietCapacityStartHits;
+barfTwoDayState[string] barfDietCapacityStartCache;int[string] barfDietCapacityStartAges;
+int barfDietCapacityStartClock;int barfDietCapacityStartHits;
 void barfDietResetSearchCaches(){
     clear(barfDietExtraMenu);barfDietExtraMenuReady=false;
     clear(barfDietRateCache);clear(barfDietItemIncomeCache);
@@ -492,7 +492,7 @@ void barfDietResetSearchCaches(){
     clear(barfDietFarmPrefixes);barfDietFarmParentKey="";
     clear(barfDietFillCache);barfDietFillCacheHits=0;barfDietFillCacheMisses=0;
     clear(barfDietPreparationCache);barfDietPreparationHits=0;barfDietPreparationMisses=0;
-    barfDietCapacityStartReady=false;barfDietCapacityStartKey="";barfDietCapacityStartHits=0;
+    clear(barfDietCapacityStartCache);clear(barfDietCapacityStartAges);barfDietCapacityStartClock=0;barfDietCapacityStartHits=0;
     barfDietMemoize=true;barfDietSkipBare=true;barfDietShareFarmForecasts=true;
 }
 string barfDietEffectKey(barfTwoDayState s,boolean exact){
@@ -1657,14 +1657,17 @@ barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target
         return barfDietQuickFillUncached(source,organ,target,broad);
     // Exact inputs include every economic/resource field. Only schedule text is
     // rebased; fills append actions without inspecting the preceding actions.
-    string key=organ+":"+target+":"+broad+":"+barfDietExactStateKey(source);
+    // Capacity policy affects later equipment decisions, never this pure organ fill.
+    barfTwoDayState normalized=source;
+    if(source.uses["capacityPolicy"]!=0){normalized=barfDietClone(source);normalized.uses["capacityPolicy"]=0;}
+    string key=organ+":"+target+":"+broad+":"+barfDietExactStateKey(normalized);
     if(barfDietFillCache contains key){
         barfDietFillCacheHits+=1;
         barfTwoDayState cached=barfDietClone(barfDietFillCache[key]);
-        cached.schedule=source.schedule+cached.schedule;return cached;
+        cached.schedule=source.schedule+cached.schedule;cached.uses["capacityPolicy"]=source.uses["capacityPolicy"];return cached;
     }
     barfDietFillCacheMisses+=1;
-    barfTwoDayState result=barfDietQuickFillUncached(source,organ,target,broad);
+    barfTwoDayState result=barfDietQuickFillUncached(normalized,organ,target,broad);
     if(result.cash>=0&&!barfDietQuickExpired()){
         // Bounded storage avoids retaining every frontier of an unrestricted run.
         if(count(barfDietFillCache)>=64)clear(barfDietFillCache);
@@ -1672,6 +1675,7 @@ barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target
         cached.schedule=substring(cached.schedule,length(source.schedule));
         barfDietFillCache[key]=cached;
     }
+    if(result.cash>=0)result.uses["capacityPolicy"]=source.uses["capacityPolicy"];
     return result;
 }
 barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target){
@@ -1689,7 +1693,7 @@ void barfDietSearchReport(){
         +", eligible="+barfDietMenuPairsGenerated+", top="+barfDietPairTop+".","blue");
     print("SEARCH exact fill cache: "+barfDietFillCacheHits+" hits, "+barfDietFillCacheMisses+" misses, "+count(barfDietFillCache)+" stored (maximum 64).","blue");
     print("SEARCH preparation cache: "+barfDietPreparationHits+" hits, "+barfDietPreparationMisses+" misses, "+count(barfDietPreparationCache)+" stored (maximum 16).","blue");
-    print("SEARCH shared capacity starts: "+barfDietCapacityStartHits+" hits (one stored prefix).","blue");
+    print("SEARCH shared capacity starts: "+barfDietCapacityStartHits+" hits; "+count(barfDietCapacityStartCache)+" stored (maximum 8).","blue");
     if(!get_property("teresBarfDietDiagnostics").to_boolean())return;
     foreach phase in $strings[estimate,fallback,XP,starting,pours,width,local,training,pairs,capacity,events,bundles]{
         if(barfDietSearchMetrics[phase+":ms"]==0&&barfDietSearchMetrics[phase+":attempted"]==0)continue;
@@ -1955,13 +1959,20 @@ barfTwoDayState barfDietQuickCapacityStart(barfTwoDayState initial,barfDietLateM
     barfTwoDayState normalized=barfDietClone(initial);normalized.uses["capacityPolicy"]=0;
     string key=menu.fullness+":"+menu.drunkenness+":"+menu.spleen+":"+distill+":"+barfDietExactStateKey(normalized);
     barfTwoDayState s;
-    if(barfDietMemoize&&barfDietCapacityStartReady&&key==barfDietCapacityStartKey){
-        barfDietCapacityStartHits+=1;s=barfDietClone(barfDietCapacityStartCache);s.schedule=initial.schedule+s.schedule;
+    if(barfDietMemoize&&(barfDietCapacityStartCache contains key)){
+        barfDietCapacityStartHits+=1;barfDietCapacityStartAges[key]=++barfDietCapacityStartClock;
+        s=barfDietClone(barfDietCapacityStartCache[key]);s.schedule=initial.schedule+s.schedule;
     }else{
         s=barfDietQuickStart(normalized,menu,distill);
         if(barfDietMemoize&&s.cash>=0&&!barfDietQuickExpired()){
-            barfDietCapacityStartKey=key;barfDietCapacityStartReady=true;barfDietCapacityStartCache=barfDietClone(s);
-            barfDietCapacityStartCache.schedule=substring(s.schedule,length(initial.schedule));
+            // Retain neighboring retry prefixes without pruning any search states.
+            if(count(barfDietCapacityStartCache)>=8){
+                string oldest="";
+                foreach stored,age in barfDietCapacityStartAges if(oldest==""||age<barfDietCapacityStartAges[oldest])oldest=stored;
+                remove barfDietCapacityStartCache[oldest];remove barfDietCapacityStartAges[oldest];
+            }
+            barfTwoDayState cached=barfDietClone(s);cached.schedule=substring(s.schedule,length(initial.schedule));
+            barfDietCapacityStartCache[key]=cached;barfDietCapacityStartAges[key]=++barfDietCapacityStartClock;
         }
     }
     s.uses["capacityPolicy"]=initial.uses["capacityPolicy"];return s;

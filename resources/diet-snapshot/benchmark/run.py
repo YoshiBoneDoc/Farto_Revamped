@@ -55,6 +55,9 @@ if 'int deadline=0;' in s:
     s=s.replace('int deadline=0;',f'int deadline={int(benchmark_budget)};deadline=deadline>0?started+deadline*1000:0;',1)
 # Independent cache controls exist only in generated offline copies.
 benchmark_settings=dict(setting.split('=',1) for setting in args.setting)
+if benchmark_settings.get('benchFillPolicyCache')=='false':
+    s=s.replace('if(source.uses["capacityPolicy"]!=0){normalized=',
+        'if(false&&source.uses["capacityPolicy"]!=0){normalized=',1)
 if benchmark_settings.get('benchCapacityPolicies')=='false':
     s=s.replace('foreach policy in $ints[1,8,9,2,10,4,12,7,15]{',
         'if(false)foreach policy in $ints[1,8,9,2,10,4,12,7,15]{',1)

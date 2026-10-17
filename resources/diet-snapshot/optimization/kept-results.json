@@ -1,0 +1,89 @@
+{
+  "source_sha256": "9d72aa05ad06e729f64cde93451e191f6d3e8559a28fd5e4d8639f169aa7b368",
+  "source": "accepted capacity + exact-cache reuse (frozen source hash above)",
+  "cases": [
+    {
+      "snapshot": "old",
+      "budget": 0,
+      "summary": "PRACTICAL ms=104325 encounters=674 combined=2783515.399223725 replay=true targets=true",
+      "rss_bytes": 518488064,
+      "validated_trials": "VALIDATED COMPLETE TRIALS 65",
+      "results": [
+        "Diet planning finished in 104 seconds after 65 comparisons; fill states 72907, dominated 72, width-pruned 53613, joint buff pairs 172; gain over fallback 107155 Meat.",
+        "SEARCH trials: 65 attempted, 65 completed, 63 met targets, 17 cached; pairs reached=true, expired at entry=false, eligible=172, top=12.",
+        "SEARCH exact fill cache: 423 hits, 813 misses, 45 stored (maximum 64).",
+        "SEARCH preparation cache: 10 hits, 56 misses, 8 stored (maximum 16).",
+        "SEARCH shared capacity starts: 9 hits; 8 stored (maximum 8).",
+        "SEARCH phase=estimate ms=6116 attempted=0 completed=0 targets=0 cached=0",
+        "SEARCH phase=fallback ms=4872 attempted=1 completed=1 targets=1 cached=0",
+        "SEARCH phase=XP ms=13111 attempted=3 completed=3 targets=3 cached=0",
+        "SEARCH phase=starting ms=18877 attempted=6 completed=6 targets=6 cached=0",
+        "SEARCH phase=pours ms=29871 attempted=12 completed=12 targets=12 cached=0",
+        "SEARCH phase=width ms=12246 attempted=1 completed=1 targets=1 cached=0",
+        "SEARCH phase=local ms=5764 attempted=7 completed=7 targets=7 cached=17",
+        "SEARCH phase=training ms=4264 attempted=2 completed=2 targets=0 cached=0",
+        "SEARCH phase=pairs ms=7843 attempted=24 completed=24 targets=24 cached=0",
+        "SEARCH phase=capacity ms=861 attempted=9 completed=9 targets=9 cached=0",
+        "Farming: 674 expected paid encounters (adaptive, replan from each actual roll); estimated income 3031140 Meat. Opportunity costs 389512; today's net 2641628; tomorrow's distinct-effect value 141888; combined 2783515."
+      ],
+      "counters": [
+        "PRACTICAL COUNT consumes=94039",
+        "PRACTICAL COUNT farmBlocks=6063",
+        "PRACTICAL COUNT rateMisses=1494",
+        "PRACTICAL COUNT scores=287904"
+      ],
+      "ms": 104325.0,
+      "encounters": 674.0,
+      "combined": 2783515.399223725,
+      "replay": "true",
+      "targets": "true",
+      "complete_trial_hash": "541380076e27763a96e82b5750d6d044e6d48dfad00a1f4cb03b16fae5c59743",
+      "exactly_equal_to_capacity_control": 65
+    },
+    {
+      "snapshot": "fresh",
+      "budget": 0,
+      "summary": "PRACTICAL ms=136820 encounters=595 combined=2472752.07609358 replay=true targets=true",
+      "rss_bytes": 542474240,
+      "validated_trials": "VALIDATED COMPLETE TRIALS 58",
+      "results": [
+        "Diet planning finished in 136 seconds after 65 comparisons; fill states 160851, dominated 195, width-pruned 120509, joint buff pairs 193; gain over fallback 95318 Meat.",
+        "SEARCH trials: 65 attempted, 58 completed, 56 met targets, 17 cached; pairs reached=true, expired at entry=false, eligible=193, top=12.",
+        "SEARCH exact fill cache: 323 hits, 1783 misses, 55 stored (maximum 64).",
+        "SEARCH preparation cache: 5 hits, 89 misses, 7 stored (maximum 16).",
+        "SEARCH shared capacity starts: 9 hits; 8 stored (maximum 8).",
+        "SEARCH phase=estimate ms=3467 attempted=0 completed=0 targets=0 cached=0",
+        "SEARCH phase=fallback ms=2904 attempted=1 completed=1 targets=1 cached=0",
+        "SEARCH phase=XP ms=7529 attempted=3 completed=3 targets=3 cached=0",
+        "SEARCH phase=starting ms=13983 attempted=6 completed=6 targets=6 cached=0",
+        "SEARCH phase=pours ms=36784 attempted=12 completed=11 targets=11 cached=0",
+        "SEARCH phase=width ms=9645 attempted=1 completed=1 targets=1 cached=0",
+        "SEARCH phase=local ms=13974 attempted=7 completed=6 targets=6 cached=17",
+        "SEARCH phase=training ms=4597 attempted=2 completed=2 targets=0 cached=0",
+        "SEARCH phase=pairs ms=41802 attempted=24 completed=19 targets=19 cached=0",
+        "SEARCH phase=capacity ms=2010 attempted=9 completed=9 targets=9 cached=0",
+        "Farming: 595 expected paid encounters (adaptive, replan from each actual roll); estimated income 2678004 Meat. Opportunity costs 372179; today's net 2305825; tomorrow's distinct-effect value 166927; combined 2472752."
+      ],
+      "counters": [
+        "PRACTICAL COUNT consumes=196602",
+        "PRACTICAL COUNT farmBlocks=8584",
+        "PRACTICAL COUNT rateMisses=1358",
+        "PRACTICAL COUNT scores=639362"
+      ],
+      "ms": 136820.0,
+      "encounters": 595.0,
+      "combined": 2472752.07609358,
+      "replay": "true",
+      "targets": "true",
+      "complete_trial_hash": "0004459ff0ae0e3486d02877e1c64ba285a6d3ffec347973df8e7f053ea6ea70",
+      "exactly_equal_to_capacity_control": 58
+    }
+  ],
+  "settings": [
+    "benchCookingAccess=true",
+    "benchValidateTrials=true",
+    "teresBarfDietPlanSeconds=0",
+    "teresBarfDietDiagnostics=true"
+  ],
+  "fresh_fixture_extra": "benchInactiveStillsuit=true"
+}
