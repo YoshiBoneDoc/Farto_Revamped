@@ -53,3 +53,5 @@ Do not remove a policy merely because it did poorly on these two fixtures. Wider
 All 11 final regression cases pass: cookie, fill cache, preparation cache, semantics, frontier, planner, pours, ingredients, mocked live execution, native live compatibility and actual read-only production entry. The entry fixture uses a benchmark-only cap after securing its fallback; uncapped full searches are validated separately above. Cache-disable controls also reproduce the uncached schedule exactly. All 135 comments from the revised economic control remain.
 
 Commits: `4081830` removes the production deadline; `e629408` adjusts the cookie; `d3c1763` adds exact fill reuse; `64025c2` adds shared preparation. Detailed status is in `DIET_OPTIMIZER_PROGRESS.md`.
+
+October 17 follow-up: bounded capacity grouping/deferral and further exact reuse are now installed. That later work, its matched inputs, rejected experiments and results are documented in `DIET_OPTIMIZER_INCREMENTAL_RESULT.md`; statements above describe the earlier runtime-only checkpoint.

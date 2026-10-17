@@ -1,77 +1,46 @@
-# Diet optimizer implementation progress
+# Diet optimizer verified checkpoint
 
-User approved all six areas autonomously on October 16, 2026. Latest steering removes the normal wall-clock deadline. Preserve a complete fallback, all original comments and all gameplay/economic constraints. No live gameplay tests.
+October 17, 2026. User authorizes autonomous, incremental implementation, retaining demonstrated profit/speed benefits. Latest steering removes the production wall-clock deadline and rejects lengthy searches for tiny gains. Keep a complete legal fallback, existing comments and all gameplay/economic constraints. No live gameplay tests.
 
-## Starting checkpoint
+## Current production
 
-- Investigation: `3b73837`; cleanup: `5b90025`.
-- Current preexisting change: whitespace-only cleanup in TeresMimicDiet.ash; preserve it separately.
-- Old/fresh fixtures remain separate. Fresh export omits the inactive stillsuit; use explicit `benchInactiveStillsuit=true` in every matched fresh run. Absolute incomes remain provisional native reconstructions.
-- Unrelated deleted archive, .DS_Store, IDE/settings files are outside scope.
+- `4081830`: normal planning is uncapped. Finite search loops remain; deadline injection exists only in offline benchmark copies.
+- `e629408`: Affirmation Cookie uses nine base adventures, one fullness, once/day. This is an economic assumption change, not a search-quality gain.
+- `d3c1763`, `64025c2`: exact ordinary-fill and retained-menu preparation caches. Their previous matched full searches preserve every completed state, score and schedule; see `DIET_OPTIMIZER_RUNTIME_RESULT.md`.
+- `7e047f5`: native-modifier-based capacity grouping and deferring gear that only supplies reserved final space. Nine bounded continuations compete after the original search. Original policy remains a fallback; only replayed requested-target improvements replace it. Capacity policy is retained in live observations.
+- `d13fb72`: eight-entry successful pre-capacity prefix LRU and pure-fill reuse across the irrelevant later equipment-policy flag. Physical/economic inputs remain exact; caller policy/schedule are restored. Eviction causes recomputation, never state pruning.
 
-## Sequence
+Main result report: `DIET_OPTIMIZER_INCREMENTAL_RESULT.md`. No partially implemented algorithm branches remain in production. Original initial-plan selection remains because tested replacements failed the final-result comparison.
 
-1. Freeze current source; baseline both snapshots at 30/60/90 seconds with native RSS measurement.
-2. Observability only; exact fixed-work equivalence.
-3. General capacity grouping/defer comparisons, including old demonstrated gains and fresh unfavorable control.
-4. Equal-budget allocation; late-stock reservation; event pour, clearing bundle and frontier/quantity experiments independently.
-5. Keep only validated benefits, run complete regression suite, report matched economic/runtime/memory results.
+## Latest matched uncapped results
 
-## Verified work
+| Frozen snapshot | Before this round | Kept combined Meat | Gain | Planning before → after | Peak RSS before → after |
+|---|---:|---:|---:|---:|---:|
+| October 13 | 2,778,483.141 | 2,783,515.399 | +5,032.258 | 107.365 → 104.325 s | 663.5 → 518.5 MB |
+| October 16 | 2,472,752.076 | 2,472,752.076 | 0 | 130.770 → 136.820 s | 533.8 → 542.5 MB |
 
-Observability counters implemented; exact complete-schedule smoke equivalence passes. Counter/expiry fixture passes. Normal deadline removal and cookie valuation are the next independent commits. Prior frozen evidence is in the investigation plan and JSON files. Approval gates in that historical plan have been superseded by the user's latest instruction.
+Single-run timings/RSS vary with the JVM; do not claim a general whole-run speedup. The new capacity phase costs roughly 1–3 seconds. Cache refinements deterministically eliminate repeated evaluations and preserve all 65 old / 58 fresh completed capacity-control results exactly. All original 56 / 49 completed reference trials remain present exactly. Two relaxed-target training comparisons per fixture cannot displace the requested-target winner.
 
-## Latest steering
+Fixed historical capacity controls reproduce +4,542.589 grouping and +7,196.880 grouping/deferral, without production food names or fixed equipment orders. All-organ grouping/deferral finds +7,521.428 on that same profile. Every complete continuation replays legally.
 
-The user subsequently removed the wall-clock constraint from normal planning and requested fewer repeated/unproductive computations instead. Retain benchmark-only limits for before/after comparisons. Model Affirmation Cookie as 9 base adventures for 1 fullness, one/day. Profit comparisons must distinguish that changed assumption from algorithm improvements.
+Both full matrices use identical native inputs/economics per fixture, cookie=9, unchanged candidate pools 175 / 172, explicit cooking access, and fresh `benchInactiveStillsuit=true` because the export omits inactive familiar equipment. Missing native exports make absolute incomes provisional; relative comparisons use the same reconstruction. No planning deadline or live game requests/actions. Earlier 30/60/90-second results are historical; do not mix their old cookie assumption with these uncapped measurements.
 
-- `cde436e`: observability only; identical ordered-schedule smoke, counter/expired-pair test and replay pass. Native child RSS measured with wait4. Original-model 30/60/90 matrix complete for both snapshots.
-- Normal wall-clock cutoff removed; generous-budget behavior remains the same finite search. Benchmark-only injection retains matched limited runs. Complete-schedule smoke equivalence passes.
+## Experiments rejected this round
 
-- `4081830`: removed production wall-clock deadline; limits exist only in generated offline benchmark copies. Finite comparison loops retained.
-- Cookie exception: quality/shortlist inclusion and native yield both use nine base adventures; existing daily counter retained. Focused native checks pass (exact bare yield, second use rejected, already-used exclusion). This is an assumption change, not a search-quality gain.
+- Finite late-menu stock reservation recovers a deliberately forced completion but improves neither full-search winner; adds approximately 6 / 11 seconds and memory. Not installed. Shared raw-recipe ingredient reservation remains unresolved.
+- Two early-menu portfolios improve the older starting result but not its final profit. Both lose 6,623.680 Meat on the fresh final result by altering the later greedy path. Not installed.
+- Reference-preserving coupled menu/capacity alternatives gain 1,419.902 fresh Meat, zero older gain. Marginal runtime is approximately ten seconds even after cache refinement. Rejected under the user's profit/runtime preference; no dormant coupled bookkeeping remains.
 
-## Current checkpoint (uncapped follow-up)
+Offline patches and their dependent probes are marked in `resources/diet-snapshot/optimization/prototypes/README.md`. Apply only to temporary `7e047f5` source copies with the isolated harness. Numeric results/source hashes are in neighboring JSON files. Accepted path: `stage-baseline-results.json` → `capacity-results.json` → `kept-results.json`.
 
-- Git commit of cookie fix was blocked by automatic approval review failing on an account usage limit; no action executed and no bypass attempted. Workspace edits remain available. Earlier observability and cutoff changes are committed.
-- Economic control frozen at `/private/tmp/diet-roadmap-economic-control.ash` includes cookie=9 and no production cutoff. Old unlimited run completed all 56 comparisons in 115.891 seconds; combined 2,778,483.140999304; all 56 completed diets replay, 54 meet requested targets (two explicitly relaxed training comparisons). Peak RSS 528,285,696 bytes.
-- Exact fill cache candidate: all state fields retained in key, successful fills only, schedule suffix rebased, at most 64 entries. Reset with snapshot caches. Native focused tests pass for equality, schedule rebasing, resource/policy/capacity separation and caller isolation. Full-run benefit still pending; do not claim a speedup yet.
-- Cookie change invalidates older score/schedule references. Matched new-cookie schedule baseline and cache candidate are exactly equal (661 encounters, same complete state/schedule/score).
-- User is editing TeresMimic.ash concurrently; leave those changes untouched.
+## Final verification
 
-- Second candidate: cache preparation through training/farming/equipment/pours before final retained-item consumption. Inspection confirms retained item indices are never read by this prefix; only menu fullness/liver/spleen totals and pour reservation are read. Key retains all starting state fields plus these totals and final-pour choice. Maximum 16 successful prefixes; per-snapshot reset. Awaiting full-state/native-schedule equivalence and independent benefit measurements.
+All 14 native regression cases pass: cookie; fill/preparation/prefix caches; memoization scope; capacity gains; semantic checks; frontier; planner; pours; ingredient costs; mocked live driver; native live compatibility; actual read-only production entry. `incremental-regression-results.json` records outputs and exits. The entry fixture uses a benchmark-only one-second limit after securing a fallback; complete uncapped searches are separately replayed above.
 
-- Exact fill cache old full-run validation passes: all 56 completed states/scores/schedules identical, 54 requested-target plans and two relaxed controls. Planning 115.891 → 83.530 seconds; 161,351 → 96,800 consume evaluations; 525,840 → 298,252 scores; 641 exact hits. Peak RSS 528,285,696 → 463,994,880 bytes. No search diversity reduced. Fresh run pending.
+Final source SHA-256: `9d72aa05ad06e729f64cde93451e191f6d3e8559a28fd5e4d8639f169aa7b368`. All 140 prior source comments preserved. Python harness syntax and scoped diff whitespace checks pass. No candidate diversity, economic formula, stock/liquidity requirement, organ legality, full cooling coverage, mandatory cold-fashioned doubling, training/XP, stillsuit, retained-buff, final Vintage or 200-adventure rollover constraint was weakened.
 
-- Preparation cache focused native tests pass: different menu identities with identical reserved organs produce identical original/cached prefix states and schedules; rebasing, changed-XP isolation and snapshot reset verified. Independent full-run benchmark pending.
+## Remaining opportunities
 
-## Latest verified runtime checkpoint
+The entire six-area roadmap is not complete. Event-based pour timing, profitable multi-step clearing bundles, and safe frontier/quantity improvements need independent positive complete-schedule evidence before adoption. A stronger initial search must preserve competing downstream branches rather than greedily overwrite the reference path; the tested portfolios do not establish that benefit. Failed-prefix reuse may reduce work but requires exact failure/diagnostic tests. Keep these verified commits as the recoverable baseline.
 
-- Commit issue resolved after the usage-reset time. `e629408` saves the cookie fix independently; `d3c1763` saves exact fill reuse independently.
-- Combined preparation + fill caches pass exact full-run comparisons on both snapshots: same 56 attempted comparisons and every completed state/score/schedule. Old planning 115.891 → 80.888 seconds; fresh 133.729 → 96.027 seconds. Profit unchanged at 2,778,483.140999 / 2,472,752.076094 under matched new-cookie assumptions. Complete-trial production replay passes for 56 old / 49 fresh diets.
-- Preparation reuse alone adds about 2.6 seconds improvement on each fixture and reduces farming blocks 6,663 → 5,538 / 9,032 → 8,521. The larger gain comes from fill reuse. Peak RSS 528.3 → 476.0 MB old; 542.2 → 555.3 MB fresh.
-- Portable source/result hashes, counts, phase timings, memory and equality evidence saved in optimization/*cache-results.json and uncapped-control-results.json. Benchmark-only cache switches permit independent reproduction from current code.
-- Focused cookie/fill/preparation tests, semantic checks, frontier, planner and pour suites pass. Final ingredient/live/production entry checks are running. No live actions.
-- All six original optimization areas are NOT complete. Latest steering prioritizes uncapped runtime improvements; capacity grouping/deferral and the other profitability areas remain for continuation from this verified checkpoint. No partly installed algorithm changes.
-
-- Final regression suite: all 11 cases pass (cookie, exact fill cache, preparation cache, semantics, frontier, planner, pours, ingredients, mocked live driver, native live compatibility, and actual read-only production entry). Production-entry fixture uses a one-second benchmark-only cap after securing its fallback; the full uncapped algorithm is separately validated on both snapshots. Portable regression-results.json records outputs and exit codes.
-
-## Saved commits and next work
-
-- `4081830`: uncapped production planning (earlier in this task).
-- `e629408`: nine-adventure daily cookie model.
-- `d3c1763`: exact fill reuse.
-- `64025c2`: shared retained-menu preparation.
-- Offline cache-disable controls also reproduce the uncached complete schedule exactly. Original comments preserved (all 135 in the new-cookie control remain). No additional gameplay calls introduced.
-- See DIET_OPTIMIZER_RUNTIME_RESULT.md for matched measurements and limitations. Continue the approved profitability roadmap from capacity grouping/deferral; keep these exact runtime improvements as the new verified baseline.
-
-## October 17: incremental profit work
-
-User explicitly requested sequential implementation, retaining measured profit/speed benefits and rejecting hour-long searches for tiny gains. Latest baseline frozen at `/private/tmp/diet-stage-baseline.ash`, uncapped native old/fresh matrix in `/private/tmp/diet-stage-baseline`. Existing caches and cookie assumptions remain fixed.
-
-First candidate: nine bounded capacity grouping/defer policies, compared only on the selected completed profile. Grouping uses native gear capacity modifiers rather than consumable/equipment names or a fixed order. Deferral prioritizes newly usable ordinary organ space; reserved-only pieces remain available and are eventually equipped. All existing transitions/legality checks remain authoritative; candidate winners must replay. One exact normalized prefix reuses all work before capacity decisions, retaining every other state dimension. Capacity policy survives trial profiles, replay and live observations. Focused schedule smoke is exactly equal to the previous default policy. Full benchmark and targeted profitability controls pending. No live gameplay.
-
-- Capacity fixed-profile native controls pass: +4,542.589 grouping, +2,433.100 deferral, +7,196.880 combined, +7,521.428 all-organ grouping/defer. Nine variants each ~0.2 sec after shared prefix; all replay/targets pass. Current full October 13 search retains all 56 old trial states/scores/schedules exactly and selects +5,032.258 Meat overall, with nine added trials taking 3.016 seconds. Fresh control still running.
-- Isolated late-stock prototype (not production): reserving scarce use counts before ordinary filling recovers the prior three-mojo/body-spradium failure. Protected complete native replay succeeds (2,740,261.039); unprotected prefix consumes its sole body spradium and cannot complete the requested menu. This is completion evidence, not yet evidence of a better overall winner. Full profitability/runtime test required before adoption; state-key reservation markers may reduce cache reuse.
-
-- Capacity full matrices complete: old 2,778,483.140999 → 2,783,515.399224 (+5,032.258); fresh remains 2,472,752.076094. Added comparisons cost 3.016 / 2.035 seconds. Native whole planning 107.365 → 109.563 sec old, 130.770 → 133.675 sec fresh; timings are observational single runs. Every old 56/fresh 49 original complete trial is exactly preserved; all 65/58 new complete trials replay. Fresh no-gain control remains unchanged. Keeping this bounded feature.
+Unrelated TeresMimic.ash edits, deleted archive, IDE files/settings and .DS_Store changes are outside this diet work; leave untouched. Do not update PROJECT_HANDOFF.md routinely.

@@ -1,0 +1,46 @@
+{
+  "source_sha256": "38a317649f3460c0bd408a2c155c821f9bd16b0986209c09c498a1926f02163a",
+  "source": "optimized caches with rejected coupled comparisons disabled in generated benchmark copy",
+  "cases": [
+    {
+      "snapshot": "fresh",
+      "budget": 0,
+      "summary": "PRACTICAL ms=131476 encounters=595 combined=2472752.07609358 replay=true targets=true",
+      "rss_bytes": 556564480,
+      "validated_trials": "VALIDATED COMPLETE TRIALS 58",
+      "results": [
+        "Diet planning finished in 131 seconds after 65 comparisons; fill states 160851, dominated 195, width-pruned 120509, joint buff pairs 193; gain over fallback 95318 Meat.",
+        "SEARCH trials: 65 attempted, 58 completed, 56 met targets, 17 cached; pairs reached=true, expired at entry=false, eligible=193, top=12.",
+        "SEARCH exact fill cache: 323 hits, 1783 misses, 55 stored (maximum 64).",
+        "SEARCH preparation cache: 5 hits, 89 misses, 7 stored (maximum 16).",
+        "SEARCH shared capacity starts: 9 hits; 8 stored (maximum 8).",
+        "SEARCH phase=estimate ms=3295 attempted=0 completed=0 targets=0 cached=0",
+        "SEARCH phase=fallback ms=2639 attempted=1 completed=1 targets=1 cached=0",
+        "SEARCH phase=XP ms=7374 attempted=3 completed=3 targets=3 cached=0",
+        "SEARCH phase=starting ms=13261 attempted=6 completed=6 targets=6 cached=0",
+        "SEARCH phase=pours ms=35186 attempted=12 completed=11 targets=11 cached=0",
+        "SEARCH phase=width ms=9284 attempted=1 completed=1 targets=1 cached=0",
+        "SEARCH phase=local ms=13446 attempted=7 completed=6 targets=6 cached=17",
+        "SEARCH phase=training ms=4524 attempted=2 completed=2 targets=0 cached=0",
+        "SEARCH phase=pairs ms=40376 attempted=24 completed=19 targets=19 cached=0",
+        "SEARCH phase=capacity ms=1962 attempted=9 completed=9 targets=9 cached=0",
+        "Farming: 595 expected paid encounters (adaptive, replan from each actual roll); estimated income 2678004 Meat. Opportunity costs 372179; today's net 2305825; tomorrow's distinct-effect value 166927; combined 2472752."
+      ],
+      "counters": [
+        "PRACTICAL COUNT consumes=196602",
+        "PRACTICAL COUNT farmBlocks=8584",
+        "PRACTICAL COUNT rateMisses=1358",
+        "PRACTICAL COUNT scores=639394"
+      ],
+      "ms": 131476.0,
+      "encounters": 595.0,
+      "combined": 2472752.07609358,
+      "replay": "true",
+      "targets": "true"
+    }
+  ],
+  "settings": [
+    "benchCoupledMenus=false",
+    "teresBarfDietDiagnostics=true"
+  ]
+}

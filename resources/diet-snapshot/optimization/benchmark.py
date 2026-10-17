@@ -5,7 +5,7 @@ import argparse,subprocess,json,re,hashlib
 p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--budgets',type=int,nargs='+',default=[30,60,90]);p.add_argument('--snapshots',nargs='+',default=['old','fresh']);p.add_argument('--setting',action='append',default=[]);p.add_argument('--reference',type=Path,help='Require identical completed states/schedules to this matrix directory.');a=p.parse_args()
 root=Path(__file__).resolve().parents[3];a.output.mkdir(parents=True,exist_ok=True)
 source=a.output/'source.ash';source.write_bytes(a.source.read_bytes())
-manifest={'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'source':str(source),'cases':[]}
+manifest={'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'source':str(source),'settings':a.setting,'snapshots':a.snapshots,'budgets':a.budgets,'cases':[]}
 for snapshot in a.snapshots:
  for budget in a.budgets:
   out=a.output/f'{snapshot}-{budget}'
