@@ -2473,6 +2473,13 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
         barfTwoDayState next=barfDietQuickTrial(trial,bestMenu,bestDistill,"capacity grouping/defer policy "+policy);
         if(barfDietMeetsTargets(next)&&barfDietScore(next)>barfDietScore(best)&&barfDietReplay(initial,next))best=next;
     }
+    if(!barfDietQuickExpired()&&barfDietMeetsTargets(best)){
+        int jointStarted=now_to_int();float before=barfDietScore(best);
+        best=barfDietJointCapacity(initial,best);
+        print("Joint capacity/quantity lookahead: "+barfDietJointWindows+" windows; "+barfDietJointCompleted+" continuations considered; "
+            +barfDietJointForecastHits+" shared forecasts; "+barfDietJointBoundPruned+" inferior fixed continuations skipped; "
+            +((now_to_int()-jointStarted)/1000.0)+" seconds; gain "+round(barfDietScore(best)-before)+" Meat. Global optimality is not established.","blue");
+    }
     if(barfDietQuickExpired())print("Planning safety limit reached; keeping the best complete diet. Incomplete alternatives have no claimed profit.","blue");
     print("Diet planning finished in "+((now_to_int()-started)/1000)+" seconds after "+barfDietTrialCount+" comparisons; fill states "+barfDietFillGenerated+", dominated "+barfDietFillDominated+", width-pruned "+barfDietFillBeamPruned+", joint buff pairs "+barfDietMenuPairsGenerated+"; gain over fallback "+round(barfDietScore(best)-barfDietQuickBaseline)+" Meat.","blue");
     barfDietSearchReport();
