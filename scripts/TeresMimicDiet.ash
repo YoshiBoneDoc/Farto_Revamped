@@ -26,8 +26,6 @@ boolean barfDietReadStash(){
     }
 }
 
-
-
 item[int] barfGreedCandies;
 
 item[int] barfSynthesisCandies(){
@@ -36,23 +34,8 @@ item[int] barfSynthesisCandies(){
 }
 
 
-
-
-
-
-
-
-
-
-
 // Bounded knapsack by effect group: repeats never credit buff turns past the horizon.
 // Foods with the same effect compete in one group, avoiding duplicate buff value.
-
-
-
-
-
-
 
 
 void barfOde(int size){
@@ -65,28 +48,9 @@ void barfOde(int size){
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Compare organ-clearing meals with the diet they displace, including the refill.
 
-
-
-
 // Prevent organ-changing Mayo automation from invalidating the planner.
-
-
 
 // A short test run must not buy a full day's diet it will not use.
 // Breakfast must precede every other food, including legendary pasta.
@@ -194,9 +158,6 @@ string barfTwoDayWarnings;
 float barfTwoDayCopiedWeight;
 barfTwoDayState[string] barfDietComparisons;
 float[int] barfDietDropIncomeCache;
-
-
-
 
 
 int barfDietTrainingGoal(barfTwoDayState s,boolean chest){
@@ -1416,15 +1377,6 @@ void barfDietPruneItems(barfTwoDayState s){
     }
     clear(barfTwoDayItems);foreach i,e in kept barfTwoDayItems[i]=e;
 }
-
-
-
-
-
-
-
-
-
 
 
 // Include effect expiry and each attainable stillsuit yield threshold.
