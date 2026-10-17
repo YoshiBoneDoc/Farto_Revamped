@@ -483,6 +483,8 @@ barfTwoDayState[string] barfDietFillCache;
 int barfDietFillCacheHits;int barfDietFillCacheMisses;
 barfTwoDayState[string] barfDietPreparationCache;
 int barfDietPreparationHits;int barfDietPreparationMisses;
+string barfDietCapacityStartKey;barfTwoDayState barfDietCapacityStartCache;
+boolean barfDietCapacityStartReady;int barfDietCapacityStartHits;
 void barfDietResetSearchCaches(){
     clear(barfDietExtraMenu);barfDietExtraMenuReady=false;
     clear(barfDietRateCache);clear(barfDietItemIncomeCache);
@@ -490,6 +492,7 @@ void barfDietResetSearchCaches(){
     clear(barfDietFarmPrefixes);barfDietFarmParentKey="";
     clear(barfDietFillCache);barfDietFillCacheHits=0;barfDietFillCacheMisses=0;
     clear(barfDietPreparationCache);barfDietPreparationHits=0;barfDietPreparationMisses=0;
+    barfDietCapacityStartReady=false;barfDietCapacityStartKey="";barfDietCapacityStartHits=0;
     barfDietMemoize=true;barfDietSkipBare=true;barfDietShareFarmForecasts=true;
 }
 string barfDietEffectKey(barfTwoDayState s,boolean exact){
@@ -1686,6 +1689,7 @@ void barfDietSearchReport(){
         +", eligible="+barfDietMenuPairsGenerated+", top="+barfDietPairTop+".","blue");
     print("SEARCH exact fill cache: "+barfDietFillCacheHits+" hits, "+barfDietFillCacheMisses+" misses, "+count(barfDietFillCache)+" stored (maximum 64).","blue");
     print("SEARCH preparation cache: "+barfDietPreparationHits+" hits, "+barfDietPreparationMisses+" misses, "+count(barfDietPreparationCache)+" stored (maximum 16).","blue");
+    print("SEARCH shared capacity starts: "+barfDietCapacityStartHits+" hits (one stored prefix).","blue");
     if(!get_property("teresBarfDietDiagnostics").to_boolean())return;
     foreach phase in $strings[estimate,fallback,XP,starting,pours,width,local,training,pairs,capacity,events,bundles]{
         if(barfDietSearchMetrics[phase+":ms"]==0&&barfDietSearchMetrics[phase+":attempted"]==0)continue;
@@ -1804,16 +1808,35 @@ int barfDietQuickFarmable(barfTwoDayState s){
     foreach id,keep in s.retained if(keep)paid=min(paid,max(0,s.effects[id]-5));
     return paid;
 }
-barfTwoDayState barfDietQuickFillStage(barfTwoDayState s,barfDietLateMenu menu,boolean distill){
+int barfDietFillTarget(barfTwoDayState s,barfDietLateMenu menu,boolean distill,string organ){
     barfTwoDayState final=barfDietClone(s);final.mask=63;final.stooper=true;
+    if(organ=="food")return min(barfDietFullLimit(s),barfDietFullLimit(final)-menu.fullness);
+    if(organ=="spleen")return min(barfDietSpleenLimit(s),barfDietSpleenLimit(final)-menu.spleen);
+    int reserve=s.uses["allCool"]>0?max(0,s.uses["coolSlots"]-s.uses["coolRefreshes"])+(s.uses["coldRequired"]>0?4:0):0;
+    return min(barfDietLiverLimit(s),barfDietLiverLimit(final)-menu.drunkenness-(distill?1:0))-reserve-barfDietPourReserve(s,false);
+}
+int barfDietCapacityOrgan(int bit){
+    item piece=barfTwoDayCapacityItems[bit];
+    if(numeric_modifier(piece,"Stomach Capacity")>0)return 0;
+    if(numeric_modifier(piece,"Liver Capacity")>0)return 1;
+    if(numeric_modifier(piece,"Spleen Capacity")>0)return 2;
+    return -1;
+}
+boolean barfDietCapacityUseful(barfTwoDayState before,barfTwoDayState after,barfDietLateMenu menu,boolean distill){
+    foreach organ in $strings[food,booze,spleen]{
+        int used=barfDietOrganUsed(before,organ);
+        if(max(used,barfDietFillTarget(after,menu,distill,organ))>max(used,barfDietFillTarget(before,menu,distill,organ)))return true;
+    }
+    return false;
+}
+barfTwoDayState barfDietQuickFillStage(barfTwoDayState s,barfDietLateMenu menu,boolean distill){
     if(s.uses["allCool"]>0){
         if(barfDietDuration(s,$effect[Looking Cool])==0&&s.yetiXP>=225){s=barfDietQuickYetiDrink(s,false);if(s.cash<0)return s;}
         if(s.uses["coldRequired"]>0&&s.yetiXP>=400){s=barfDietQuickYetiDrink(s,true);if(s.cash<0)return s;}
     }
-    int reserve=s.uses["allCool"]>0?max(0,s.uses["coolSlots"]-s.uses["coolRefreshes"])+(s.uses["coldRequired"]>0?4:0):0;
-    s=barfDietQuickFill(s,"food",min(barfDietFullLimit(s),barfDietFullLimit(final)-menu.fullness));if(s.cash<0)return s;
-    s=barfDietQuickFill(s,"booze",min(barfDietLiverLimit(s),barfDietLiverLimit(final)-menu.drunkenness-(distill?1:0))-reserve-barfDietPourReserve(s,false));if(s.cash<0)return s;
-    return barfDietQuickFill(s,"spleen",min(barfDietSpleenLimit(s),barfDietSpleenLimit(final)-menu.spleen));
+    s=barfDietQuickFill(s,"food",barfDietFillTarget(s,menu,distill,"food"));if(s.cash<0)return s;
+    s=barfDietQuickFill(s,"booze",barfDietFillTarget(s,menu,distill,"booze"));if(s.cash<0)return s;
+    return barfDietQuickFill(s,"spleen",barfDietFillTarget(s,menu,distill,"spleen"));
 }
 barfTwoDayState barfDietQuickResources(barfTwoDayState s,barfDietLateMenu menu,boolean distill,boolean deferredOnly);
 barfTwoDayState barfDietQuickFarm(barfTwoDayState s,barfDietLateMenu menu,boolean distill){
@@ -1897,7 +1920,7 @@ barfTwoDayState barfDietQuickFinish(barfTwoDayState source){
     return best;
 }
 
-barfTwoDayState barfDietQuickPrepare(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
+barfTwoDayState barfDietQuickStart(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
     barfTwoDayState s=barfDietClone(initial);
     s.schedule+="phase\tStart: normal farming gear; eat/drink/chew the quantities below.\n";
     if(s.milk==0&&!get_property("_milkOfMagnesiumUsed").to_boolean()&&s.uses["milk"]==0){
@@ -1925,15 +1948,44 @@ barfTwoDayState barfDietQuickPrepare(barfTwoDayState initial,barfDietLateMenu me
     }
     s=barfDietQuickResources(s,menu,distill,true);if(s.cash<0)return s;
     s=barfDietQuickFarm(s,menu,distill);if(s.cash<0)return s;
+    return s;
+}
+barfTwoDayState barfDietQuickCapacityStart(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
+    // Capacity policies cannot affect the prefix before the first equipment decision.
+    barfTwoDayState normalized=barfDietClone(initial);normalized.uses["capacityPolicy"]=0;
+    string key=menu.fullness+":"+menu.drunkenness+":"+menu.spleen+":"+distill+":"+barfDietExactStateKey(normalized);
+    barfTwoDayState s;
+    if(barfDietMemoize&&barfDietCapacityStartReady&&key==barfDietCapacityStartKey){
+        barfDietCapacityStartHits+=1;s=barfDietClone(barfDietCapacityStartCache);s.schedule=initial.schedule+s.schedule;
+    }else{
+        s=barfDietQuickStart(normalized,menu,distill);
+        if(barfDietMemoize&&s.cash>=0&&!barfDietQuickExpired()){
+            barfDietCapacityStartKey=key;barfDietCapacityStartReady=true;barfDietCapacityStartCache=barfDietClone(s);
+            barfDietCapacityStartCache.schedule=substring(s.schedule,length(initial.schedule));
+        }
+    }
+    s.uses["capacityPolicy"]=initial.uses["capacityPolicy"];return s;
+}
+barfTwoDayState barfDietQuickPrepare(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
+    barfTwoDayState s=barfDietQuickCapacityStart(initial,menu,distill);if(s.cash<0)return s;
     while(s.mask!=63){
         if(barfDietQuickExpired()){s.cash=-1;return s;}
-        int best=-1;float score=-1000000000000.0;
+        int best=-1;float score=-1000000000000.0;boolean bestUseful=false;
         foreach bit in $ints[0,1,2,3,4,5] if(!barfDietBit(s.mask,bit)){
             barfTwoDayState next=barfDietCapacityState(s,bit);
-            if(next.cash>=0&&barfDietRate(next)>score){best=bit;score=barfDietRate(next);}
+            if(next.cash<0)continue;
+            boolean useful=barfDietBit(s.uses["capacityPolicy"],3)&&barfDietCapacityUseful(s,next,menu,distill);
+            float rate=barfDietRate(next);
+            if(best<0||(useful&&!bestUseful)||(useful==bestUseful&&rate>score)){best=bit;score=rate;bestUseful=useful;}
         }
         if(best<0){s.cash=-1;return s;}
-        s=barfDietCapacityState(s,best);
+        s=barfDietCapacityState(s,best);if(s.cash<0)return s;
+        int organ=barfDietCapacityOrgan(best);
+        if(organ>=0&&barfDietBit(s.uses["capacityPolicy"],organ)){
+            foreach bit in $ints[0,1,2,3,4,5] if(!barfDietBit(s.mask,bit)&&barfDietCapacityOrgan(bit)==organ){
+                s=barfDietCapacityState(s,bit);if(s.cash<0)return s;
+            }
+        }
         s.schedule+="phase\tAdd "+barfTwoDayCapacityItems[best]+"; consume its extra capacity, then farm.\n";
         s=barfDietQuickFillStage(s,menu,distill);if(s.cash<0)return s;
         s=barfDietQuickResources(s,menu,distill,true);if(s.cash<0)return s;
@@ -2021,9 +2073,10 @@ barfTwoDayState barfDietQuickTrial(barfTwoDayState initial,barfDietLateMenu menu
 }
 barfTwoDayState barfDietQuickProfile(barfTwoDayState initial,barfTwoDayState selected){
     barfTwoDayState s=barfDietClone(initial);
-    foreach flag in $strings[noWhet,noSpork,noExtras,fillWidth,marginalHelpers,trainingFood,pourStages,pourMidTurn]s.uses[flag]=selected.uses[flag];
+    foreach flag in $strings[noWhet,noSpork,noExtras,fillWidth,marginalHelpers,trainingFood,pourStages,pourMidTurn,capacityPolicy]s.uses[flag]=selected.uses[flag];
     return s;
 }
+boolean barfDietReplay(barfTwoDayState initial,barfTwoDayState plan);
 barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     int started=now_to_int();barfDietTrialStarted=started;barfDietTrialCount=0;
     barfDietFillGenerated=0;barfDietFillDominated=0;barfDietFillBeamPruned=0;
@@ -2177,6 +2230,14 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     }
     foreach label,candidate in barfDietComparisons
         if(barfDietMeetsTargets(candidate)&&barfDietScore(candidate)>barfDietScore(best))best=candidate;
+    // Compare bounded complete continuations, never all equipment permutations.
+    barfDietSearchPhase="capacity";
+    foreach policy in $ints[1,8,9,2,10,4,12,7,15]{
+        if(barfDietQuickExpired())break;
+        barfTwoDayState trial=barfDietQuickProfile(initial,best);trial.uses["capacityPolicy"]=policy;
+        barfTwoDayState next=barfDietQuickTrial(trial,bestMenu,bestDistill,"capacity grouping/defer policy "+policy);
+        if(barfDietMeetsTargets(next)&&barfDietScore(next)>barfDietScore(best)&&barfDietReplay(initial,next))best=next;
+    }
     if(barfDietQuickExpired())print("Planning safety limit reached; keeping the best complete diet. Incomplete alternatives have no claimed profit.","blue");
     print("Diet planning finished in "+((now_to_int()-started)/1000)+" seconds after "+barfDietTrialCount+" comparisons; fill states "+barfDietFillGenerated+", dominated "+barfDietFillDominated+", width-pruned "+barfDietFillBeamPruned+", joint buff pairs "+barfDietMenuPairsGenerated+"; gain over fallback "+round(barfDietScore(best)-barfDietQuickBaseline)+" Meat.","blue");
     barfDietSearchReport();
@@ -2185,7 +2246,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
 
 boolean barfDietReplay(barfTwoDayState initial,barfTwoDayState plan){
     barfTwoDayState s=barfDietClone(initial);
-    foreach flag in $strings[noWhet,noSpork,trainingOverride,chestGoal,yetiGoal,allCool,coldRequired,coolSlots,marginalHelpers,trainingFood,pourStages,pourMidTurn]s.uses[flag]=plan.uses[flag];
+    foreach flag in $strings[noWhet,noSpork,trainingOverride,chestGoal,yetiGoal,allCool,coldRequired,coolSlots,marginalHelpers,trainingFood,pourStages,pourMidTurn,capacityPolicy]s.uses[flag]=plan.uses[flag];
     s.uses["coldRequired"]=plan.uses["initialColdRequired"];s.uses["coolSlots"]=plan.uses["initialCoolSlots"];
     foreach i,row in split_string(plan.schedule,"\n"){
         if(row=="")continue;
@@ -2324,7 +2385,7 @@ void barfDietReport(barfTwoDayState s,float baseline){
         print("Extrovermectin is evaluated only with a supplied measured copied-goblin payout and its matching weight (teresBarfCopiedGoblinMeat / CopiedGoblinWeight); 660-lb daily-block averages are not rescaled to 500 lb. No casing adventures are counted.","orange");
     print("Empirical calibration: "+round(barfTwoDayWeightCalibration)+" Meat per additional lb for the whole tomorrow block; ATM-only, excludes non-Mimic fights. Local proportional estimate around 660-700 lb; first 40 incremental lb at full credit, further pounds at "+min(100,barfSetting("WeightBeyond40Percent",50))+"% credit (teresBarfWeightBeyond40Percent). This taper is a conservative assumption, not measured diminishing returns. Today uses native familiar/gear modifiers separately.","blue");
     foreach i,line in split_string(barfTwoDayWarnings,"\n")if(line!="")print(line,"orange");
-    print("Practical planner: exact-size organ fills with conservative Pareto checks, a small candidate menu, fixed baseline gear and explicit capacity swaps. It compares complete starting diets, early familiar-XP food, greedy late-menu prefixes and the top 12 estimated joint buff pairs; accepted clear/refill state changes trigger another bounded clearer pass. Stillsuit allocations compare zero to four pours at sampled sweat splits against ordinary drinks using complete schedules; yields come from actual forecast sweat, not fixed amounts. Clearers are reconsidered after training and capacity refills as well as accepted clear/refill changes. Up to two improvement passes stop early when a pass finds no gain; normal planning has no wall-clock cutoff and finishes the finite comparisons. The complete fallback is secured first; no incomplete alternative can replace it. This remains a heuristic, not a claim of global optimality. Delayed payout/variable consumables, paid or unsupported recipes, random wine effects, paid wishes and future free-fight detours are excluded. Remaining free paw wishes compete under one shared daily budget. Training forecasts use actual starting XP, fixed trainer gear, active-stillsuit sweat, and your observed one-song kill per training combat, with +8 song XP added once to normal familiar XP; free VHS training can reduce paid training below this forecast. Fork/mug projections use the conservative base-only floor model (30%, or 50% for salad/beer); primary planners disagree on rounding/scope, so combined Yeti/helper expected yields remain an approximation. Expected farming uses mean yields; the reserve uses minimum yields. Farming counts and sweat forecasts are conditional: stop at the actual reserve and replan after every real action.","orange");
+    print("Practical planner: exact-size organ fills with conservative Pareto checks, a small candidate menu, fixed baseline gear and explicit capacity swaps, including bounded same-organ grouping and reserved-gear deferral comparisons. It compares complete starting diets, early familiar-XP food, greedy late-menu prefixes and the top 12 estimated joint buff pairs; accepted clear/refill state changes trigger another bounded clearer pass. Stillsuit allocations compare zero to four pours at sampled sweat splits against ordinary drinks using complete schedules; yields come from actual forecast sweat, not fixed amounts. Clearers are reconsidered after training and capacity refills as well as accepted clear/refill changes. Up to two improvement passes stop early when a pass finds no gain; normal planning has no wall-clock cutoff and finishes the finite comparisons. The complete fallback is secured first; no incomplete alternative can replace it. This remains a heuristic, not a claim of global optimality. Delayed payout/variable consumables, paid or unsupported recipes, random wine effects, paid wishes and future free-fight detours are excluded. Remaining free paw wishes compete under one shared daily budget. Training forecasts use actual starting XP, fixed trainer gear, active-stillsuit sweat, and your observed one-song kill per training combat, with +8 song XP added once to normal familiar XP; free VHS training can reduce paid training below this forecast. Fork/mug projections use the conservative base-only floor model (30%, or 50% for salad/beer); primary planners disagree on rounding/scope, so combined Yeti/helper expected yields remain an approximation. Expected farming uses mean yields; the reserve uses minimum yields. Farming counts and sweat forecasts are conditional: stop at the actual reserve and replan after every real action.","orange");
 }
 
 void barfDietCandidateReport(boolean details){

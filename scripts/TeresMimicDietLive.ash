@@ -60,7 +60,7 @@ barfTwoDayState barfLiveObserve(){
     barfLiveHighWater=max(barfLiveHighWater,s.yetiXP);
     if(barfLiveHighWater>=barfSetting("YetiXP",2000))barfLiveCharged=true;
     s.uses["yetiHighWater"]=barfLiveHighWater;s.uses["yetiCharged"]=barfLiveCharged?1:0;
-    foreach flag in $strings[noWhet,noSpork,noExtras,fillWidth,marginalHelpers,requiredChestXP,requiredYetiCharge]s.uses[flag]=barfLivePolicy.uses[flag];
+    foreach flag in $strings[noWhet,noSpork,noExtras,fillWidth,marginalHelpers,requiredChestXP,requiredYetiCharge,capacityPolicy]s.uses[flag]=barfLivePolicy.uses[flag];
     s.uses["pourStages"]=barfLivePolicy.uses["pourStages"];s.uses["pourMidTurn"]=barfLivePolicy.uses["pourMidTurn"];s.uses["pourDone"]=barfLivePourDone;
     s.uses["allCool"]=1;s.uses["coldRequired"]=s.yetiDouble?1:0;s.uses["coolSlots"]=barfLiveCoolSlots;
     foreach buff,keep in barfLiveRetained if(keep)s.retained[to_int(buff)]=true;
