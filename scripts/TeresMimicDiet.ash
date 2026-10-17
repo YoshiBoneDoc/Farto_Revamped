@@ -796,7 +796,7 @@ boolean barfDietLowQuality(item it){
     return (it.fullness>0||it.inebriety>0)&&$strings[crappy,decent,good] contains it.quality.to_lower_case();
 }
 boolean barfDietQualityAllowed(item it){
-    return !barfDietLowQuality(it)||barfDietCanRetain(effect_modifier(it,"Effect"))||barfDietHasDelayedAdventures(it);
+    return it==$item[Affirmation Cookie]||!barfDietLowQuality(it)||barfDietCanRetain(effect_modifier(it,"Effect"))||barfDietHasDelayedAdventures(it);
 }
 
 void barfDietBuildItems(){
@@ -839,6 +839,8 @@ void barfDietBuildItems(){
         barfTwoDayItem entry;
         entry.target=it;entry.fullness=it.fullness;entry.drunkenness=it.inebriety;entry.spleen=it.spleen;
         int lo=it.adventures==""?0:bounds[0].to_int();int hi=count(bounds)>1?bounds[1].to_int():lo;
+        // User's established cookie assumption: nine base adventures, once per day.
+        if(it==$item[Affirmation Cookie]){lo=9;hi=9;}
         entry.minimum=lo;entry.average=(lo+hi)/2.0;
         if(barfDietHasDelayedAdventures(it)){
             entry.delayedCombats=4;entry.delayedMinimum=lo;entry.delayedAverage=(lo+hi)/2.0;
@@ -961,6 +963,7 @@ barfTwoDayState barfDietConsumeState(barfTwoDayState source,barfTwoDayItem entry
     float minimum=0;float mean=0;
     string[int] bounds=split_string(entry.target.adventures,"-");
     int lo=entry.minimum.to_int();int hi=count(bounds)>1?bounds[1].to_int():lo;
+    if(entry.target==$item[Affirmation Cookie]){lo=9;hi=9;}
     if (entry.target.inebriety>0&&yeti>0){
         if (s.yetiXP<(yeti==2?400:225)||(!s.yetiDouble&&yeti==2)){s.cash=-1;return s;}
         int xp=yeti==2?400:225;s.yetiXP-=xp;s.uses["yetiXPSpent"]+=xp;
@@ -1501,7 +1504,7 @@ int barfDietOrganSize(barfTwoDayItem e,string organ){
 }
 boolean barfDietQuickItem(barfTwoDayItem e){return e.special==""||$strings[noodles,synthesis,speakeasy,extro] contains e.special;}
 boolean barfDietRegularFillItem(barfTwoDayItem e){
-    return barfDietQuickItem(e)&&(!barfDietLowQuality(e.target)||barfDietHasDelayedAdventures(e.target));
+    return barfDietQuickItem(e)&&(e.target==$item[Affirmation Cookie]||!barfDietLowQuality(e.target)||barfDietHasDelayedAdventures(e.target));
 }
 barfTwoDayState barfDietQuickConsumeMode(barfTwoDayState source,barfTwoDayItem e,boolean retain,int yeti){
     barfTwoDayState best;best.cash=-1;float score=-1000000000000.0;
