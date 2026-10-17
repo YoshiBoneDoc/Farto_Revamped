@@ -1,6 +1,6 @@
 # Diet optimizer implementation progress
 
-User approved all six areas autonomously on October 16, 2026. Preserve the 90-second planning deadline, complete fallback, all original comments and all gameplay/economic constraints. No live gameplay tests.
+User approved all six areas autonomously on October 16, 2026. Latest steering removes the normal wall-clock deadline. Preserve a complete fallback, all original comments and all gameplay/economic constraints. No live gameplay tests.
 
 ## Starting checkpoint
 
@@ -19,4 +19,8 @@ User approved all six areas autonomously on October 16, 2026. Preserve the 90-se
 
 ## Verified work
 
-Implementation not started. Prior frozen evidence is in the investigation plan and JSON files. Approval gates in that historical plan have been superseded by the user's latest instruction.
+Observability counters implemented; exact complete-schedule smoke equivalence passes. Counter/expiry fixture passes. Normal deadline removal and cookie valuation are the next independent commits. Prior frozen evidence is in the investigation plan and JSON files. Approval gates in that historical plan have been superseded by the user's latest instruction.
+
+## Latest steering
+
+The user subsequently removed the wall-clock constraint from normal planning and requested fewer repeated/unproductive computations instead. Retain benchmark-only limits for before/after comparisons. Model Affirmation Cookie as 9 base adventures for 1 fullness, one/day. Profit comparisons must distinguish that changed assumption from algorithm improvements.

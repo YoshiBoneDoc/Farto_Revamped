@@ -1645,7 +1645,23 @@ barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target
 record barfDietLateMenu {int[int] indices;int fullness;int drunkenness;int spleen;};
 record barfDietRankedPair {int first;int second;float estimate;};
 int barfDietMenuPairsGenerated;
+string barfDietSearchPhase;
+int[string] barfDietSearchMetrics;
+boolean barfDietPairReached;boolean barfDietPairExpiredAtEntry;int barfDietPairTop;
+void barfDietSearchReport(){
+    print("SEARCH trials: "+barfDietSearchMetrics["attempted"]+" attempted, "+barfDietSearchMetrics["complete"]+" completed, "+barfDietSearchMetrics["targets"]
+        +" met targets, "+barfDietSearchMetrics["cached"]+" cached; pairs reached="+barfDietPairReached+", expired at entry="+barfDietPairExpiredAtEntry
+        +", eligible="+barfDietMenuPairsGenerated+", top="+barfDietPairTop+".","blue");
+    if(!get_property("teresBarfDietDiagnostics").to_boolean())return;
+    foreach phase in $strings[estimate,fallback,XP,starting,pours,width,local,training,pairs,capacity,events,bundles]{
+        if(barfDietSearchMetrics[phase+":ms"]==0&&barfDietSearchMetrics[phase+":attempted"]==0)continue;
+        print("SEARCH phase="+phase+" ms="+barfDietSearchMetrics[phase+":ms"]+" attempted="+barfDietSearchMetrics[phase+":attempted"]
+            +" completed="+barfDietSearchMetrics[phase+":complete"]+" targets="+barfDietSearchMetrics[phase+":targets"]+" cached="+barfDietSearchMetrics[phase+":cached"],"blue");
+    }
+}
+
 barfDietRankedPair[int] barfDietQuickPairMenus(barfTwoDayState initial,int maximum){
+    barfDietPairReached=true;barfDietPairExpiredAtEntry=barfDietQuickExpired();barfDietPairTop=0;
     barfDietRankedPair[int] best;float smart=barfSetting("TomorrowPaidTurnsBeforeFK",0)==0?20:0;
     float rate=barfDietRateAtStage(initial,barfDietFarmingStage(initial));
     barfTwoDayState final=barfDietClone(initial);final.mask=63;final.stooper=true;
@@ -1669,7 +1685,7 @@ barfDietRankedPair[int] barfDietQuickPairMenus(barfTwoDayState initial,int maxim
             foreach k,existing in best if(existing.estimate<worst){candidateIndex=k;worst=existing.estimate;}
             if(count(best)<maximum)candidateIndex=count(best);
             else if(candidateIndex<0||estimate<=worst)continue;
-            barfDietRankedPair pair;pair.first=i;pair.second=j;pair.estimate=estimate;best[candidateIndex]=pair;
+            barfDietRankedPair pair;pair.first=i;pair.second=j;pair.estimate=estimate;best[candidateIndex]=pair;barfDietPairTop=count(best);
         }
     }
     return best;
@@ -1923,8 +1939,12 @@ void barfDietRememberComparison(barfTwoDayState next){
 barfTwoDayState barfDietQuickTrial(barfTwoDayState initial,barfDietLateMenu menu,boolean distill,string label){
     string key=barfDietExactStateKey(initial)+":schedule="+length(initial.schedule)+":"+initial.schedule+":pour="+distill;
     foreach i,index in menu.indices key+=":late="+index;
-    if(barfDietTrials contains key)return barfDietClone(barfDietTrials[key]);
+    if(barfDietTrials contains key){
+        barfDietSearchMetrics["cached"]+=1;barfDietSearchMetrics[barfDietSearchPhase+":cached"]+=1;
+        return barfDietClone(barfDietTrials[key]);
+    }
     barfTwoDayState failed;failed.cash=-1;if(barfDietQuickExpired())return failed;
+    int trialStarted=now_to_int();barfDietSearchMetrics["attempted"]+=1;barfDietSearchMetrics[barfDietSearchPhase+":attempted"]+=1;
     print("Diet comparison "+(barfDietTrialCount+1)+": "+label+"; "+((now_to_int()-barfDietTrialStarted)/1000)+" seconds elapsed.","blue");
     barfTwoDayState next=barfDietQuickSchedule(initial,menu,distill);
     for retry from 1 to 2{
@@ -1934,6 +1954,9 @@ barfTwoDayState barfDietQuickTrial(barfTwoDayState initial,barfDietLateMenu menu
     }
     if(!barfDietQuickExpired())barfDietTrials[key]=barfDietClone(next);
     barfDietTrialCount+=1;
+    barfDietSearchMetrics[barfDietSearchPhase+":ms"]+=now_to_int()-trialStarted;
+    if(next.cash>=0){barfDietSearchMetrics["complete"]+=1;barfDietSearchMetrics[barfDietSearchPhase+":complete"]+=1;}
+    if(barfDietMeetsTargets(next)){barfDietSearchMetrics["targets"]+=1;barfDietSearchMetrics[barfDietSearchPhase+":targets"]+=1;}
     barfDietRememberComparison(next);
     if(next.cash>=0)print("  Completed: "+next.turns+" encounters; combined "+round(barfDietScore(next))+" Meat; "+barfDietPourSummary(next)+"; requested targets "+(barfDietMeetsTargets(next)?"met":"relaxed comparison only")+".","blue");
     return next;
@@ -1946,7 +1969,7 @@ barfTwoDayState barfDietQuickProfile(barfTwoDayState initial,barfTwoDayState sel
 barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     int started=now_to_int();barfDietTrialStarted=started;barfDietTrialCount=0;
     barfDietFillGenerated=0;barfDietFillDominated=0;barfDietFillBeamPruned=0;
-    barfDietMenuPairsGenerated=0;
+    barfDietMenuPairsGenerated=0;clear(barfDietSearchMetrics);barfDietPairReached=false;barfDietPairExpiredAtEntry=false;barfDietPairTop=0;
     clear(barfDietExtraMenu);barfDietExtraMenuReady=false;
     barfDietQuickDeadline=0;barfDietQuickFailure="";clear(barfDietComparisons);clear(barfDietTrials);
     initial.uses["requiredChestXP"]=barfSetting("ChestXP",950);initial.uses["requiredYetiCharge"]=barfSetting("YetiXP",2000);
@@ -1955,13 +1978,16 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     initial.uses["noExtras"]=1;
     barfDietLateMenu empty;barfDietLateMenu bestMenu=empty;boolean bestDistill=false;
     print("Building a complete fallback, then comparing starting diets; no full-day beam search.","blue");
+    int estimateStarted=now_to_int();barfDietSearchPhase="estimate";
     barfTwoDayState estimate=barfDietQuickSchedule(initial,empty,false);
+    barfDietSearchMetrics["estimate:ms"]=now_to_int()-estimateStarted;
     if(estimate.cash<0)return estimate;
     if(have_familiar($familiar[Cooler Yeti])){
         initial.uses["allCool"]=1;initial.uses["coldRequired"]=initial.yetiDouble?1:0;
         initial.uses["coolSlots"]=max(0,ceil((estimate.turns-barfDietDuration(initial,$effect[Looking Cool]))/100.0));
         initial.uses["initialColdRequired"]=initial.uses["coldRequired"];initial.uses["initialCoolSlots"]=initial.uses["coolSlots"];
     }
+    barfDietSearchPhase="fallback";
     barfTwoDayState best=barfDietQuickTrial(initial,empty,false,"fallback");
     if(best.cash<0||!barfDietMeetsTargets(best)){print("Practical fallback failed: "+barfDietQuickFailure,"red");best.cash=-1;return best;}
     barfDietQuickBaseline=barfDietScore(best);
@@ -1970,6 +1996,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     barfDietQuickDeadline=deadline;
     // The cheap fill score omits training savings. Compare complete diets with
     // one early XP consumable instead of adding a guessed Meat value to each XP.
+    barfDietSearchPhase="XP";
     if(barfDietNeedsTraining(initial))foreach i,e in barfTwoDayItems{
         if(barfDietQuickExpired())break;
         if(e.target==$item[none]||!barfDietRegularFillItem(e)||barfDietEffect(e.buff).experience<=0
@@ -1980,6 +2007,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     }
     // Give distinct consumable buffs a completed comparison before helper-only policies use the budget.
     barfDietLateMenu retained=barfDietQuickMenu(initial,4);
+    barfDietSearchPhase="starting";
     for seed from 0 to 5{
         if(barfDietQuickExpired())break;
         if(seed==5&&get_property("teresBarfDietExtraAdventures")=="false")continue;
@@ -1993,6 +2021,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
         barfTwoDayState next=barfDietQuickTrial(trial,menu,distill,seed==0?"marginal-value helper starting diet":seed==1?"retained-weight starting diet":seed==5?"starting diet with chocolates, tofu and clocks":"balanced late buffs/pour, helper strategy "+seed);
         if(barfDietMeetsTargets(next)&&barfDietScore(next)>barfDietScore(best)){best=next;bestMenu=menu;bestDistill=distill;}
     }
+    barfDietSearchPhase="pours";
     if(available_amount($item[tiny stillsuit])>0){
         int middle=initial.turns+max(1,(best.turns-initial.turns)/2);
         int[int] timings={1,2,4,1,2,4,5,6,3,7};
@@ -2017,6 +2046,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     }
     // Let a better ordinary fill seed the menu/helper refinements, rather than
     // discovering it only after those comparisons have already finished.
+    barfDietSearchPhase="width";
     barfDietQuickDeadline=max(now_to_int(),deadline-5000);
     if(!barfDietQuickExpired()){
         barfTwoDayState trial=barfDietQuickProfile(initial,best);trial.uses["fillWidth"]=max(1,min(4,barfSetting("DietFillWidth",2)));
@@ -2026,6 +2056,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     print("Starting diet selected from "+barfDietTrialCount+" complete/attempted comparisons: "+round(barfDietScore(best))+" combined Meat; improving useful alternatives next.","blue");
     // Reserve part of the same time budget for matched-menu training comparisons.
     int searchDeadline=max(now_to_int(),deadline-5000);barfDietQuickDeadline=searchDeadline;
+    barfDietSearchPhase="local";
     for pass from 1 to 2{
         float before=barfDietScore(best);
         for number from 0 to 4{
@@ -2060,6 +2091,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
         if(barfDietScore(best)<=before){print("Completed an improvement pass without a better diet; stopping that search.","blue");break;}
     }
     barfDietQuickDeadline=deadline;
+    barfDietSearchPhase="training";
     foreach policy in $strings[reduced training,skip training]{
         if(barfDietQuickExpired())break;
         barfTwoDayState trial=barfDietQuickProfile(initial,best);trial.uses["trainingOverride"]=1;
@@ -2070,6 +2102,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     }
     foreach label,candidate in barfDietComparisons
         if(barfDietMeetsTargets(candidate)&&barfDietScore(candidate)>barfDietScore(best))best=candidate;
+    barfDietSearchPhase="pairs";
     barfDietRankedPair[int] pairMenus=barfDietQuickPairMenus(initial,12);
     foreach n,pair in pairMenus{
         if(barfDietQuickExpired())break;
@@ -2087,6 +2120,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
         if(barfDietMeetsTargets(candidate)&&barfDietScore(candidate)>barfDietScore(best))best=candidate;
     if(barfDietQuickExpired())print("Planning safety limit reached; keeping the best complete diet. Incomplete alternatives have no claimed profit.","blue");
     print("Diet planning finished in "+((now_to_int()-started)/1000)+" seconds after "+barfDietTrialCount+" comparisons; fill states "+barfDietFillGenerated+", dominated "+barfDietFillDominated+", width-pruned "+barfDietFillBeamPruned+", joint buff pairs "+barfDietMenuPairsGenerated+"; gain over fallback "+round(barfDietScore(best)-barfDietQuickBaseline)+" Meat.","blue");
+    barfDietSearchReport();
     barfDietQuickDeadline=0;return best;
 }
 

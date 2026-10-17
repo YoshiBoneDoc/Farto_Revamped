@@ -6,6 +6,8 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import os
+import sys
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--mode',choices=['baseline','cache','early','bare','farm','combinedBare','combined'],default='combined')
@@ -13,6 +15,7 @@ parser.add_argument('--workload',choices=['schedule','practical','checks','front
 parser.add_argument('--jar',type=Path,default=Path.home()/'Downloads/KoLmafia.app/Contents/app/KoLmafia-29366.jar')
 parser.add_argument('--java-home',type=Path,default=Path.home()/'Library/Java/JavaVirtualMachines/temurin-25.0.4.1/Contents/Home')
 parser.add_argument('--reference',type=Path,help='Require exactly matching fixed schedule, or all completed practical trials from a baseline log.')
+parser.add_argument('--memory',action='store_true',help='Measure native child peak RSS with wait4 (no system-wide profiling).')
 parser.add_argument('--profile',action='store_true',help='Measure inclusive native timings and call counts in the offline harness only.')
 parser.add_argument('--output',type=Path,help='Keep generated harness and log here; otherwise use a new temporary directory.')
 parser.add_argument('--source',type=Path,help='Benchmark another saved production source against the same frozen inputs.')
@@ -271,9 +274,15 @@ shutil.copyfile(fixture/'SnapshotBench.java',out/'SnapshotBench.java')
 subprocess.run([str(javac),'-cp',str(args.jar),str(out/'SnapshotBench.java')],check=True)
 log=out/'output.log'
 with log.open('w') as stream:
-    result=subprocess.run([str(java),'-Xmx2g','-Djava.awt.headless=true',f'-Duser.home={home}',
-        '-cp',f'{args.jar}:{out}','SnapshotBench',args.mode,args.workload,str(out/'benchmark.ash'),str(snapshot),*args.setting],
-        stdout=stream,stderr=subprocess.STDOUT)
+    command=[str(java),'-Xmx2g','-Djava.awt.headless=true',f'-Duser.home={home}',
+        '-cp',f'{args.jar}:{out}','SnapshotBench',args.mode,args.workload,str(out/'benchmark.ash'),str(snapshot),*args.setting]
+    if args.memory:
+        process=subprocess.Popen(command,stdout=stream,stderr=subprocess.STDOUT)
+        _,status,usage=os.wait4(process.pid,0);process.returncode=os.waitstatus_to_exitcode(status)
+        result=subprocess.CompletedProcess(command,process.returncode)
+        stream.write(f"NATIVE PEAK_RSS bytes={int(usage.ru_maxrss)*(1 if sys.platform=='darwin' else 1024)}\n")
+    else:result=subprocess.run(command,stdout=stream,stderr=subprocess.STDOUT)
+
 for row in log.read_text().splitlines():
     if row.startswith(('FROZEN','SCHEDULE ms=','PRACTICAL ms=','PRACTICAL COUNT ','PROFILE ','BEAM ','CHECKS ','PARTIAL FRONTIER CHECKS ','JOINT BUFF CHECKS ','CLEARING RETRY CHECKS ','MARGINAL HELPER CHECKS ','FOOD XP CHECKS ','PLANNER CHECKS ','LIVE CHECKS ','LIVE NATIVE ','VALIDATED COMPLETE TRIALS ','PRODUCTION ','INGREDIENT CHECKS ','AUDIT RESULT ','AUDIT FOOD ','AUDIT DELTA ','AUDIT INVALID ','AUDIT RESOURCE ','AUDIT BUDGET ','Runtime result=')):print(row)
 print('Full output:',log)
