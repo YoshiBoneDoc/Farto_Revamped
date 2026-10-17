@@ -479,11 +479,14 @@ string barfDietFarmParentKey;
 float[string] barfDietRateCache;float[string] barfDietItemIncomeCache;
 float[string] barfDietFutureCache;float[string] barfDietTomorrowCache;
 int[int] barfDietEffectCaps;
+barfTwoDayState[string] barfDietFillCache;
+int barfDietFillCacheHits;int barfDietFillCacheMisses;
 void barfDietResetSearchCaches(){
     clear(barfDietExtraMenu);barfDietExtraMenuReady=false;
     clear(barfDietRateCache);clear(barfDietItemIncomeCache);
     clear(barfDietFutureCache);clear(barfDietTomorrowCache);clear(barfDietEffectCaps);
     clear(barfDietFarmPrefixes);barfDietFarmParentKey="";
+    clear(barfDietFillCache);barfDietFillCacheHits=0;barfDietFillCacheMisses=0;
     barfDietMemoize=true;barfDietSkipBare=true;barfDietShareFarmForecasts=true;
 }
 string barfDietEffectKey(barfTwoDayState s,boolean exact){
@@ -1573,7 +1576,8 @@ barfDietFillChoices barfDietQuickChoices(barfTwoDayState source,string organ,int
     }
     return choices;
 }
-barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target,boolean broad){
+barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target,boolean broad);
+barfTwoDayState barfDietQuickFillUncached(barfTwoDayState source,string organ,int target,boolean broad){
     barfTwoDayState s=barfDietClone(source);
     target=max(target,barfDietOrganUsed(s,organ));
     if(organ=="booze"&&s.shotglass>0){
@@ -1642,6 +1646,28 @@ barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target
     barfDietQuickFailure="Could not fill "+room+" remaining "+organ+" points within the current inventory, daily limits and cash budget.";
     barfTwoDayState failed;failed.cash=-1;return failed;
 }
+barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target,boolean broad){
+    if(!barfDietMemoize||(target<=barfDietOrganUsed(source,organ)&&!(organ=="booze"&&source.shotglass>0)))
+        return barfDietQuickFillUncached(source,organ,target,broad);
+    // Exact inputs include every economic/resource field. Only schedule text is
+    // rebased; fills append actions without inspecting the preceding actions.
+    string key=organ+":"+target+":"+broad+":"+barfDietExactStateKey(source);
+    if(barfDietFillCache contains key){
+        barfDietFillCacheHits+=1;
+        barfTwoDayState cached=barfDietClone(barfDietFillCache[key]);
+        cached.schedule=source.schedule+cached.schedule;return cached;
+    }
+    barfDietFillCacheMisses+=1;
+    barfTwoDayState result=barfDietQuickFillUncached(source,organ,target,broad);
+    if(result.cash>=0&&!barfDietQuickExpired()){
+        // Bounded storage avoids retaining every frontier of an unrestricted run.
+        if(count(barfDietFillCache)>=64)clear(barfDietFillCache);
+        barfTwoDayState cached=barfDietClone(result);
+        cached.schedule=substring(cached.schedule,length(source.schedule));
+        barfDietFillCache[key]=cached;
+    }
+    return result;
+}
 barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target){
     return barfDietQuickFill(source,organ,target,false);
 }
@@ -1655,6 +1681,7 @@ void barfDietSearchReport(){
     print("SEARCH trials: "+barfDietSearchMetrics["attempted"]+" attempted, "+barfDietSearchMetrics["complete"]+" completed, "+barfDietSearchMetrics["targets"]
         +" met targets, "+barfDietSearchMetrics["cached"]+" cached; pairs reached="+barfDietPairReached+", expired at entry="+barfDietPairExpiredAtEntry
         +", eligible="+barfDietMenuPairsGenerated+", top="+barfDietPairTop+".","blue");
+    print("SEARCH exact fill cache: "+barfDietFillCacheHits+" hits, "+barfDietFillCacheMisses+" misses, "+count(barfDietFillCache)+" stored (maximum 64).","blue");
     if(!get_property("teresBarfDietDiagnostics").to_boolean())return;
     foreach phase in $strings[estimate,fallback,XP,starting,pours,width,local,training,pairs,capacity,events,bundles]{
         if(barfDietSearchMetrics[phase+":ms"]==0&&barfDietSearchMetrics[phase+":attempted"]==0)continue;
@@ -2172,7 +2199,7 @@ void barfDietComparisonReport(barfTwoDayState selected){
     }
     if(barfDietComparisons contains "helpers allowed")foreach label in $strings[no whet purchases,no spork purchases,no whet or spork purchases]if(barfDietComparisons contains label)
         print("  "+label+" combined-profit change versus helpers allowed: "+round(barfDietScore(barfDietComparisons[label])-barfDietScore(barfDietComparisons["helpers allowed"]))+" Meat.","blue");
-    print("Helper policies use the same candidate/late-menu search, with bounded time; training alternatives re-fill/reprice the selected late-menu/pour with half the initial XP shortfall or no training. The best complete candidate meeting the requested targets is selected. Yeti charging reaches its target once, then reserves only XP for remaining cooling plus teresBarfYetiReserveXP (default 0). Relaxed-target comparisons are labeled and cannot silently change your requested target. Future egg rewards and unused XP/sweat have no invented sale value; tomorrow's whole-block weight credit already includes its expected fights.","orange");
+    print("Helper policies use the same finite candidate/late-menu comparisons without a wall-clock cutoff; training alternatives re-fill/reprice the selected late-menu/pour with half the initial XP shortfall or no training. The best complete candidate meeting the requested targets is selected. Yeti charging reaches its target once, then reserves only XP for remaining cooling plus teresBarfYetiReserveXP (default 0). Relaxed-target comparisons are labeled and cannot silently change your requested target. Future egg rewards and unused XP/sweat have no invented sale value; tomorrow's whole-block weight credit already includes its expected fights.","orange");
 }
 
 void barfDietReport(barfTwoDayState s,float baseline){
