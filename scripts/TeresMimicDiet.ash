@@ -1992,7 +1992,8 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     if(best.cash<0||!barfDietMeetsTargets(best)){print("Practical fallback failed: "+barfDietQuickFailure,"red");best.cash=-1;return best;}
     barfDietQuickBaseline=barfDietScore(best);
     print("Complete fallback ready in "+((now_to_int()-started)/1000)+" seconds: "+best.turns+" farming encounters, combined value "+round(barfDietScore(best))+".","blue");
-    int deadline=started+max(1,barfSetting("DietPlanSeconds",90))*1000;
+    // Normal planning finishes its finite comparisons; elapsed time never rejects a diet.
+    int deadline=0;
     barfDietQuickDeadline=deadline;
     // The cheap fill score omits training savings. Compare complete diets with
     // one early XP consumable instead of adding a guessed Meat value to each XP.
@@ -2047,7 +2048,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     // Let a better ordinary fill seed the menu/helper refinements, rather than
     // discovering it only after those comparisons have already finished.
     barfDietSearchPhase="width";
-    barfDietQuickDeadline=max(now_to_int(),deadline-5000);
+    barfDietQuickDeadline=deadline>0?max(now_to_int(),deadline-5000):0;
     if(!barfDietQuickExpired()){
         barfTwoDayState trial=barfDietQuickProfile(initial,best);trial.uses["fillWidth"]=max(1,min(4,barfSetting("DietFillWidth",2)));
         barfTwoDayState next=barfDietQuickTrial(trial,bestMenu,bestDistill,"wider ordinary-fill starting diet ("+trial.uses["fillWidth"]+" partial choices per size)");
@@ -2055,7 +2056,7 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     }
     print("Starting diet selected from "+barfDietTrialCount+" complete/attempted comparisons: "+round(barfDietScore(best))+" combined Meat; improving useful alternatives next.","blue");
     // Reserve part of the same time budget for matched-menu training comparisons.
-    int searchDeadline=max(now_to_int(),deadline-5000);barfDietQuickDeadline=searchDeadline;
+    int searchDeadline=deadline>0?max(now_to_int(),deadline-5000):0;barfDietQuickDeadline=searchDeadline;
     barfDietSearchPhase="local";
     for pass from 1 to 2{
         float before=barfDietScore(best);
@@ -2160,7 +2161,7 @@ boolean barfDietReplay(barfTwoDayState initial,barfTwoDayState plan){
 void barfDietComparisonReport(barfTwoDayState selected){
     print("Policy comparisons: paid encounters / today's net / combined / Chest XP / Yeti XP / Looking Cool coverage / Yeti doubles:","blue");
     foreach label in $strings[helpers allowed,no whet purchases,no spork purchases,no whet or spork purchases,reduced training,skip training]{
-        if(!(barfDietComparisons contains label)){print("  "+label+": no complete validated comparison within the budget.","orange");continue;}
+        if(!(barfDietComparisons contains label)){print("  "+label+": no complete legal comparison.","orange");continue;}
         barfTwoDayState trial=barfDietComparisons[label];
         print("  "+label+": "+trial.turns+" / "+round(trial.income-trial.cost)+" / "+round(barfDietScore(trial))+" / "+trial.chestXP+" / "+trial.yetiXP+" / "+trial.uses["coolCovered"]+" / "+trial.uses["yetiDoubles"]+(barfDietMeetsTargets(trial)?"":" (comparison only: relaxes a requested XP target)"),"blue");
         if(label=="reduced training"||label=="skip training")
@@ -2265,7 +2266,7 @@ void barfDietReport(barfTwoDayState s,float baseline){
         print("Extrovermectin is evaluated only with a supplied measured copied-goblin payout and its matching weight (teresBarfCopiedGoblinMeat / CopiedGoblinWeight); 660-lb daily-block averages are not rescaled to 500 lb. No casing adventures are counted.","orange");
     print("Empirical calibration: "+round(barfTwoDayWeightCalibration)+" Meat per additional lb for the whole tomorrow block; ATM-only, excludes non-Mimic fights. Local proportional estimate around 660-700 lb; first 40 incremental lb at full credit, further pounds at "+min(100,barfSetting("WeightBeyond40Percent",50))+"% credit (teresBarfWeightBeyond40Percent). This taper is a conservative assumption, not measured diminishing returns. Today uses native familiar/gear modifiers separately.","blue");
     foreach i,line in split_string(barfTwoDayWarnings,"\n")if(line!="")print(line,"orange");
-    print("Practical planner: exact-size organ fills with conservative Pareto checks, a small candidate menu, fixed baseline gear and explicit capacity swaps. It compares complete starting diets, early familiar-XP food, greedy late-menu prefixes and the top 12 estimated joint buff pairs; accepted clear/refill state changes trigger another bounded clearer pass. Stillsuit allocations compare zero to four pours at sampled sweat splits against ordinary drinks using complete schedules; yields come from actual forecast sweat, not fixed amounts. Clearers are reconsidered after training and capacity refills as well as accepted clear/refill changes. Up to two improvement passes stop early when a pass finds no gain; a 90-second overall planning safety limit (teresBarfDietPlanSeconds) bounds further comparisons. The complete fallback is secured first; no incomplete alternative can replace it. This remains a heuristic, not a claim of global optimality. Delayed payout/variable consumables, paid or unsupported recipes, random wine effects, paid wishes and future free-fight detours are excluded. Remaining free paw wishes compete under one shared daily budget. Training forecasts use actual starting XP, fixed trainer gear, active-stillsuit sweat, and your observed one-song kill per training combat, with +8 song XP added once to normal familiar XP; free VHS training can reduce paid training below this forecast. Fork/mug projections use the conservative base-only floor model (30%, or 50% for salad/beer); primary planners disagree on rounding/scope, so combined Yeti/helper expected yields remain an approximation. Expected farming uses mean yields; the reserve uses minimum yields. Farming counts and sweat forecasts are conditional: stop at the actual reserve and replan after every real action.","orange");
+    print("Practical planner: exact-size organ fills with conservative Pareto checks, a small candidate menu, fixed baseline gear and explicit capacity swaps. It compares complete starting diets, early familiar-XP food, greedy late-menu prefixes and the top 12 estimated joint buff pairs; accepted clear/refill state changes trigger another bounded clearer pass. Stillsuit allocations compare zero to four pours at sampled sweat splits against ordinary drinks using complete schedules; yields come from actual forecast sweat, not fixed amounts. Clearers are reconsidered after training and capacity refills as well as accepted clear/refill changes. Up to two improvement passes stop early when a pass finds no gain; normal planning has no wall-clock cutoff and finishes the finite comparisons. The complete fallback is secured first; no incomplete alternative can replace it. This remains a heuristic, not a claim of global optimality. Delayed payout/variable consumables, paid or unsupported recipes, random wine effects, paid wishes and future free-fight detours are excluded. Remaining free paw wishes compete under one shared daily budget. Training forecasts use actual starting XP, fixed trainer gear, active-stillsuit sweat, and your observed one-song kill per training combat, with +8 song XP added once to normal familiar XP; free VHS training can reduce paid training below this forecast. Fork/mug projections use the conservative base-only floor model (30%, or 50% for salad/beer); primary planners disagree on rounding/scope, so combined Yeti/helper expected yields remain an approximation. Expected farming uses mean yields; the reserve uses minimum yields. Farming counts and sweat forecasts are conditional: stop at the actual reserve and replan after every real action.","orange");
 }
 
 void barfDietCandidateReport(boolean details){

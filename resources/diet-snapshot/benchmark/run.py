@@ -47,6 +47,12 @@ s=(args.source or repo/'scripts/TeresMimicDiet.ash').read_text()
 # the additional allocation trials. Production has no benchmark-only preference.
 s=s.replace('if(available_amount($item[tiny stillsuit])>0){\n        int middle=',
     'if(get_property("benchPourAllocations")!="false"&&available_amount($item[tiny stillsuit])>0){\n        int middle=',1)
+# Timing limits are benchmark-only for the unconstrained production planner.
+# Legacy sources still read their original property, so both controls remain reproducible.
+benchmark_budget=dict(setting.split('=',1) for setting in args.setting).get('benchDietBudgetSeconds')
+if benchmark_budget is None:benchmark_budget=dict(setting.split('=',1) for setting in args.setting).get('teresBarfDietPlanSeconds','0')
+if 'int deadline=0;' in s:
+    s=s.replace('int deadline=0;',f'int deadline={int(benchmark_budget)};deadline=deadline>0?started+deadline*1000:0;',1)
 fixed_milk='if(it==$item[milk of magnesium])return 100;' in s
 # Use the same saved stock/price reconstruction as the earlier measured run.
 recipe_pricing='int barfDietRecipePrice(item it)' in s

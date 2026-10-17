@@ -24,3 +24,6 @@ Observability counters implemented; exact complete-schedule smoke equivalence pa
 ## Latest steering
 
 The user subsequently removed the wall-clock constraint from normal planning and requested fewer repeated/unproductive computations instead. Retain benchmark-only limits for before/after comparisons. Model Affirmation Cookie as 9 base adventures for 1 fullness, one/day. Profit comparisons must distinguish that changed assumption from algorithm improvements.
+
+- `cde436e`: observability only; identical ordered-schedule smoke, counter/expired-pair test and replay pass. Native child RSS measured with wait4. Original-model 30/60/90 matrix complete for both snapshots.
+- Normal wall-clock cutoff removed; generous-budget behavior remains the same finite search. Benchmark-only injection retains matched limited runs. Complete-schedule smoke equivalence passes.

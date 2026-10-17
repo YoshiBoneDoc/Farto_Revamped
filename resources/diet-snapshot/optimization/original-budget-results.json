@@ -1,0 +1,138 @@
+{
+  "source_sha256": "c08334d774dd1aa47b25361d0b4f53fae972aeb27898e528daebae74de38959c",
+  "source": "/private/tmp/diet-roadmap-before/source.ash",
+  "cases": [
+    {
+      "snapshot": "old",
+      "budget": 30,
+      "summary": "PRACTICAL ms=30018 encounters=657 combined=2735235.8473477354 replay=true targets=true",
+      "rss_bytes": 544030720,
+      "validated_trials": "VALIDATED COMPLETE TRIALS 9",
+      "results": [
+        "Diet planning finished in 30 seconds after 10 comparisons; fill states 25984, dominated 19, width-pruned 19170, joint buff pairs 0; gain over fallback 62074 Meat.",
+        "Farming: 657 expected paid encounters (adaptive, replan from each actual roll); estimated income 2944089 Meat. Opportunity costs 359087; today's net 2585002; tomorrow's distinct-effect value 150234; combined 2735236."
+      ],
+      "counters": [
+        "PRACTICAL COUNT consumes=36191",
+        "PRACTICAL COUNT farmBlocks=1180",
+        "PRACTICAL COUNT rateMisses=1182",
+        "PRACTICAL COUNT scores=85780"
+      ],
+      "ms": 30018.0,
+      "encounters": 657.0,
+      "combined": 2735235.8473477354,
+      "replay": "true",
+      "targets": "true"
+    },
+    {
+      "snapshot": "old",
+      "budget": 60,
+      "summary": "PRACTICAL ms=60014 encounters=671 combined=2771815.315934334 replay=true targets=true",
+      "rss_bytes": 565903360,
+      "validated_trials": "VALIDATED COMPLETE TRIALS 25",
+      "results": [
+        "Diet planning finished in 60 seconds after 27 comparisons; fill states 64839, dominated 61, width-pruned 47677, joint buff pairs 172; gain over fallback 98654 Meat.",
+        "Farming: 671 expected paid encounters (adaptive, replan from each actual roll); estimated income 3009601 Meat. Opportunity costs 388020; today's net 2621581; tomorrow's distinct-effect value 150234; combined 2771815."
+      ],
+      "counters": [
+        "PRACTICAL COUNT consumes=82294",
+        "PRACTICAL COUNT farmBlocks=3040",
+        "PRACTICAL COUNT rateMisses=1280",
+        "PRACTICAL COUNT scores=247422"
+      ],
+      "ms": 60014.0,
+      "encounters": 671.0,
+      "combined": 2771815.315934334,
+      "replay": "true",
+      "targets": "true"
+    },
+    {
+      "snapshot": "old",
+      "budget": 90,
+      "summary": "PRACTICAL ms=90015 encounters=673 combined=2773699.143729899 replay=true targets=true",
+      "rss_bytes": 562233344,
+      "validated_trials": "VALIDATED COMPLETE TRIALS 41",
+      "results": [
+        "Diet planning finished in 90 seconds after 42 comparisons; fill states 98224, dominated 92, width-pruned 72104, joint buff pairs 172; gain over fallback 100538 Meat.",
+        "Farming: 673 expected paid encounters (adaptive, replan from each actual roll); estimated income 3021010 Meat. Opportunity costs 397545; today's net 2623465; tomorrow's distinct-effect value 150234; combined 2773699."
+      ],
+      "counters": [
+        "PRACTICAL COUNT consumes=121866",
+        "PRACTICAL COUNT farmBlocks=4907",
+        "PRACTICAL COUNT rateMisses=1321",
+        "PRACTICAL COUNT scores=387324"
+      ],
+      "ms": 90015.0,
+      "encounters": 673.0,
+      "combined": 2773699.143729899,
+      "replay": "true",
+      "targets": "true"
+    },
+    {
+      "snapshot": "fresh",
+      "budget": 30,
+      "summary": "PRACTICAL ms=30008 encounters=600 combined=2471398.529006452 replay=true targets=true",
+      "rss_bytes": 530726912,
+      "validated_trials": "VALIDATED COMPLETE TRIALS 17",
+      "results": [
+        "Diet planning finished in 30 seconds after 18 comparisons; fill states 48785, dominated 46, width-pruned 36694, joint buff pairs 0; gain over fallback 97153 Meat.",
+        "Farming: 600 expected paid encounters (adaptive, replan from each actual roll); estimated income 2693173 Meat. Opportunity costs 372008; today's net 2321165; tomorrow's distinct-effect value 150234; combined 2471399."
+      ],
+      "counters": [
+        "PRACTICAL COUNT consumes=60918",
+        "PRACTICAL COUNT farmBlocks=2116",
+        "PRACTICAL COUNT rateMisses=1013",
+        "PRACTICAL COUNT scores=176254"
+      ],
+      "ms": 30008.0,
+      "encounters": 600.0,
+      "combined": 2471398.529006452,
+      "replay": "true",
+      "targets": "true"
+    },
+    {
+      "snapshot": "fresh",
+      "budget": 60,
+      "summary": "PRACTICAL ms=60024 encounters=600 combined=2473264.71772207 replay=true targets=true",
+      "rss_bytes": 527876096,
+      "validated_trials": "VALIDATED COMPLETE TRIALS 25",
+      "results": [
+        "Diet planning finished in 60 seconds after 27 comparisons; fill states 79894, dominated 178, width-pruned 60108, joint buff pairs 193; gain over fallback 99019 Meat.",
+        "Farming: 600 expected paid encounters (adaptive, replan from each actual roll); estimated income 2695039 Meat. Opportunity costs 372008; today's net 2323031; tomorrow's distinct-effect value 150234; combined 2473265."
+      ],
+      "counters": [
+        "PRACTICAL COUNT consumes=97757",
+        "PRACTICAL COUNT farmBlocks=3228",
+        "PRACTICAL COUNT rateMisses=1332",
+        "PRACTICAL COUNT scores=302878"
+      ],
+      "ms": 60024.0,
+      "encounters": 600.0,
+      "combined": 2473264.71772207,
+      "replay": "true",
+      "targets": "true"
+    },
+    {
+      "snapshot": "fresh",
+      "budget": 90,
+      "summary": "PRACTICAL ms=90041 encounters=596 combined=2475033.533354615 replay=true targets=true",
+      "rss_bytes": 541917184,
+      "validated_trials": "VALIDATED COMPLETE TRIALS 39",
+      "results": [
+        "Diet planning finished in 90 seconds after 42 comparisons; fill states 138908, dominated 246, width-pruned 104073, joint buff pairs 193; gain over fallback 100788 Meat.",
+        "Farming: 596 expected paid encounters (adaptive, replan from each actual roll); estimated income 2681573 Meat. Opportunity costs 373466; today's net 2308107; tomorrow's distinct-effect value 166927; combined 2475034."
+      ],
+      "counters": [
+        "PRACTICAL COUNT consumes=167263",
+        "PRACTICAL COUNT farmBlocks=6009",
+        "PRACTICAL COUNT rateMisses=1439",
+        "PRACTICAL COUNT scores=543803"
+      ],
+      "ms": 90041.0,
+      "encounters": 596.0,
+      "combined": 2475033.533354615,
+      "replay": "true",
+      "targets": "true"
+    }
+  ]
+}
