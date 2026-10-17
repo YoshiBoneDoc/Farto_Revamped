@@ -2245,11 +2245,19 @@ void barfDietRememberComparison(barfTwoDayState next){
     if(!(barfDietComparisons contains policy)||barfDietScore(next)>barfDietScore(barfDietComparisons[policy]))barfDietComparisons[policy]=barfDietClone(next);
 }
 barfTwoDayState barfDietQuickTrial(barfTwoDayState initial,barfDietLateMenu menu,boolean distill,string label){
-    string key=barfDietExactStateKey(initial)+":schedule="+length(initial.schedule)+":"+initial.schedule+":pour="+distill;
+    // A middle-pour time cannot affect a schedule with no pending middle pour.
+    // Normalize only the cache key; preserve the caller's policy metadata on return.
+    barfTwoDayState keyed=initial;
+    if(!barfDietPourPending(initial,2)&&initial.uses["pourMidTurn"]!=0){
+        keyed=barfDietClone(initial);keyed.uses["pourMidTurn"]=0;
+    }
+    string key=barfDietExactStateKey(keyed)+":schedule="+length(initial.schedule)+":"+initial.schedule+":pour="+distill;
     foreach i,index in menu.indices key+=":late="+index;
     if(barfDietTrials contains key){
         barfDietSearchMetrics["cached"]+=1;barfDietSearchMetrics[barfDietSearchPhase+":cached"]+=1;
-        return barfDietClone(barfDietTrials[key]);
+        barfTwoDayState cached=barfDietClone(barfDietTrials[key]);
+        if(!barfDietPourPending(initial,2))cached.uses["pourMidTurn"]=initial.uses["pourMidTurn"];
+        return cached;
     }
     barfTwoDayState failed;failed.cash=-1;if(barfDietQuickExpired())return failed;
     int trialStarted=now_to_int();barfDietSearchMetrics["attempted"]+=1;barfDietSearchMetrics[barfDietSearchPhase+":attempted"]+=1;
