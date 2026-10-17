@@ -1475,18 +1475,52 @@ barfTwoDayState barfDietExtraState(barfTwoDayState source,item it){
     s.schedule+="extra\t"+to_int(it)+"\t"+e.minimum+"\t"+e.average+"\n";
     return s;
 }
-barfTwoDayState barfDietChocolatePlan(barfTwoDayState source,float rate){
-    barfTwoDayState best=source;float score=source.adventures*rate-source.cost;
-    if(barfDietDailyUsed("_chocolatesUsed")+source.uses["chocolates"]>=3)return best;
-    foreach it in $items[chocolate seal-clubbing club,chocolate turtle totem,chocolate pasta spoon,chocolate saucepan,
-        chocolate disco ball,chocolate stolen accordion,fancy chocolate,fancy but probably evil chocolate,fancy chocolate car,
-        beet-flavored Mr. Mediocrebar,cabbage-flavored Mr. Mediocrebar,sweet-corn-flavored Mr. Mediocrebar,choco-Crimbot]{
-        barfTwoDayState next=barfDietExtraState(source,it);
-        if(next.cash<0||next.adventures*rate-next.cost<=source.adventures*rate-source.cost)continue;
-        next=barfDietChocolatePlan(next,rate);
+record barfDietChocolateOption {item target;int price;int owned;boolean buyable;float[int] gains;};
+record barfDietChocolateBasket {float adventures;float cost;float cash;string actions;};
+barfDietChocolateBasket barfDietChocolateSearch(barfDietChocolateOption[int] options,int[int] used,
+    barfDietChocolateBasket source,int depth,int limit,float rate,float wallet){
+    barfDietChocolateBasket best=source;float score=source.adventures*rate-source.cost;
+    if(depth>=limit)return best;
+    foreach i,option in options{
+        if(option.gains[depth]<=0||(!option.buyable&&used[i]>=option.owned))continue;
+        barfDietChocolateBasket next;
+        next.adventures=source.adventures+option.gains[depth];next.cost=source.cost+option.price;
+        next.cash=source.cash+(used[i]>=option.owned?option.price:0);
+        if(next.cash<0||(!barfDietRelaxedWallet&&next.cash>wallet)
+            ||next.adventures*rate-next.cost<=source.adventures*rate-source.cost)continue;
+        next.actions=source.actions+to_int(option.target)+",";
+        used[i]+=1;
+        next=barfDietChocolateSearch(options,used,next,depth+1,limit,rate,wallet);
+        used[i]-=1;
         if(next.adventures*rate-next.cost>score){best=next;score=next.adventures*rate-next.cost;}
     }
     return best;
+}
+barfTwoDayState barfDietChocolatePlan(barfTwoDayState source,float rate){
+    int limit=max(0,3-barfDietDailyUsed("_chocolatesUsed")-source.uses["chocolates"]);
+    if(limit==0||source.finished)return source;
+    // Explore the same ordered choices using only adventure/cost/cash scalars.
+    // Materialize stock ledgers and the native action schedule for the winner only.
+    barfDietChocolateOption[int] options;
+    foreach it in $items[chocolate seal-clubbing club,chocolate turtle totem,chocolate pasta spoon,chocolate saucepan,
+        chocolate disco ball,chocolate stolen accordion,fancy chocolate,fancy but probably evil chocolate,fancy chocolate car,
+        beet-flavored Mr. Mediocrebar,cabbage-flavored Mr. Mediocrebar,sweet-corn-flavored Mr. Mediocrebar,choco-Crimbot]{
+        int price=barfDietCurrentPrice(it);
+        if(price<0||it.levelreq>my_level()||!is_unrestricted(it))continue;
+        barfDietChocolateOption option;option.target=it;option.price=price;option.buyable=barfDietBuyable[it];
+        option.owned=max(0,barfDietOwnedAmount(it)-source.uses["stock:"+to_int(it)]);
+        for depth from 0 to limit-1{
+            barfTwoDayState context=barfDietClone(source);context.uses["chocolates"]+=depth;
+            option.gains[depth]=barfDietExtra(it,context).average;
+        }
+        options[count(options)]=option;
+    }
+    barfDietChocolateBasket start;start.adventures=source.adventures;start.cost=source.cost;start.cash=source.cash;
+    int[int] used;
+    barfDietChocolateBasket basket=barfDietChocolateSearch(options,used,start,0,limit,rate,my_meat()+source.liquidIncome);
+    barfTwoDayState result=barfDietClone(source);
+    foreach i,id in split_string(basket.actions,",")if(id!="")result=barfDietExtraState(result,to_item(id.to_int()));
+    return result;
 }
 barfTwoDayState barfDietQuickExtras(barfTwoDayState source){
     if(source.uses["noExtras"]>0||get_property("teresBarfDietExtraAdventures")=="false")return source;
