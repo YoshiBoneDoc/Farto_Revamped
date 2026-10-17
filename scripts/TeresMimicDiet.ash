@@ -145,6 +145,8 @@ record barfTwoDayState {
     int chestXP; int earlyJillTurns; float liquidIncome;
     float trainingCost; float trainingOpportunity;
 };
+boolean barfDietRelaxedWallet;boolean barfDietTraceCash;float barfDietTraceExposure;
+boolean barfDietFundingLegal(barfTwoDayState s){return barfDietRelaxedWallet||s.cash<=my_meat()+s.liquidIncome;}
 barfTwoDayItem[int] barfTwoDayItems;
 barfTwoDayItem[item] barfDietCandidateDetails;
 string[item] barfDietCandidateStatus;
@@ -478,6 +480,7 @@ barfDietFarmPrefix[int] barfDietFarmPrefixes;
 string barfDietFarmParentKey;
 float[string] barfDietRateCache;float[string] barfDietItemIncomeCache;
 float[string] barfDietFutureCache;float[string] barfDietTomorrowCache;
+boolean[string,item] barfDietContinuationLive;int[item] barfDietContinuationOwned;
 int[int] barfDietEffectCaps;
 barfTwoDayState[string] barfDietFillCache;
 int barfDietFillCacheHits;int barfDietFillCacheMisses;
@@ -486,9 +489,11 @@ int barfDietPreparationHits;int barfDietPreparationMisses;
 barfTwoDayState[string] barfDietCapacityStartCache;int[string] barfDietCapacityStartAges;
 int barfDietCapacityStartClock;int barfDietCapacityStartHits;
 void barfDietResetSearchCaches(){
+    barfDietRelaxedWallet=false;barfDietTraceCash=false;barfDietTraceExposure=0;
     clear(barfDietExtraMenu);barfDietExtraMenuReady=false;
     clear(barfDietRateCache);clear(barfDietItemIncomeCache);
     clear(barfDietFutureCache);clear(barfDietTomorrowCache);clear(barfDietEffectCaps);
+    clear(barfDietContinuationLive);clear(barfDietContinuationOwned);
     clear(barfDietFarmPrefixes);barfDietFarmParentKey="";
     clear(barfDietFillCache);barfDietFillCacheHits=0;barfDietFillCacheMisses=0;
     clear(barfDietPreparationCache);barfDietPreparationHits=0;barfDietPreparationMisses=0;
@@ -1464,7 +1469,7 @@ barfTwoDayState barfDietExtraState(barfTwoDayState source,item it){
     if(price<0||(!barfDietBuyable[it]&&source.uses["stock:"+to_int(it)]>=barfDietOwnedAmount(it)))return rejected;
     barfTwoDayState s=barfDietClone(source);
     s.cost+=price;s.cash+=barfDietStockCash(s,it,1,price);
-    if(s.cash>my_meat()+s.liquidIncome)return rejected;
+    if(!barfDietFundingLegal(s))return rejected;
     s.adventures+=e.average;s.minimumAdventures+=e.minimum;s.uses[e.group]+=1;
     s.schedule+="extra\t"+to_int(it)+"\t"+e.minimum+"\t"+e.average+"\n";
     return s;
@@ -1515,6 +1520,9 @@ boolean barfDietQuickItem(barfTwoDayItem e){return e.special==""||$strings[noodl
 boolean barfDietRegularFillItem(barfTwoDayItem e){
     return barfDietQuickItem(e)&&(e.target==$item[Affirmation Cookie]||!barfDietLowQuality(e.target)||barfDietHasDelayedAdventures(e.target));
 }
+// Cash exposure certifies that every considered purchase was affordable, not just
+// the selected actions. A cached decision trace is reused only with that headroom.
+void barfDietTraceWallet(barfTwoDayState s){if(barfDietTraceCash&&s.cash>=0)barfDietTraceExposure=max(barfDietTraceExposure,s.cash-s.liquidIncome);}
 barfTwoDayState barfDietQuickConsumeMode(barfTwoDayState source,barfTwoDayItem e,boolean retain,int yeti){
     barfTwoDayState best;best.cash=-1;float score=-1000000000000.0;
     boolean spleenOnly=barfDietSkipBare&&e.fullness==0&&e.drunkenness==0;
@@ -1531,7 +1539,8 @@ barfTwoDayState barfDietQuickConsumeMode(barfTwoDayState source,barfTwoDayItem e
             int at=length(source.schedule)+length("consume\t"+to_int(e.target)+"\t");
             next.schedule=substring(next.schedule,0,at)+"bare;"+substring(next.schedule,at);
         }
-        if(next.cash<0||next.cash>my_meat()+next.liquidIncome)continue;
+        barfDietTraceWallet(next);
+        if(next.cash<0||!barfDietFundingLegal(next))continue;
         float value=barfDietScore(next);
         if(value>score){best=next;score=value;}
     }
@@ -1653,7 +1662,9 @@ barfTwoDayState barfDietQuickFillUncached(barfTwoDayState source,string organ,in
     barfTwoDayState failed;failed.cash=-1;return failed;
 }
 barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target,boolean broad){
-    if(!barfDietMemoize||(target<=barfDietOrganUsed(source,organ)&&!(organ=="booze"&&source.shotglass>0)))
+    // Wallet traces must observe rejected offers too; cached fills cannot
+    // provide that exposure certificate. Ordinary planning keeps its exact cache.
+    if(!barfDietMemoize||barfDietTraceCash||(target<=barfDietOrganUsed(source,organ)&&!(organ=="booze"&&source.shotglass>0)))
         return barfDietQuickFillUncached(source,organ,target,broad);
     // Exact inputs include every economic/resource field. Only schedule text is
     // rebased; fills append actions without inspecting the preceding actions.
@@ -1681,7 +1692,111 @@ barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target
 barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target){
     return barfDietQuickFill(source,organ,target,false);
 }
+// Within the existing bare/prepared modes, retain distinct future resources
+// instead of ranking partial diets away before the next capacity decision.
+int barfDietQuantityExpanded;int barfDietQuantityDuplicates;int barfDietQuantityPermutations;
+boolean barfDietQuantityNeutral(barfTwoDayState s,barfTwoDayItem e){
+    if(e.target==$item[spaghetti breakfast]||e.special!=""||e.crafted||e.delayedCombats>0||barfDietRelevantEffect(e.buff)
+        ||e.average*2!=round(e.average*2)||s.shotglass>0)return false;
+    if(e.fullness>0&&(s.milk>0||s.aioli>0||s.whet>0||s.noodles>0
+        ||s.uses["munchies"]<get_property("munchiesPillsUsed").to_int()
+        ||barfDietOwnedAmount($item[special seasoning])>s.uses["stock:"+to_int($item[special seasoning])]))return false;
+    if(e.drunkenness>0&&(contains_text(e.target.notes,"WINE")||contains_text(e.target.notes,"MARTINI")
+        ||barfDietDuration(s,$effect[Salty Mouth])>0))return false;
+    return true;
+}
+void barfDietQuantityVisit(barfTwoDayState s,string organ,int target,int last,boolean canonical,
+    int[string] seen,barfTwoDayState[string] results){
+    if(s.cash<0||!barfDietFundingLegal(s)||barfDietQuickExpired())return;
+    int used=barfDietOrganUsed(s,organ);
+    if(used==target){
+        string key=barfDietExactStateKey(s);
+        if(!(results contains key))results[key]=barfDietClone(s);
+        else barfDietQuantityDuplicates+=1;
+        return;
+    }
+    string key=barfDietExactStateKey(s);
+    if((seen contains key)&&seen[key]<=last){barfDietQuantityDuplicates+=1;return;}seen[key]=last;
+    foreach i,e in barfTwoDayItems{
+        int size=barfDietOrganSize(e,organ);
+        if(size<=0||!barfDietRegularFillItem(e)||size>target-used+(organ=="booze"&&s.shotglass>0?1:0))continue;
+        boolean neutral=canonical&&barfDietQuantityNeutral(s,e);
+        foreach bare in $booleans[true,false]{
+            if(neutral&&bare&&last>i){barfDietQuantityPermutations+=1;continue;}
+            barfTwoDayState next=barfDietConsumeState(s,e,false,0,bare);barfDietQuantityExpanded+=1;
+            if(next.cash<0||barfDietOrganUsed(next,organ)>target)continue;
+            if(!bare&&barfDietBareMatches(s,next))continue;
+            // A prepared transition may spend a one-shot helper, so it resets ordering.
+            // Bare transitions commute only under the conservative certificate above.
+            barfDietQuantityVisit(next,organ,target,neutral&&bare?i:-1,canonical,seen,results);
+        }
+    }
+}
+barfTwoDayState[int] barfDietQuantityFills(barfTwoDayState source,string organ,int target,boolean canonical){
+    barfTwoDayState[int] result;barfTwoDayState[string] unique;int[string] seen;
+    target=max(target,barfDietOrganUsed(source,organ));
+    barfDietQuantityVisit(source,organ,target,-1,canonical,seen,unique);
+    foreach key,s in unique result[count(result)]=s;
+    return result;
+}
+
 record barfDietLateMenu {int[int] indices;int fullness;int drunkenness;int spleen;};
+void barfDietLiveIngredients(item target,boolean[item] live,int depth){
+    if(target==$item[none]||depth>20||(live contains target))return;
+    live[target]=true;
+    if(barfDietCanCraft(target))foreach part,q in barfDietIngredients(target)barfDietLiveIngredients(part,live,depth+1);
+}
+barfTwoDayState barfDietContinuationState(barfTwoDayState source,barfDietLateMenu menu){
+    barfTwoDayState s=barfDietClone(source);barfTwoDayState final=barfDietClone(s);final.mask=63;final.stooper=true;
+    boolean[item] live;boolean[int] organs;
+    organs[0]=barfDietFullLimit(final)>s.fullness+menu.fullness;
+    organs[1]=barfDietLiverLimit(final)>s.drunkenness+menu.drunkenness;
+    organs[2]=barfDietSpleenLimit(final)>s.spleen+menu.spleen;
+    foreach action in $strings[melange,aug16,distention,sweettooth,voraci]if(s.uses["clearerDeferred:"+action]>0)organs[0]=true;
+    foreach action in $strings[melange,sweat,doghair,sobrie]if(s.uses["clearerDeferred:"+action]>0)organs[1]=true;
+    if(s.uses["clearerDeferred:mojo"]>0)organs[2]=true;
+    string context=organs[0]+":"+organs[1]+":"+organs[2]+":"+(s.uses["clearerDeferred:noodleSpleen"]>0);
+    foreach n,index in menu.indices context+=":"+index;
+    if(!(barfDietContinuationLive contains context)){
+        foreach n,index in menu.indices barfDietLiveIngredients(barfTwoDayItems[index].target,live,0);
+        if(s.uses["clearerDeferred:noodleSpleen"]>0)barfDietLiveIngredients($item[Tubetto Gelatto],live,0);
+        barfDietLiveIngredients($item[vintage smart drink],live,0);
+        foreach it in $items[How to Avoid Scams,special seasoning,mini kiwi aioli,whet stone,fudge spork,Ol' Scratch's salad fork,Frosty's frosty mug,milk of magnesium,mojo filter,spice melange,synthetic dog hair pill,distention pill,sweet tooth,cuppa Voraci tea,cuppa Sobrie tea,Tubetto Gelatto]live[it]=true;
+        foreach i,e in barfTwoDayItems if((e.fullness>0&&organs[0])||(e.drunkenness>0&&organs[1])||(e.spleen>0&&organs[2])){
+            live[e.target]=true;
+            foreach part,q in e.ingredients barfDietLiveIngredients(part,live,0);
+        }
+        // The sentinel also represents an empty dependency set.
+        barfDietContinuationLive[context,$item[none]]=true;
+        foreach target,needed in live barfDietContinuationLive[context,target]=true;
+    }
+    // Retire only stock that no remaining fill, retained meal, resource or recipe
+    // can consume. Effects, helpers, organs and all remaining live stock stay exact.
+    foreach i,e in barfTwoDayItems if(e.target!=$item[none]&&e.special==""&&e.dailyGroup==""&&!(barfDietContinuationLive[context] contains e.target)){
+        s.uses[to_string(e.target)]=0;s.uses["stock:"+to_int(e.target)]=0;
+    }
+    foreach name,used in s.uses if(starts_with(name,"stock:")
+        &&!(barfDietContinuationLive[context] contains to_item(substring(name,6).to_int())))s.uses[name]=0;
+    // Upper bound on remaining ordinary copies: final free organs, all three
+    // sweat clears (9), melange (6), three fullness increases, Aug16 (1),
+    // two liver pills/teas, three mojo filters, shotglass and spleen noodles.
+    // 32 exceeds their total 26; no current supported continuation exceeds it.
+    int remaining=max(0,barfDietFullLimit(final)-s.fullness)+max(0,barfDietLiverLimit(final)-s.drunkenness)
+        +max(0,barfDietSpleenLimit(final)-s.spleen)+32;
+    foreach i,e in barfTwoDayItems if(e.target!=$item[none]&&e.special==""&&!e.crafted&&e.delayedCombats==0
+        &&e.dailyGroup==""&&e.dailyRemaining==100&&e.target.tradeable&&barfDietBuyable[e.target]
+        &&e.fullness+e.drunkenness+e.spleen>0&&100-s.uses[to_string(e.target)]>=remaining){
+        string stock="stock:"+to_int(e.target);
+        if(!(barfDietContinuationOwned contains e.target))barfDietContinuationOwned[e.target]=barfDietOwnedAmount(e.target);
+        int owned=barfDietContinuationOwned[e.target];
+        // Once personal/stash copies are exhausted, all further copies have the
+        // same replacement cost, including copies used as recipe ingredients.
+        if(s.uses[stock]>=owned){s.uses[stock]=owned;s.uses[to_string(e.target)]=0;}
+    }
+    s.income=0;s.cost=0;s.cash=0;s.liquidIncome=0;
+    s.schedule="";return s;
+}
+
 record barfDietRankedPair {int first;int second;float estimate;};
 int barfDietMenuPairsGenerated;
 string barfDietSearchPhase;
@@ -1801,7 +1916,7 @@ barfTwoDayState barfDietQuickFarmTurns(barfTwoDayState source,int paid){
         }
         int n=remaining;
         if(s.uses["allCool"]>0)n=min(n,barfDietDuration(s,$effect[Looking Cool]));
-        s=barfDietFarmState(s,n);if(s.cash<0)return s;remaining-=n;
+        s=barfDietFarmState(s,n);barfDietTraceWallet(s);if(s.cash<0)return s;remaining-=n;
     }
     return s;
 }
@@ -1884,7 +1999,7 @@ barfTwoDayState barfDietQuickResources(barfTwoDayState s,barfDietLateMenu menu,b
             if(deferredOnly&&s.uses[pending]==0)continue;
             if(barfDietClearerNeedsFilling(s,action)){s.uses[pending]=1;continue;}
             s.uses[pending]=0;
-            barfTwoDayState next=barfDietResourceState(s,action);
+            barfTwoDayState next=barfDietResourceState(s,action);barfDietTraceWallet(next);
             if(next.cash<0)continue;
             if(action=="noodleSpleen"){
                 barfTwoDayState final=barfDietClone(next);final.mask=63;final.stooper=true;
@@ -1977,8 +2092,8 @@ barfTwoDayState barfDietQuickCapacityStart(barfTwoDayState initial,barfDietLateM
     }
     s.uses["capacityPolicy"]=initial.uses["capacityPolicy"];return s;
 }
-barfTwoDayState barfDietQuickPrepare(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
-    barfTwoDayState s=barfDietQuickCapacityStart(initial,menu,distill);if(s.cash<0)return s;
+barfTwoDayState barfDietQuickPrepareTail(barfTwoDayState source,barfDietLateMenu menu,boolean distill){
+    barfTwoDayState s=barfDietClone(source);
     while(s.mask!=63){
         if(barfDietQuickExpired()){s.cash=-1;return s;}
         int best=-1;float score=-1000000000000.0;boolean bestUseful=false;
@@ -2014,6 +2129,10 @@ barfTwoDayState barfDietQuickPrepare(barfTwoDayState initial,barfDietLateMenu me
     if(distill){s=barfDietDistillState(s);if(s.cash<0)return s;}
     return s;
 }
+barfTwoDayState barfDietQuickPrepare(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
+    barfTwoDayState s=barfDietQuickCapacityStart(initial,menu,distill);if(s.cash<0)return s;
+    return barfDietQuickPrepareTail(s,menu,distill);
+}
 barfTwoDayState barfDietQuickPreparation(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
     if(!barfDietMemoize)return barfDietQuickPrepare(initial,menu,distill);
     // Before retained items are consumed, menu identity has no effect: only its
@@ -2034,8 +2153,8 @@ barfTwoDayState barfDietQuickPreparation(barfTwoDayState initial,barfDietLateMen
     }
     return result;
 }
-barfTwoDayState barfDietQuickSchedule(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
-    barfTwoDayState s=barfDietQuickPreparation(initial,menu,distill);if(s.cash<0)return s;
+barfTwoDayState barfDietQuickComplete(barfTwoDayState source,barfDietLateMenu menu){
+    barfTwoDayState s=barfDietClone(source);
     foreach i,index in menu.indices{
         s=barfDietQuickConsume(s,barfTwoDayItems[index],true);if(s.cash<0)return s;
     }
@@ -2043,6 +2162,10 @@ barfTwoDayState barfDietQuickSchedule(barfTwoDayState initial,barfDietLateMenu m
     if(s.uses["allCool"]>0){s.uses["coolSlots"]=s.uses["coolRefreshes"];s.schedule+="coolReserveRelease\n";}
     s=barfDietQuickFillStage(s,empty,false);if(s.cash<0)return s;
     return barfDietQuickFinish(s);
+}
+barfTwoDayState barfDietQuickSchedule(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
+    barfTwoDayState s=barfDietQuickPreparation(initial,menu,distill);if(s.cash<0)return s;
+    return barfDietQuickComplete(s,menu);
 }
 boolean barfDietMeetsTargets(barfTwoDayState plan){
     return plan.finished&&plan.cash>=0&&plan.uses["coolUncovered"]==0&&plan.uses["coldRequired"]==0
@@ -2088,6 +2211,107 @@ barfTwoDayState barfDietQuickProfile(barfTwoDayState initial,barfTwoDayState sel
     return s;
 }
 boolean barfDietReplay(barfTwoDayState initial,barfTwoDayState plan);
+barfTwoDayState barfDietReplayStart(barfTwoDayState initial,barfTwoDayState plan);
+barfTwoDayState barfDietReplayAction(barfTwoDayState s,string row);
+record barfDietJointForecast {barfTwoDayState start;barfTwoDayState end;float exposure;};
+int barfDietJointForecastHits;
+int barfDietJointBoundPruned;
+barfTwoDayState barfDietJointContinue(barfTwoDayState source,barfDietLateMenu menu,boolean distill,float threshold,barfDietJointForecast[string] cache){
+    barfTwoDayState normalized=barfDietContinuationState(source,menu);
+    string key=barfDietExactStateKey(normalized)+":pour="+distill;
+    foreach n,index in menu.indices key+=":late="+index;
+    if(!(cache contains key)){
+        barfDietTraceCash=true;barfDietRelaxedWallet=true;barfDietTraceExposure=0;
+        barfTwoDayState next;
+        try{
+            next=barfDietQuickResources(normalized,menu,distill,true);
+            if(next.cash>=0)next=barfDietQuickFarm(next,menu,distill);
+            if(next.cash>=0)next=barfDietQuickPrepareTail(next,menu,distill);
+            if(next.cash>=0)next=barfDietQuickComplete(next,menu);
+        }finally{barfDietTraceCash=false;barfDietRelaxedWallet=false;}
+        if(barfDietMeetsTargets(next)){
+            barfDietJointForecast saved;saved.start=normalized;saved.end=next;saved.exposure=barfDietTraceExposure;
+            cache[key]=saved;
+        }else {barfTwoDayState failed;failed.cash=-1;return failed;}
+    }else barfDietJointForecastHits+=1;
+    barfDietJointForecast saved=cache[key];
+    if(saved.exposure<=my_meat()+source.liquidIncome-source.cash){
+        // Exact continuation value in canonical financial coordinates. This is
+        // a bound for this fixed continuation, not a global optimality bound.
+        float value=barfDietScore(saved.end)+source.income-source.cost;
+        if(value+0.01<threshold){barfDietJointBoundPruned+=1;barfTwoDayState skipped;skipped.cash=-1;return skipped;}
+        barfTwoDayState result=barfDietClone(source);
+        foreach n,row in split_string(saved.end.schedule,"\n")if(row!=""){
+            result=barfDietReplayAction(result,row);
+            if(result.cash<0||!barfDietFundingLegal(result))break;
+        }
+        if(barfDietMeetsTargets(result)&&barfDietFundingLegal(result))return result;
+    }
+    // A tight wallet must be searched with its real purchase constraints.
+    barfTwoDayState result=barfDietQuickResources(source,menu,distill,true);
+    if(result.cash>=0)result=barfDietQuickFarm(result,menu,distill);
+    if(result.cash>=0)result=barfDietQuickPrepareTail(result,menu,distill);
+    if(result.cash>=0)result=barfDietQuickComplete(result,menu);
+    if(!barfDietFundingLegal(result))result.cash=-1;
+    return result;
+}
+int barfDietJointCompleted;int barfDietJointValid;int barfDietJointDuplicates;int barfDietJointWindows;
+barfTwoDayState barfDietJointCapacity(barfTwoDayState initial,barfTwoDayState incumbent){
+    barfTwoDayState best=barfDietClone(incumbent);barfDietLateMenu menu;boolean distill=false;boolean finalPhase=false;
+    foreach n,row in split_string(incumbent.schedule,"\n"){
+        string[int] cells=split_string(row,"\t");
+        if(cells[0]=="phase"&&contains_text(row,"Final consumption:"))finalPhase=true;
+        if(cells[0]=="distill"&&finalPhase)distill=true;
+        if(cells[0]=="consume"&&cells[4].to_boolean())foreach i,e in barfTwoDayItems if(to_int(e.target)==cells[1].to_int()){
+            menu.indices[count(menu.indices)]=i;menu.fullness+=e.fullness;menu.drunkenness+=e.drunkenness;menu.spleen+=e.spleen;break;
+        }
+    }
+    barfDietJointCompleted=0;barfDietJointValid=0;barfDietJointDuplicates=0;barfDietJointWindows=0;barfDietJointForecastHits=0;barfDietJointBoundPruned=0;
+    barfDietQuantityExpanded=0;barfDietQuantityDuplicates=0;barfDietQuantityPermutations=0;
+    boolean[string] completed;boolean[int] opened;barfDietJointForecast[string] forecasts;
+    barfTwoDayState prefix=barfDietReplayStart(initial,incumbent);
+    foreach n,row in split_string(incumbent.schedule,"\n"){
+        if(barfDietQuickExpired())break;
+        string[int] cells=split_string(row,"\t");
+        if(cells[0]=="capacity"){
+            int organ=barfDietCapacityOrgan(cells[1].to_int());string name=organ==0?"food":organ==1?"booze":"spleen";
+            int[int] pieces;
+            foreach bit in $ints[0,1,2,3,4,5] if(!barfDietBit(prefix.mask,bit)&&barfDietCapacityOrgan(bit)==organ)pieces[count(pieces)]=bit;
+            // This neighborhood compares two capacity decisions for one organ.
+            // Other events keep their existing production continuation and guards.
+            if(organ>=0&&count(pieces)==2&&!(opened contains organ)){
+                opened[organ]=true;barfDietJointWindows+=1;
+                foreach order in $ints[0,1]{
+                    barfTwoDayState first=barfDietCapacityState(prefix,pieces[order]);if(first.cash<0)continue;
+                    int target=barfDietFillTarget(first,menu,distill,name);
+                    if(target-barfDietOrganUsed(first,name)>2)continue;
+                    barfTwoDayState[int] starts;
+                    if(target>barfDietOrganUsed(first,name))starts=barfDietQuantityFills(first,name,target,true);
+                    starts[count(starts)]=first;
+                    foreach j,partial in starts{
+                        partial=barfDietQuickFarm(partial,menu,distill);if(partial.cash<0)continue;
+                        barfTwoDayState second=barfDietCapacityState(partial,pieces[1-order]);if(second.cash<0)continue;
+                        target=barfDietFillTarget(second,menu,distill,name);
+                        if(target-barfDietOrganUsed(second,name)>2)continue;
+                        foreach k,filled in barfDietQuantityFills(second,name,target,true){
+                            if(barfDietQuickExpired())break;
+                            string key=barfDietExactStateKey(filled);
+                            if(completed contains key){barfDietJointDuplicates+=1;continue;}completed[key]=true;
+                            barfTwoDayState next=barfDietJointContinue(filled,menu,distill,barfDietScore(best),forecasts);
+                            barfDietJointCompleted+=1;
+                            if(!barfDietMeetsTargets(next))continue;
+                            barfDietJointValid+=1;
+                            if(barfDietScore(next)>barfDietScore(best)&&barfDietReplay(initial,next))best=next;
+                        }
+                    }
+                }
+            }
+        }
+        prefix=barfDietReplayAction(prefix,row);if(prefix.cash<0)break;
+    }
+    return best;
+}
+
 barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     int started=now_to_int();barfDietTrialStarted=started;barfDietTrialCount=0;
     barfDietFillGenerated=0;barfDietFillDominated=0;barfDietFillBeamPruned=0;
@@ -2255,34 +2479,43 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
     barfDietQuickDeadline=0;return best;
 }
 
-boolean barfDietReplay(barfTwoDayState initial,barfTwoDayState plan){
+barfTwoDayState barfDietReplayStart(barfTwoDayState initial,barfTwoDayState plan){
     barfTwoDayState s=barfDietClone(initial);
     foreach flag in $strings[noWhet,noSpork,trainingOverride,chestGoal,yetiGoal,allCool,coldRequired,coolSlots,marginalHelpers,trainingFood,pourStages,pourMidTurn,capacityPolicy]s.uses[flag]=plan.uses[flag];
     s.uses["coldRequired"]=plan.uses["initialColdRequired"];s.uses["coolSlots"]=plan.uses["initialCoolSlots"];
+    return s;
+}
+barfTwoDayState barfDietReplayAction(barfTwoDayState source,string row){
+    barfTwoDayState s=barfDietClone(source);
+    string[int] cells=split_string(row,"\t");string action=cells[0];
+    if(s.finished&&action!="rollover"){s.cash=-1;return s;}
+    if(action=="phase"&&!contains_text(cells[1],"Vintage smart drink with Ode is the final consumption"))s.schedule+=row+"\n";
+    else if(action=="phase")return s;
+    else if(action=="farm")s=barfDietFarmState(s,cells[1].to_int());
+    else if(action=="capacity")s=barfDietCapacityState(s,cells[1].to_int());
+    else if(action=="stooper")s=barfDietStooperState(s);
+    else if(action=="coolReserveRelease"){s.uses["coolSlots"]=s.uses["coolRefreshes"];s.schedule+=row+"\n";}
+    else if(action=="distill")s=barfDietDistillState(s,count(cells)>4?cells[4].to_int():-1);
+    else if(action=="pourSkip")s=barfDietSkipPour(s,cells[1].to_int());
+    else if(action=="extra")s=barfDietExtraState(s,to_item(cells[1].to_int()));
+    else if(action=="resource")s=barfDietResourceState(s,cells[1]);
+    else if(action=="noodleSpleen")s=barfDietResourceState(s,"noodleSpleen");
+    else if(action=="consume"){
+        boolean found=false;
+        foreach j,e in barfTwoDayItems if(to_int(e.target)==cells[1].to_int()){
+            s=contains_text(cells[2],"bare;")?barfDietConsumeBare(s,e,cells[4].to_boolean(),cells[3].to_int()):barfDietConsumeState(s,e,cells[4].to_boolean(),cells[3].to_int());found=true;break;
+        }
+        if(!found){s.cash=-1;return s;}
+    }else if(action=="nightcap")s=barfDietFinishState(s);
+    else if(action!="rollover"){s.cash=-1;return s;}
+    return s;
+}
+boolean barfDietReplay(barfTwoDayState initial,barfTwoDayState plan){
+    barfTwoDayState s=barfDietReplayStart(initial,plan);
     foreach i,row in split_string(plan.schedule,"\n"){
         if(row=="")continue;
-        string[int] cells=split_string(row,"\t");string action=cells[0];
-        if(s.finished&&action!="rollover")return false;
-        if(action=="phase"&&!contains_text(cells[1],"Vintage smart drink with Ode is the final consumption"))s.schedule+=row+"\n";
-        else if(action=="phase")continue;
-        else if(action=="farm")s=barfDietFarmState(s,cells[1].to_int());
-        else if(action=="capacity")s=barfDietCapacityState(s,cells[1].to_int());
-        else if(action=="stooper")s=barfDietStooperState(s);
-        else if(action=="coolReserveRelease"){s.uses["coolSlots"]=s.uses["coolRefreshes"];s.schedule+=row+"\n";}
-        else if(action=="distill")s=barfDietDistillState(s,count(cells)>4?cells[4].to_int():-1);
-        else if(action=="pourSkip")s=barfDietSkipPour(s,cells[1].to_int());
-        else if(action=="extra")s=barfDietExtraState(s,to_item(cells[1].to_int()));
-        else if(action=="resource")s=barfDietResourceState(s,cells[1]);
-        else if(action=="noodleSpleen")s=barfDietResourceState(s,"noodleSpleen");
-        else if(action=="consume"){
-            boolean found=false;
-            foreach j,e in barfTwoDayItems if(to_int(e.target)==cells[1].to_int()){
-                s=contains_text(cells[2],"bare;")?barfDietConsumeBare(s,e,cells[4].to_boolean(),cells[3].to_int()):barfDietConsumeState(s,e,cells[4].to_boolean(),cells[3].to_int());found=true;break;
-            }
-            if(!found)return false;
-        }else if(action=="nightcap")s=barfDietFinishState(s);
-        else if(action!="rollover")return false;
-        if(s.cash<0||s.cash>my_meat()+s.liquidIncome)return false;
+        s=barfDietReplayAction(s,row);
+        if(s.cash<0||!barfDietFundingLegal(s))return false;
     }
     return s.finished&&barfDietProjectedStart(s,0)==200&&barfDietRetentionLegal(s,0)
         &&s.schedule==plan.schedule&&max(s.cost-plan.cost,plan.cost-s.cost)<0.01&&max(s.income-plan.income,plan.income-s.income)<0.01;

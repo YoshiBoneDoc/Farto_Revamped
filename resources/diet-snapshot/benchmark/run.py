@@ -55,6 +55,16 @@ if 'int deadline=0;' in s:
     s=s.replace('int deadline=0;',f'int deadline={int(benchmark_budget)};deadline=deadline>0?started+deadline*1000:0;',1)
 # Independent cache controls exist only in generated offline copies.
 benchmark_settings=dict(setting.split('=',1) for setting in args.setting)
+if benchmark_settings.get('benchJointSearch')=='false':
+    s=s.replace('best=barfDietJointCapacity(initial,best);','if(false)best=barfDietJointCapacity(initial,best);',1)
+if benchmark_settings.get('benchJointForecastCache')=='false':
+    s=s.replace('barfTwoDayState normalized=barfDietContinuationState(source,menu);',
+        'clear(cache);barfTwoDayState normalized=barfDietContinuationState(source,menu);',1)
+if benchmark_settings.get('benchJointBound')=='false':
+    s=s.replace('if(value+0.01<threshold){','if(false&&value+0.01<threshold){',1)
+if benchmark_settings.get('benchValidateJoint')=='true':
+    s=s.replace('if(!barfDietMeetsTargets(next))continue;\n                            barfDietJointValid',
+        'if(!barfDietMeetsTargets(next))continue;\n                            if(!barfDietReplay(initial,next))abort("Joint candidate failed production replay.");\n                            barfDietJointValid',1)
 if benchmark_settings.get('benchFillPolicyCache')=='false':
     s=s.replace('if(source.uses["capacityPolicy"]!=0){normalized=',
         'if(false&&source.uses["capacityPolicy"]!=0){normalized=',1)
@@ -62,6 +72,8 @@ if benchmark_settings.get('benchCapacityPolicies')=='false':
     s=s.replace('foreach policy in $ints[1,8,9,2,10,4,12,7,15]{',
         'if(false)foreach policy in $ints[1,8,9,2,10,4,12,7,15]{',1)
 if benchmark_settings.get('benchFillCache')=='false':
+    s=s.replace('if(!barfDietMemoize||barfDietTraceCash||(target<=barfDietOrganUsed(source,organ)',
+        'if(true||!barfDietMemoize||barfDietTraceCash||(target<=barfDietOrganUsed(source,organ)',1)
     s=s.replace('if(!barfDietMemoize||(target<=barfDietOrganUsed(source,organ)',
         'if(true||!barfDietMemoize||(target<=barfDietOrganUsed(source,organ)',1)
 if benchmark_settings.get('benchPreparationCache')=='false':
@@ -304,7 +316,7 @@ with log.open('w') as stream:
     else:result=subprocess.run(command,stdout=stream,stderr=subprocess.STDOUT)
 
 for row in log.read_text().splitlines():
-    if row.startswith(('FROZEN','SCHEDULE ms=','PRACTICAL ms=','PRACTICAL COUNT ','PROFILE ','BEAM ','CHECKS ','PARTIAL FRONTIER CHECKS ','JOINT BUFF CHECKS ','CLEARING RETRY CHECKS ','MARGINAL HELPER CHECKS ','FOOD XP CHECKS ','PLANNER CHECKS ','LIVE CHECKS ','LIVE NATIVE ','VALIDATED COMPLETE TRIALS ','PRODUCTION ','INGREDIENT CHECKS ','AUDIT RESULT ','AUDIT FOOD ','AUDIT DELTA ','AUDIT INVALID ','AUDIT RESOURCE ','AUDIT BUDGET ','Runtime result=')):print(row)
+    if row.startswith(('QUANTITY CASE ','FROZEN','SCHEDULE ms=','PRACTICAL ms=','PRACTICAL COUNT ','PROFILE ','BEAM ','CHECKS ','PARTIAL FRONTIER CHECKS ','JOINT BUFF CHECKS ','CLEARING RETRY CHECKS ','MARGINAL HELPER CHECKS ','FOOD XP CHECKS ','PLANNER CHECKS ','LIVE CHECKS ','LIVE NATIVE ','VALIDATED COMPLETE TRIALS ','PRODUCTION ','INGREDIENT CHECKS ','AUDIT RESULT ','AUDIT FOOD ','AUDIT DELTA ','AUDIT INVALID ','AUDIT RESOURCE ','AUDIT BUDGET ','Runtime result=')):print(row)
 print('Full output:',log)
 if result.returncode:raise SystemExit(result.returncode)
 if 'Runtime result=OK' not in log.read_text():raise SystemExit('Native benchmark did not complete; inspect the full output for parse/runtime errors.')
