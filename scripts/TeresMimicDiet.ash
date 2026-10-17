@@ -473,6 +473,7 @@ float barfDietTomorrowValue(barfTwoDayState s){
 boolean barfDietMemoize;
 item[int] barfDietExtraMenu;
 boolean barfDietExtraMenuReady;
+string barfDietExtraMenuKey;
 boolean barfDietSkipBare;boolean barfDietShareFarmForecasts;
 
 record barfDietFarmPrefix {barfTwoDayState state;int segment;int stage;};
@@ -490,7 +491,7 @@ barfTwoDayState[string] barfDietCapacityStartCache;int[string] barfDietCapacityS
 int barfDietCapacityStartClock;int barfDietCapacityStartHits;
 void barfDietResetSearchCaches(){
     barfDietRelaxedWallet=false;barfDietTraceCash=false;barfDietTraceExposure=0;
-    clear(barfDietExtraMenu);barfDietExtraMenuReady=false;
+    clear(barfDietExtraMenu);barfDietExtraMenuReady=false;barfDietExtraMenuKey="";
     clear(barfDietRateCache);clear(barfDietItemIncomeCache);
     clear(barfDietFutureCache);clear(barfDietTomorrowCache);clear(barfDietEffectCaps);
     clear(barfDietContinuationLive);clear(barfDietContinuationOwned);
@@ -1524,7 +1525,11 @@ barfTwoDayState barfDietChocolatePlan(barfTwoDayState source,float rate){
 }
 barfTwoDayState barfDietQuickExtras(barfTwoDayState source){
     if(source.uses["noExtras"]>0||get_property("teresBarfDietExtraAdventures")=="false")return source;
-    if(!barfDietExtraMenuReady){
+    // Adventure value, daily uses, stock and liquidity can differ between trials.
+    // Reuse a menu only for the identical physical/economic starting state.
+    string key=barfDietExactStateKey(source);
+    if(!barfDietExtraMenuReady||barfDietExtraMenuKey!=key){
+        clear(barfDietExtraMenu);
         float rate=barfDietMarginalAdventure(source,0,0);
         barfTwoDayState selected=barfDietChocolatePlan(source,rate);
         foreach it in $items[chocolate cigar,vitachoconutriment capsule,fancy chocolate sculpture,essential tofu,clock]{
@@ -1537,7 +1542,7 @@ barfTwoDayState barfDietQuickExtras(barfTwoDayState source){
         foreach i,row in split_string(substring(selected.schedule,length(source.schedule)),"\n"){
             string[int] cells=split_string(row,"\t");if(count(cells)>1&&cells[0]=="extra")barfDietExtraMenu[count(barfDietExtraMenu)]=to_item(cells[1].to_int());
         }
-        barfDietExtraMenuReady=true;
+        barfDietExtraMenuReady=true;barfDietExtraMenuKey=key;
     }
     barfTwoDayState s=barfDietClone(source);
     foreach i,it in barfDietExtraMenu {s=barfDietExtraState(s,it);if(s.cash<0)return s;}
