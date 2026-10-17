@@ -19,11 +19,13 @@ parser.add_argument('--memory',action='store_true',help='Measure native child pe
 parser.add_argument('--profile',action='store_true',help='Measure inclusive native timings and call counts in the offline harness only.')
 parser.add_argument('--output',type=Path,help='Keep generated harness and log here; otherwise use a new temporary directory.')
 parser.add_argument('--source',type=Path,help='Benchmark another saved production source against the same frozen inputs.')
+parser.add_argument('--score-reference',type=Path,help='Inject an independent original score for paired native probes; never changes production.')
 parser.add_argument('--setting',action='append',default=[],metavar='NAME=VALUE',help='Set an isolated benchmark preference; repeat as needed.')
 parser.add_argument('--snapshot',type=Path,help='Use a separate saved export directory; leaves the regression fixture unchanged.')
 parser.add_argument('--probe',type=Path,help='Read-only investigation ASH defining auditRun(initial); requires --workload probe.')
 args=parser.parse_args()
 if (args.workload=='probe') != bool(args.probe):parser.error('--probe and --workload probe must be used together.')
+if args.score_reference and not args.probe:parser.error('--score-reference requires a paired --probe.')
 if any('=' not in setting for setting in args.setting):parser.error('--setting requires NAME=VALUE.')
 if args.reference and args.workload not in ('schedule','practical'):parser.error('--reference supports schedule or practical workloads.')
 fixture=Path(__file__).resolve().parent
@@ -62,6 +64,7 @@ if benchmark_settings.get('benchJointForecastCache')=='false':
         'clear(cache);barfTwoDayState normalized=barfDietContinuationState(source,menu);',1)
 if benchmark_settings.get('benchJointBound')=='false':
     s=s.replace('if(value+0.01<threshold){','if(false&&value+0.01<threshold){',1)
+    s=s.replace('if(value+0.01<=threshold+barfDietProfitGap()){','if(false&&value+0.01<=threshold+barfDietProfitGap()){',1)
 if benchmark_settings.get('benchValidateJoint')=='true':
     s=s.replace('if(!barfDietMeetsTargets(next))continue;\n                            barfDietJointValid',
         'if(!barfDietMeetsTargets(next))continue;\n                            if(!barfDietReplay(initial,next))abort("Joint candidate failed production replay.");\n                            barfDietJointValid',1)
@@ -103,6 +106,13 @@ def replace_ash_function(source, signature, replacement):
     while depth:
         depth+=(masked[end]=='{')-(masked[end]=='}');end+=1
     return source[:start]+replacement+source[end:]
+if args.score_reference:
+    reference=args.score_reference.read_text()
+    signature='float barfDietScore(barfTwoDayState s){'
+    begin=reference.index(signature)
+    end=reference.index('\nbarfTwoDayState barfDietDistillState',begin)
+    original=reference[begin:end].replace('barfDietScore(','benchOriginalScore(',1)
+    s=s.replace(signature,'boolean benchOriginalScores;\n'+original+'\n'+signature+'\n if(benchOriginalScores)return benchOriginalScore(s);',1)
 s=replace_ash_function(s,'boolean barfDietReadStash(){','boolean barfDietReadStash(){return true;}')
 if 'void barfDietReadColdOffer(){' in s:
     s=replace_ash_function(s,'void barfDietReadColdOffer(){','void barfDietReadColdOffer(){barfDietColdOfferPrice=0;barfDietColdOfferStore=0;}')

@@ -481,6 +481,9 @@ barfDietFarmPrefix[int] barfDietFarmPrefixes;
 string barfDietFarmParentKey;
 float[string] barfDietRateCache;float[string] barfDietItemIncomeCache;
 float[string] barfDietFutureCache;float[string] barfDietTomorrowCache;
+record barfDietScoreKernel {float rate;float fraction;int[int] expiry;float[int] loss;};
+barfDietScoreKernel[string] barfDietScoreKernels;
+int barfDietScoreKernelHits;int barfDietScoreKernelMisses;
 boolean[string,item] barfDietContinuationLive;int[item] barfDietContinuationOwned;
 int[int] barfDietEffectCaps;
 barfTwoDayState[string] barfDietFillCache;
@@ -494,6 +497,7 @@ void barfDietResetSearchCaches(){
     clear(barfDietExtraMenu);barfDietExtraMenuReady=false;barfDietExtraMenuKey="";
     clear(barfDietRateCache);clear(barfDietItemIncomeCache);
     clear(barfDietFutureCache);clear(barfDietTomorrowCache);clear(barfDietEffectCaps);
+    clear(barfDietScoreKernels);barfDietScoreKernelHits=0;barfDietScoreKernelMisses=0;
     clear(barfDietContinuationLive);clear(barfDietContinuationOwned);
     clear(barfDietFarmPrefixes);barfDietFarmParentKey="";
     clear(barfDietFillCache);barfDietFillCacheHits=0;barfDietFillCacheMisses=0;
@@ -1192,9 +1196,10 @@ int barfDietSpleenLimit(barfTwoDayState s){return barfDietStage(s).spleen;}
 float barfDietScore(barfTwoDayState s){
     if(s.cash<0)return -1000000000000.0;
     // Cache projected terms only; keep the original order of financial arithmetic.
-    string key="";
+    string key="";string effectKey="";
     if(barfDietMemoize){
-        key=s.mask+":"+s.stooper+":"+s.finished+":"+s.uses["forecastMode"]+":"+s.adventures+":"+s.minimumAdventures+":"+s.uses["touristTurns"]+barfDietEffectKey(s,true)
+        effectKey=barfDietEffectKey(s,true);
+        key=s.mask+":"+s.stooper+":"+s.finished+":"+s.uses["forecastMode"]+":"+s.adventures+":"+s.minimumAdventures+":"+s.uses["touristTurns"]+effectKey
             +barfDietDelayedAdventureStateKey(s);
         if(barfDietFutureCache contains key)return (s.income-s.cost+barfDietTomorrowCache[key])+barfDietFutureCache[key];
     }
@@ -1216,26 +1221,44 @@ float barfDietScore(barfTwoDayState s){
             budget=min(retentionBudget,budget+reward);
         }
     }
-    float future=budget*barfDietRateAtStage(s,barfDietFarmingStage(s));
-    future-=100*ceil(max(0,budget-s.uses["touristTurns"])/20.0);
-    float base=barfBaseMeat()+(get_property("boomBoxSong")=="Total Eclipse of Your Meat"?25:0);
-    float combatFraction=barfSetting("CombatsBetweenNC",30)/(barfSetting("CombatsBetweenNC",30)+1.0);
-    barfTwoDayStage stage=barfDietFarmingStage(s);float weight=stage.weight;float percent=stage.weightPercent;
-    foreach ef,t in barfTwoDayInitialEffects if(t>0){
-        barfDietEffectData before=barfDietEffectAt(ef,t);barfDietEffectData after=barfDietEffectAt(ef,barfDietDuration(s,ef));
-        weight+=after.weight-before.weight;percent+=after.weightPercent-before.weightPercent;
-    }
-    foreach id,t in s.effects if(t>0&&!(barfTwoDayInitialEffects contains to_effect(id))){barfDietEffectData data=barfDietEffectAt(to_effect(id),t);weight+=data.weight;percent+=data.weightPercent;}
-    float multiplier=max(1.0,stage.leprechaunWeight);float effective=max(1,floor(weight*(1+percent/100)))*multiplier;
-    // Beam ranking approximates overlapping weight expiries; final income is replayed per turn.
-    foreach id,left in s.effects if(left>0&&left<budget){
-        effect buff=to_effect(id);barfDietEffectData data=barfDietEffectAt(buff,left);float loss=base*(data.meat+stage.smithMeatPerPoint*data.smithsness)/100;
-        if(stage.farmer==$familiar[Jill-of-All-Trades]){
-            float after=max(1,floor((weight-data.weight)*(1+(percent-data.weightPercent)/100)))*multiplier;
-            loss+=base*max(1.0,stage.leprechaunEffectiveness)*((220*effective)**0.5+2*effective-(220*after)**0.5-2*after)/100;
+    // A projection's expiry losses depend on equipment and effects, not on the
+    // adventure horizon. Reuse those coefficients without changing score arithmetic.
+    string kernelKey=s.mask+":"+s.stooper+effectKey;
+    barfDietScoreKernel kernel;
+    if(barfDietMemoize&&(barfDietScoreKernels contains kernelKey)){
+        kernel=barfDietScoreKernels[kernelKey];barfDietScoreKernelHits+=1;
+    }else{
+        barfDietScoreKernelMisses+=1;
+        kernel.rate=barfDietRateAtStage(s,barfDietFarmingStage(s));
+        float base=barfBaseMeat()+(get_property("boomBoxSong")=="Total Eclipse of Your Meat"?25:0);
+        float combatFraction=barfSetting("CombatsBetweenNC",30)/(barfSetting("CombatsBetweenNC",30)+1.0);
+        barfTwoDayStage stage=barfDietFarmingStage(s);float weight=stage.weight;float percent=stage.weightPercent;
+        foreach ef,t in barfTwoDayInitialEffects if(t>0){
+            barfDietEffectData before=barfDietEffectAt(ef,t);barfDietEffectData after=barfDietEffectAt(ef,barfDietDuration(s,ef));
+            weight+=after.weight-before.weight;percent+=after.weightPercent-before.weightPercent;
         }
-        future-=(budget-left)*loss*combatFraction;
+        foreach id,t in s.effects if(t>0&&!(barfTwoDayInitialEffects contains to_effect(id))){barfDietEffectData data=barfDietEffectAt(to_effect(id),t);weight+=data.weight;percent+=data.weightPercent;}
+        float multiplier=max(1.0,stage.leprechaunWeight);float effective=max(1,floor(weight*(1+percent/100)))*multiplier;
+        // Beam ranking approximates overlapping weight expiries; final income is replayed per turn.
+        foreach id,left in s.effects if(left>0){
+            effect buff=to_effect(id);barfDietEffectData data=barfDietEffectAt(buff,left);
+            float loss=base*(data.meat+stage.smithMeatPerPoint*data.smithsness)/100;
+            if(stage.farmer==$familiar[Jill-of-All-Trades]){
+                float after=max(1,floor((weight-data.weight)*(1+(percent-data.weightPercent)/100)))*multiplier;
+                loss+=base*max(1.0,stage.leprechaunEffectiveness)*((220*effective)**0.5+2*effective-(220*after)**0.5-2*after)/100;
+            }
+            int n=count(kernel.loss);kernel.expiry[n]=left;kernel.loss[n]=loss;
+        }
+        kernel.fraction=combatFraction;
+        if(barfDietMemoize){
+            if(count(barfDietScoreKernels)>=256)clear(barfDietScoreKernels);
+            barfDietScoreKernels[kernelKey]=kernel;
+        }
     }
+    float future=budget*kernel.rate;
+    future-=100*ceil(max(0,budget-s.uses["touristTurns"])/20.0);
+    foreach n,loss in kernel.loss if(kernel.expiry[n]<budget)
+        future-=(budget-kernel.expiry[n])*loss*kernel.fraction;
     if(barfDietMemoize){barfDietFutureCache[key]=future;barfDietTomorrowCache[key]=tomorrow;}
     return score+future;
 }
@@ -1849,6 +1872,7 @@ void barfDietSearchReport(){
     print("SEARCH exact fill cache: "+barfDietFillCacheHits+" hits, "+barfDietFillCacheMisses+" misses, "+count(barfDietFillCache)+" stored (maximum 64).","blue");
     print("SEARCH preparation cache: "+barfDietPreparationHits+" hits, "+barfDietPreparationMisses+" misses, "+count(barfDietPreparationCache)+" stored (maximum 16).","blue");
     print("SEARCH shared capacity starts: "+barfDietCapacityStartHits+" hits; "+count(barfDietCapacityStartCache)+" stored (maximum 8).","blue");
+    print("SEARCH score coefficients: "+barfDietScoreKernelHits+" hits, "+barfDietScoreKernelMisses+" misses; "+count(barfDietScoreKernels)+" stored (maximum 256).","blue");
     if(!get_property("teresBarfDietDiagnostics").to_boolean())return;
     foreach phase in $strings[estimate,fallback,XP,starting,pours,width,local,training,pairs,capacity,events,bundles]{
         if(barfDietSearchMetrics[phase+":ms"]==0&&barfDietSearchMetrics[phase+":attempted"]==0)continue;
