@@ -2288,6 +2288,8 @@ barfTwoDayState barfDietReplayAction(barfTwoDayState s,string row);
 record barfDietJointForecast {barfTwoDayState start;barfTwoDayState end;float exposure;};
 int barfDietJointForecastHits;
 int barfDietJointBoundPruned;
+float barfDietJointSkippedCeiling;
+int barfDietProfitGap(){return barfSetting("DietProfitGap",2000);}
 barfTwoDayState barfDietJointContinue(barfTwoDayState source,barfDietLateMenu menu,boolean distill,float threshold,barfDietJointForecast[string] cache){
     barfTwoDayState normalized=barfDietContinuationState(source,menu);
     string key=barfDietExactStateKey(normalized)+":pour="+distill;
@@ -2311,7 +2313,10 @@ barfTwoDayState barfDietJointContinue(barfTwoDayState source,barfDietLateMenu me
         // Exact continuation value in canonical financial coordinates. This is
         // a bound for this fixed continuation, not a global optimality bound.
         float value=barfDietScore(saved.end)+source.income-source.cost;
-        if(value+0.01<threshold){barfDietJointBoundPruned+=1;barfTwoDayState skipped;skipped.cash=-1;return skipped;}
+        if(value+0.01<=threshold+barfDietProfitGap()){
+            barfDietJointSkippedCeiling=max(barfDietJointSkippedCeiling,value+0.01);
+            barfDietJointBoundPruned+=1;barfTwoDayState skipped;skipped.cash=-1;return skipped;
+        }
         barfTwoDayState result=barfDietClone(source);
         foreach n,row in split_string(saved.end.schedule,"\n")if(row!=""){
             result=barfDietReplayAction(result,row);
@@ -2338,7 +2343,7 @@ barfTwoDayState barfDietJointCapacity(barfTwoDayState initial,barfTwoDayState in
             menu.indices[count(menu.indices)]=i;menu.fullness+=e.fullness;menu.drunkenness+=e.drunkenness;menu.spleen+=e.spleen;break;
         }
     }
-    barfDietJointCompleted=0;barfDietJointValid=0;barfDietJointDuplicates=0;barfDietJointWindows=0;barfDietJointForecastHits=0;barfDietJointBoundPruned=0;
+    barfDietJointCompleted=0;barfDietJointValid=0;barfDietJointDuplicates=0;barfDietJointWindows=0;barfDietJointForecastHits=0;barfDietJointBoundPruned=0;barfDietJointSkippedCeiling=0;
     barfDietQuantityExpanded=0;barfDietQuantityDuplicates=0;barfDietQuantityPermutations=0;
     boolean[string] completed;boolean[int] opened;barfDietJointForecast[string] forecasts;
     barfTwoDayState prefix=barfDietReplayStart(initial,incumbent);
@@ -2551,6 +2556,8 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial){
         print("Joint capacity/quantity lookahead: "+barfDietJointWindows+" windows; "+barfDietJointCompleted+" continuations considered; "
             +barfDietJointForecastHits+" shared forecasts; "+barfDietJointBoundPruned+" inferior fixed continuations skipped; "
             +((now_to_int()-jointStarted)/1000.0)+" seconds; gain "+round(barfDietScore(best)-before)+" Meat. Global optimality is not established.","blue");
+        print("Fixed-continuation gap allowance: "+barfDietProfitGap()+" Meat; skipped forecasts can exceed the selected plan by at most "
+            +ceil(max(0,barfDietJointSkippedCeiling-barfDietScore(best)))+" Meat. This does not bound unexplored whole-day diets.","blue");
     }
     if(barfDietQuickExpired())print("Planning safety limit reached; keeping the best complete diet. Incomplete alternatives have no claimed profit.","blue");
     print("Diet planning finished in "+((now_to_int()-started)/1000)+" seconds after "+barfDietTrialCount+" comparisons; fill states "+barfDietFillGenerated+", dominated "+barfDietFillDominated+", width-pruned "+barfDietFillBeamPruned+", joint buff pairs "+barfDietMenuPairsGenerated+"; gain over fallback "+round(barfDietScore(best)-barfDietQuickBaseline)+" Meat.","blue");

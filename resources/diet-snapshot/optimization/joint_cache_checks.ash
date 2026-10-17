@@ -15,8 +15,8 @@ string auditRun(barfTwoDayState initial){
  foreach id in $ints[8715,10052]foreach i,e in barfTwoDayItems if(to_int(e.target)==id){referenceMenu.indices[count(referenceMenu.indices)]=i;referenceMenu.fullness+=e.fullness;referenceMenu.drunkenness+=e.drunkenness;referenceMenu.spleen+=e.spleen;}
  barfTwoDayState reference=barfDietQuickSchedule(initial,referenceMenu,true);
  requireSame(barfDietMeetsTargets(reference)&&barfDietReplay(initial,reference),"reconstructed reference validates");
- print("AUDIT RESULT reconstructed=old combined="+barfDietScore(reference)+" expected=2783515.399223725");
- requireSame(max(barfDietScore(reference)-2783515.399223725,2783515.399223725-barfDietScore(reference))<0.01,"same exact reference objective before alternative menu comparisons");
+ print("AUDIT RESULT reconstructed=old combined="+barfDietScore(reference)+" expected=2776320.6092582834");
+ requireSame(max(barfDietScore(reference)-2776320.6092582834,2776320.6092582834-barfDietScore(reference))<0.01,"same exact reference objective before alternative menu comparisons");
  barfTwoDayState source=barfDietReplayStart(initial,reference);
  foreach n,row in split_string(reference.schedule,"\n"){
   if(row=="stooper")break;
