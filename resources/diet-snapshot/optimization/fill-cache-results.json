@@ -1,0 +1,76 @@
+{
+  "source_sha256": "1cbbd14c83337230b0ac81458036ed7f65f63fb0063459e96d06bb10a9c4857f",
+  "source": "fill-cache (source hash above; runtime logs originally in temporary isolated native homes)",
+  "cases": [
+    {
+      "snapshot": "old",
+      "budget": 0,
+      "summary": "PRACTICAL ms=83530 encounters=674 combined=2778483.140999304 replay=true targets=true",
+      "rss_bytes": 463994880,
+      "validated_trials": "VALIDATED COMPLETE TRIALS 56",
+      "results": [
+        "Diet planning finished in 83 seconds after 56 comparisons; fill states 74703, dominated 72, width-pruned 54917, joint buff pairs 172; gain over fallback 102122 Meat.",
+        "SEARCH trials: 56 attempted, 56 completed, 54 met targets, 17 cached; pairs reached=true, expired at entry=false, eligible=172, top=12.",
+        "SEARCH exact fill cache: 641 hits, 822 misses, 54 stored (maximum 64).",
+        "SEARCH phase=estimate ms=4860 attempted=0 completed=0 targets=0 cached=0",
+        "SEARCH phase=fallback ms=3822 attempted=1 completed=1 targets=1 cached=0",
+        "SEARCH phase=XP ms=9927 attempted=3 completed=3 targets=3 cached=0",
+        "SEARCH phase=starting ms=15439 attempted=6 completed=6 targets=6 cached=0",
+        "SEARCH phase=pours ms=24038 attempted=12 completed=12 targets=12 cached=0",
+        "SEARCH phase=width ms=9356 attempted=1 completed=1 targets=1 cached=0",
+        "SEARCH phase=local ms=4598 attempted=7 completed=7 targets=7 cached=17",
+        "SEARCH phase=training ms=2955 attempted=2 completed=2 targets=0 cached=0",
+        "SEARCH phase=pairs ms=8429 attempted=24 completed=24 targets=24 cached=0",
+        "Farming: 674 expected paid encounters (adaptive, replan from each actual roll); estimated income 3030989 Meat. Opportunity costs 394394; today's net 2636595; tomorrow's distinct-effect value 141888; combined 2778483."
+      ],
+      "counters": [
+        "PRACTICAL COUNT consumes=96800",
+        "PRACTICAL COUNT farmBlocks=6663",
+        "PRACTICAL COUNT rateMisses=1344",
+        "PRACTICAL COUNT scores=298252"
+      ],
+      "ms": 83530.0,
+      "encounters": 674.0,
+      "combined": 2778483.140999304,
+      "replay": "true",
+      "targets": "true",
+      "completed_states_schedules_sha256": "eb0c318fdf51e95b89443340324a87cbbe5f3587a01815d0458ed4b26072a0a4",
+      "candidate_count": 175
+    },
+    {
+      "snapshot": "fresh",
+      "budget": 0,
+      "summary": "PRACTICAL ms=98658 encounters=595 combined=2472752.07609358 replay=true targets=true",
+      "rss_bytes": 548339712,
+      "validated_trials": "VALIDATED COMPLETE TRIALS 49",
+      "results": [
+        "Diet planning finished in 98 seconds after 56 comparisons; fill states 161250, dominated 195, width-pruned 120823, joint buff pairs 193; gain over fallback 95318 Meat.",
+        "SEARCH trials: 56 attempted, 49 completed, 47 met targets, 17 cached; pairs reached=true, expired at entry=false, eligible=193, top=12.",
+        "SEARCH exact fill cache: 422 hits, 1792 misses, 64 stored (maximum 64).",
+        "SEARCH phase=estimate ms=2486 attempted=0 completed=0 targets=0 cached=0",
+        "SEARCH phase=fallback ms=1903 attempted=1 completed=1 targets=1 cached=0",
+        "SEARCH phase=XP ms=5355 attempted=3 completed=3 targets=3 cached=0",
+        "SEARCH phase=starting ms=9801 attempted=6 completed=6 targets=6 cached=0",
+        "SEARCH phase=pours ms=27155 attempted=12 completed=11 targets=11 cached=0",
+        "SEARCH phase=width ms=7201 attempted=1 completed=1 targets=1 cached=0",
+        "SEARCH phase=local ms=9761 attempted=7 completed=6 targets=6 cached=17",
+        "SEARCH phase=training ms=3324 attempted=2 completed=2 targets=0 cached=0",
+        "SEARCH phase=pairs ms=31568 attempted=24 completed=19 targets=19 cached=0",
+        "Farming: 595 expected paid encounters (adaptive, replan from each actual roll); estimated income 2678004 Meat. Opportunity costs 372179; today's net 2305825; tomorrow's distinct-effect value 166927; combined 2472752."
+      ],
+      "counters": [
+        "PRACTICAL COUNT consumes=197376",
+        "PRACTICAL COUNT farmBlocks=9032",
+        "PRACTICAL COUNT rateMisses=1305",
+        "PRACTICAL COUNT scores=642360"
+      ],
+      "ms": 98658.0,
+      "encounters": 595.0,
+      "combined": 2472752.07609358,
+      "replay": "true",
+      "targets": "true",
+      "completed_states_schedules_sha256": "58c3a1c3a9a176e210a58d885e926300f21083cb27bc1cd609b7cbfba6595269",
+      "candidate_count": 172
+    }
+  ]
+}
