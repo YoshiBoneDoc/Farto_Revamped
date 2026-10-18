@@ -82,6 +82,10 @@ boolean barfGoblinDue(){
         && barfWandererDue("clubEmNextWeekMonster", "clubEmNextWeekMonsterTurn");
 }
 
+boolean barfPlannedGoblinSwap(boolean stooper){
+    return !stooper&&barfGoblinDue()&&have_familiar($familiar[Stocking Mimic]);
+}
+
 boolean barfVhsDue(){ return barfWandererDue("spookyVHSTapeMonster", "spookyVHSTapeMonsterTurn"); }
 
 familiar barfVhsFamiliar(){
@@ -201,12 +205,13 @@ item[slot] barfFarmingOutfit(familiar farmer){
     if(mode!="battlefield"&&available_amount($item[designer sweatpants])>0&&get_property("sweat").to_int()<100)
         gear[$slot[pants]]=$item[designer sweatpants];
     if(mode=="battlefield"){
-        foreach i,it in outfit_pieces("War Hippy Fatigues"){
-            slot spot=to_slot(it);
-            if(spot==$slot[hat])continue;
-            gear[spot==$slot[acc1]?$slot[acc2]:spot]=it;
-        }
+        // Frat uniform opens the side of the battlefield containing War Hippies;
+        // this detour uses the Hippy Uniform side instead. Hat Trick keeps the hat.
+        gear[$slot[pants]]=$item[bullet-proof corduroys];
+        gear[$slot[acc2]]=$item[round purple sunglasses];
         gear[$slot[acc3]]=$item[blood cubic zirconia];
+        if(available_amount(gear[$slot[familiar]])==0)
+            gear[$slot[familiar]]=available_amount($item[tiny stillsuit])>0?$item[tiny stillsuit]:$item[none];
     }else{
         slot[int] slots;slots[0]=$slot[acc2];slots[1]=$slot[acc3];slots[2]=$slot[acc1];
         int n=0;
@@ -272,6 +277,68 @@ item[slot] barfPlannedOutfit(int mask,familiar farmer,int trainer,boolean charge
 }
 item[slot] barfPlannedOutfit(int mask,familiar farmer,int trainer){return barfPlannedOutfit(mask,farmer,trainer,false);}
 
+slot barfLiveOpenAccessory(item[slot] gear,int mask){
+    foreach spot in $slots[acc2,acc3,acc1]{
+        if(spot==$slot[acc2]&&(mask/4)%2==1
+            ||spot==$slot[acc3]&&(mask/2)%2==1
+            ||spot==$slot[acc1]&&(mask/8)%2==1)continue;
+        if($items[11942,blood cubic zirconia,everfull dart holster] contains gear[spot])continue;
+        return spot;
+    }
+    return $slot[none];
+}
+
+item[slot] barfLiveMobiusOutfit(item[slot] gear,int mask){
+    if(!barfMobiusReady())return gear;
+    slot spot=barfLiveOpenAccessory(gear,mask);
+    if(spot!=$slot[none])gear[spot]=$item[11942];
+    return gear;
+}
+
+item[slot] barfLiveDartOutfit(item[slot] gear,int mask){
+    // Temporary live swap: never put this in the fixed outfit forecast, and
+    // never displace a capacity accessory after its organ room is occupied.
+    if(have_effect($effect[Everything Looks Red])==0
+        &&get_property("_dartsLeft").to_int()>0
+        &&available_amount($item[everfull dart holster])>0){
+        slot spot=barfLiveOpenAccessory(gear,mask);
+        if(spot!=$slot[none])gear[spot]=$item[everfull dart holster];
+    }
+    return gear;
+}
+
+item[slot] barfLiveFruitOutfit(item[slot] gear,int mask){
+    if(barfNeedsFruit()&&available_amount($item[Portable Laughing Stock])>0){
+        slot spot=barfLiveOpenAccessory(gear,mask);
+        if(spot!=$slot[none])gear[spot]=$item[Portable Laughing Stock];
+    }
+    return gear;
+}
+
+item[slot] barfLiveGoblinOutfit(item[slot] gear,int mask){
+    if((mask/16)%2==0&&get_property("_clubEmNextWeekUsed").to_int()<5
+        &&available_amount($item[legendary seal-clubbing club])>0)
+        gear[$slot[weapon]]=$item[legendary seal-clubbing club];
+    if((mask/16)%2==0){
+        if(have_effect($effect[Everything Looks Purple])==0&&available_amount($item[Roman Candelabra])>0)
+            gear[$slot[off-hand]]=$item[Roman Candelabra];
+        else if(barfHeadReady())gear[$slot[off-hand]]=$item[shrunken head];
+    }
+    return gear;
+}
+
+item[slot] barfLiveYellowOutfit(item[slot] gear,int mask){
+    // Once capacity gear is occupied, use a spare accessory at BARF rather than
+    // removing a capacity piece for a battlefield detour.
+    if(mask==0||have_effect($effect[Everything Looks Yellow])>0
+        ||available_amount($item[blood cubic zirconia])==0
+        ||(!have_skill($skill[Spit Jurassic Acid])||$skill[Spit Jurassic Acid].dailylimit==0)
+            &&item_amount($item[yellow rocket])==0)return gear;
+    slot spot=barfLiveOpenAccessory(gear,mask);
+    if(spot!=$slot[none])gear[spot]=$item[blood cubic zirconia];
+    return gear;
+}
+
 void barfTrainingBuffs(){
     foreach potion in $items[white candy heart, deviled candy egg]{
         effect buff = effect_modifier(potion, "Effect");
@@ -291,15 +358,22 @@ void barfTrainingBuffs(){
     }
 }
 
+void barfTrainingLatteRefill(){
+    if(get_property("latteIngredients")!="cajun,vitamins,rawhide"
+        &&get_property("_latteRefillsUsed").to_int()<3
+        &&contains_text(get_property("latteUnlocks"),"cajun")
+        &&contains_text(get_property("latteUnlocks"),"vitamins")
+        &&contains_text(get_property("latteUnlocks"),"rawhide")
+        &&!cli_execute("latte refill cajun vitamins rawhide"))
+        print("BARF training latte refill failed; continuing with the available XP gear.","orange");
+}
+
 void barfTrainingGear(){
     item[slot] outfit = barfTrainingOutfit();
     foreach spot, target in outfit
         if (equipped_item(spot) != target && !equip(spot,target))
             abort("BARF training could not equip " + target + " in " + spot + ".");
-    if (get_property("latteIngredients") != "cajun,vitamins,rawhide" && get_property("_latteRefillsUsed").to_int() < 3
-        && contains_text(get_property("latteUnlocks"),"cajun") && contains_text(get_property("latteUnlocks"),"vitamins")
-        && contains_text(get_property("latteUnlocks"),"rawhide"))
-        if (!cli_execute("latte refill cajun vitamins rawhide")) abort("BARF training latte refill failed.");
+    barfTrainingLatteRefill();
     barfTrainingBuffs();
     if (!retrieve_item(10,$item[love song of icy revenge]))
         abort("BARF training needs love songs of icy revenge.");
@@ -310,20 +384,40 @@ void barfGear(){
     set_property("_teresBarfVhsEncounter",barfVhsDue());
     if(get_property("_teresBarfPlannedExecution").to_boolean()){
         int trainer=get_property("_teresBarfPlanTrainer").to_int();
+        if(trainer>0&&get_property("_teresBarfPlanMask").to_int()>0)
+            abort("BARF cannot swap out occupied capacity equipment for the training outfit.");
         familiar farmer=trainer==128?$familiar[Chest Mimic]:trainer==256?$familiar[Cooler Yeti]
             :get_property("_teresBarfPlanStooper").to_boolean()?$familiar[Stooper]:$familiar[Jill-of-All-Trades];
+        // A due goblin needs Stocking Mimic even during a planned training block.
+        // Keep Stooper once its liver space is occupied.
+        if(barfPlannedGoblinSwap(get_property("_teresBarfPlanStooper").to_boolean())){
+            farmer=$familiar[Stocking Mimic];trainer=0;
+            set_property("_teresBarfPlanTrainer",0);
+        }
         // Free copies train an eligible Mimic/Yeti before returning to Stocking Mimic.
         // Keep Stooper/capacity equipment once its extra organ space is occupied.
-        if(barfVhsDue()&&get_property("_teresBarfPlanMask").to_int()==0&&!get_property("_teresBarfPlanStooper").to_boolean()){
+        else if(barfVhsDue()&&get_property("_teresBarfPlanMask").to_int()==0&&!get_property("_teresBarfPlanStooper").to_boolean()){
             farmer=barfVhsFamiliar();
             trainer=farmer==$familiar[Chest Mimic]?128:farmer==$familiar[Cooler Yeti]?256:0;
             set_property("_teresBarfPlanTrainer",trainer);
         }
+        boolean battlefield=get_property("_teresBarfMode")=="battlefield";
         if(!use_familiar(farmer))abort("Planned BARF could not select "+farmer+".");
-        foreach spot,it in barfPlannedOutfit(get_property("_teresBarfPlanMask").to_int(),farmer,trainer,
-            get_property("_teresBarfPlanSweatpants").to_boolean())
+        item[slot] desired=battlefield?barfFarmingOutfit(farmer)
+            :barfPlannedOutfit(get_property("_teresBarfPlanMask").to_int(),farmer,trainer,
+                get_property("_teresBarfPlanSweatpants").to_boolean());
+        if(!battlefield&&trainer==0){
+            int mask=get_property("_teresBarfPlanMask").to_int();
+            if(farmer==$familiar[Stocking Mimic]&&barfGoblinDue())desired=barfLiveGoblinOutfit(desired,mask);
+            desired=barfLiveMobiusOutfit(desired,mask);
+            desired=barfLiveYellowOutfit(desired,mask);
+            desired=barfLiveDartOutfit(desired,mask);
+            desired=barfLiveFruitOutfit(desired,mask);
+        }
+        foreach spot,it in desired
             if(equipped_item(spot)!=it&&!equip(spot,it))abort("Planned BARF could not equip "+it+" in "+spot+".");
-        if(have_equipped($item[Jurassic Parka])&&get_property("parkaMode")!="kachungasaur"&&!cli_execute("parka kachungasaur"))abort("Could not set farming parka mode.");
+        string parkaMode=battlefield?"dilophosaur":"kachungasaur";
+        if(have_equipped($item[Jurassic Parka])&&get_property("parkaMode")!=parkaMode&&!cli_execute("parka "+parkaMode))abort("Could not set farming parka mode.");
         if(farmer==$familiar[Jill-of-All-Trades]&&get_property("ledCandleMode")!="ultraviolet"&&!cli_execute("ledcandle ultraviolet"))abort("Could not set farming candle mode.");
         foreach fruit in $items[antique watermelon,classic banana,quince]set_property("_teresBarfFruitBefore"+to_int(fruit),item_amount(fruit));
         set_property("_teresBarfEquipment",barfEquipmentKey());barfRecovery();return;
@@ -527,10 +621,17 @@ void barfDinseyGarbage(){
     }finally{set_property("choiceAdventureScript",saved);set_property("choiceAdventure1067",savedChoice);}
 }
 
-void barfPostAdventure(){
+void barfRefreshResin(){
     if (have_effect($effect[resined]) == 0
         && (!use($item[distilled resin]) || have_effect($effect[resined]) == 0))
         print("BARF could not refresh Get Resined after combat; distilled resin use failed.", "red");
+}
+
+void barfPostAdventure(){
+    barfRefreshResin();
+    if(my_adventures()<100&&get_property("_lawOfAveragesUsed")=="0"
+        &&have_item($item[law of averages])&&!use(1,$item[law of averages]))
+        print("BARF could not use the available Law of Averages; continuing.","orange");
     if (have_equipped($item[Portable Laughing Stock]))
         foreach fruit in $items[antique watermelon, classic banana, quince]
             if (item_amount(fruit) > get_property("_teresBarfFruitBefore" + to_int(fruit)).to_int())

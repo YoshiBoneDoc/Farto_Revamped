@@ -104,7 +104,7 @@ void barfRunPlanned(int turns,boolean prompted){
         shirtOverride,pantsOverride,acc1Override,acc2Override,acc3Override,famEquipOverride]saved[pref]=get_property(pref);
     string savedMood=get_property("currentMood");boolean completed=false;beginFarmingReport();
     try{
-        barfLiveMood("apathetic");
+        barfLiveMood("default");
         starter();set_property("script","BARF");set_property("subscript","");set_property("inSpendAdv",true);
         set_property("_teresBarfPlannedExecution",true);set_property("_teresBarfMode","");
         set_property("autoSatisfyWithStash",false);set_property("autoSatisfyWithMall",false);

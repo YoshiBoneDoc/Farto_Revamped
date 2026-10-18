@@ -1854,11 +1854,27 @@ void barfReanimate(){
 boolean handleBARFCombat(string page_text){
     if (handleEaglePledgeCombat(page_text, false)) return true;
     // TODO: Add BARF farming combat rules here.
+    if(current_round()>0&&have_effect($effect[Everything Looks Blue])==0
+        &&item_amount($item[blue rocket])>0&&!last_monster().boss){
+        int before=current_round();
+        throw_item($item[blue rocket]);
+        if(current_round()==before||current_round()>0&&have_effect($effect[Everything Looks Blue])==0)
+            abort("BARF blue rocket did not grant Everything Looks Blue; combat paused.");
+        if(current_round()==0)return true;
+    }
     string mode = get_property("_teresBarfMode");
-    if (mode == "battlefield" && my_location() == $location[The Battlefield (Hippy Uniform)] && !last_monster().boss
-        && appearance_rates(my_location()) contains last_monster()){
+    boolean battlefield = mode == "battlefield" && my_location() == $location[The Battlefield (Hippy Uniform)];
+    boolean barfCapacity = my_location() == $location[Barf Mountain]
+        && get_property("_teresBarfPlanMask").to_int() > 0
+        && have_equipped($item[blood cubic zirconia])
+        && have_effect($effect[Everything Looks Yellow]) == 0
+        && !last_monster().boss && appearance_rates(my_location()) contains last_monster();
+    if (battlefield || barfCapacity){
         if (!have_equipped($item[blood cubic zirconia])) abort("Battlefield detour needs the blood cubic zirconia.");
+        string beforeGaze = get_property("_bczRefractedGazeCasts");
         combatCounterSkill($skill[BCZ: Refracted Gaze], "_bczRefractedGazeCasts");
+        if(get_property("_bczRefractedGazeCasts")==beforeGaze)
+            abort("BCZ: Refracted Gaze did not succeed; combat paused before the yellow ray.");
         while (current_round() > 0 && current_round() < 27 && have_effect($effect[Everything Looks Yellow]) == 0){
             int before = current_round();
             string response;
@@ -1881,21 +1897,26 @@ boolean handleBARFCombat(string page_text){
         }
     }
     if (last_monster() == $monster[sausage goblin]){
-        if (my_familiar() != $familiar[Stocking Mimic]) abort("BARF goblin arrived without the Stocking Mimic; inspect wanderer scheduling.");
-        if (have_equipped($item[Roman Candelabra]) && have_effect($effect[Everything Looks Purple]) == 0)
-            combatCounterSkill($skill[Blow the Purple Candle!], "romanCandelabraPurpleCasts");
-        if (have_skill($skill[Prepare to reanimate your Foe])) barfReanimate();
-        // Other BARF monsters die promptly; goblins produce Mimic Meat through round ten.
-        while (current_round() > 0 && current_round() < 11){
-            int before = current_round();
-            throw_item($item[facsimile dictionary]);
-            if (current_round() == before) abort("BARF goblin dictionary stall failed.");
-        }
-        if (current_round() > 0 && get_property("clubEmNextWeekMonster") == ""
-            && have_skill($skill[Club 'Em Into Next Week]) && clubNextWeekReady())
-        {
-            combatCounterSkill($skill[Club 'Em Into Next Week], "_clubEmNextWeekUsed");
-            return true;
+        if (my_familiar() != $familiar[Stocking Mimic]){
+            if(!get_property("_teresBarfPlannedExecution").to_boolean())
+                abort("BARF goblin arrived without the Stocking Mimic; inspect wanderer scheduling.");
+            print("BARF goblin arrived without Stocking Mimic; finishing this fight normally.","orange");
+        }else{
+            if (have_equipped($item[Roman Candelabra]) && have_effect($effect[Everything Looks Purple]) == 0)
+                combatCounterSkill($skill[Blow the Purple Candle!], "romanCandelabraPurpleCasts");
+            if (have_skill($skill[Prepare to reanimate your Foe])) barfReanimate();
+            // Other BARF monsters die promptly; goblins produce Mimic Meat through round ten.
+            while (current_round() > 0 && current_round() < 11){
+                int before = current_round();
+                throw_item($item[facsimile dictionary]);
+                if (current_round() == before) abort("BARF goblin dictionary stall failed.");
+            }
+            if (current_round() > 0 && get_property("clubEmNextWeekMonster") == ""
+                && have_skill($skill[Club 'Em Into Next Week]) && clubNextWeekReady())
+            {
+                combatCounterSkill($skill[Club 'Em Into Next Week], "_clubEmNextWeekUsed");
+                return true;
+            }
         }
     } else if (!last_monster().boss){
         // BARF tourists have NOBANISH; neither Screech, Sea *dent nor Spring Kick can exclude them.

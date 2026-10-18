@@ -11,6 +11,7 @@ int barfLiveEarlyTurns;
 int barfLiveHighWater;
 boolean barfLiveCharged;
 int barfLiveCoolSlots;
+boolean barfLiveBattlefieldUnavailable;
 
 void barfLiveMood(string name){
     // The trailing zero selects the named mood without executing its actions,
@@ -140,6 +141,7 @@ void barfLiveGear(){
 
 void barfLiveTrainingPrep(){
     if(get_property("_teresBarfPlanTrainer").to_int()==0)return;
+    barfTrainingLatteRefill();
     foreach it in $items[white candy heart,deviled candy egg,pulled blue taffy]{
         effect buff=effect_modifier(it,"Effect");int target=it==$item[pulled blue taffy]?51:1;
         while(have_effect(buff)<target){int before=have_effect(buff);barfLiveUse(it);if(have_effect(buff)<=before)abort("Training preparation did not grant "+buff+".");}
@@ -396,24 +398,66 @@ void barfLiveTouristPrep(){
 }
 
 void barfLiveVhsPrep(){
-    if(get_property("_teresBarfPlanMask").to_int()!=0||get_property("_teresBarfPlanStooper").to_boolean())return;
-    if(get_property("spookyVHSTapeMonster")=="")
+    if(get_property("_teresBarfPlanMask").to_int()==0&&!get_property("_teresBarfPlanStooper").to_boolean()
+        &&get_property("spookyVHSTapeMonster")=="")
         barfLiveAcquire($item[spooky VHS tape],1,barfSetting("MaxItemPrice",100000));
-    if(barfVhsDue()&&barfVhsFamiliar()==$familiar[Stocking Mimic]){
+    if(my_familiar()==$familiar[Stocking Mimic]
+        &&(barfGoblinDue()||barfVhsDue())){
         barfLiveAcquire($item[facsimile dictionary],1,barfSetting("MaxItemPrice",100000));
         if(have_effect($effect[Shortly Wired])==0)barfLiveUse($item[short white]);
     }
 }
 
+void barfLiveRestoreBattlefield(){
+    set_property("_teresBarfMode","");
+    barfLiveGear();
+}
+
+location barfLiveLocation(){
+    if(barfLiveBattlefieldUnavailable||have_effect($effect[Everything Looks Yellow])>0
+        ||barfVhsDue()||barfGoblinDue()||barfMobiusReady()
+        ||get_property("_teresBarfPlanMask").to_int()!=0
+        ||get_property("_teresBarfPlanStooper").to_boolean()
+        ||get_property("_teresBarfPlanTrainer").to_int()!=0
+        ||available_amount($item[blood cubic zirconia])==0
+        ||(available_amount($item[Jurassic Parka])==0&&item_amount($item[yellow rocket])==0))
+        return $location[Barf Mountain];
+    if(available_amount($item[bullet-proof corduroys])==0
+        ||available_amount($item[round purple sunglasses])==0){
+        print("BARF yellow-ray detour skipped: bullet-proof corduroys or round purple sunglasses are unavailable.","orange");
+        barfLiveBattlefieldUnavailable=true;return $location[Barf Mountain];
+    }
+    set_property("_teresBarfMode","battlefield");barfGear();
+    if(!have_skill($skill[BCZ: Refracted Gaze])){
+        print("BARF yellow-ray detour skipped: BCZ: Refracted Gaze is unavailable.","orange");
+        barfLiveBattlefieldUnavailable=true;barfLiveRestoreBattlefield();
+        return $location[Barf Mountain];
+    }
+    if(!(have_skill($skill[Spit Jurassic Acid])&&$skill[Spit Jurassic Acid].dailylimit!=0)
+        &&item_amount($item[yellow rocket])==0){
+        print("BARF yellow-ray detour skipped: no ready yellow-ray source.","orange");
+        barfLiveBattlefieldUnavailable=true;barfLiveRestoreBattlefield();
+        return $location[Barf Mountain];
+    }
+    print("BARF resource detour: using BCZ and a yellow ray on the next battlefield monster; the paid turn will be included in the next replanning checkpoint.","blue");
+    return $location[The Battlefield (Hippy Uniform)];
+}
+
+void barfLiveBlueRocketPrep(){
+    if(have_effect($effect[Everything Looks Blue])>0||item_amount($item[blue rocket])>0)return;
+    if(closet_amount($item[blue rocket])>0&&!take_closet(1,$item[blue rocket]))
+        print("BARF could not retrieve an owned blue rocket; continuing without its effect.","orange");
+}
+
 boolean barfLiveAdventure(){
     barfLiveGear();barfTwoDayState beforeState=barfLiveObserve();
     if(!barfLiveCanFarm(beforeState))abort("The next BARF turn would violate cooling, retained effects or the rollover reserve.");
-    barfLiveVhsPrep();
-    barfLiveTouristPrep();
-    barfLiveTrainingPrep();
+    location target=barfLiveLocation();boolean battlefield=target==$location[The Battlefield (Hippy Uniform)];
+    if(!battlefield){barfLiveVhsPrep();barfLiveTouristPrep();barfLiveTrainingPrep();}
+    barfLiveBlueRocketPrep();
     int turn=total_turns_played();int adventures=my_adventures();string fight=get_property("_lastCombatStarted");
     string progress=barfProgressKey();boolean lostBefore=get_property("_lastCombatLost").to_boolean();
-    boolean ok=adv1($location[Barf Mountain],-1,"");
+    boolean ok=adv1(target,-1,"");
     for chain from 1 to 20{
         if(current_round()==0&&!in_multi_fight())break;run_combat();
     }
@@ -425,7 +469,17 @@ boolean barfLiveAdventure(){
         visit_url("campground.php");
     if(current_round()>0||in_multi_fight()||handling_choice())abort("BARF left combat or a choice unresolved (round "
         +current_round()+", choice "+last_choice()+"); resolve it before resuming.");
+    // The after-adventure hook normally does this. Check again for free fights
+    // whose post hook was skipped, without repeating its other upkeep actions.
+    barfRefreshResin();
+    if(battlefield)barfLiveRestoreBattlefield();
     boolean lost=barfLiveCompletedLoss(lostBefore,fight,turn);
+    if(battlefield&&!ok&&!lost&&turn==total_turns_played()
+        &&adventures==my_adventures()&&fight==get_property("_lastCombatStarted")){
+        barfLiveBattlefieldUnavailable=true;
+        print("BARF battlefield detour was inaccessible; continuing at Barf Mountain with the normal outfit.","orange");
+        return true;
+    }
     if(!ok&&!lost)abort("BARF adventure failed without a completed lost fight.");
     if(lost)print("BARF lost this fight; continuing from actual XP and adventures.","orange");
     barfLiveObserve();barfLiveSave();
@@ -504,6 +558,7 @@ void barfDietExecute(int limit,boolean prompted){
     }
     barfLiveRejectUnsupported(barfDietPlanned);
     barfLivePolicy=barfDietClone(barfDietPlanned);clear(barfLiveLateItems);clear(barfLiveRetained);
+    barfLiveBattlefieldUnavailable=false;
     barfLiveCoolSlots=barfLivePolicy.uses["initialCoolSlots"];
     barfLiveDistill=false;barfLivePourDone=barfDietPlannedInitial.uses["pourDone"];barfLiveStarted=total_turns_played();barfLiveEarlyTurns=barfDietPlannedInitial.earlyJillTurns;
     boolean sameDay=get_property("_teresBarfPlanDay")==today_to_string();
