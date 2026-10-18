@@ -794,6 +794,27 @@ void aprilBand(){
         cli_execute("aprilband item saxophone");
 }
 
+familiar selectFreeKillFamiliar(int mimicXPTarget,int yetiXPTarget){
+    familiar selectedFamiliar;
+    if (have_familiar($familiar[chest mimic]) && $familiar[chest mimic].experience < mimicXPTarget)
+        selectedFamiliar = $familiar[chest mimic];
+    else if (have_familiar($familiar[cooler yeti]) && $familiar[cooler yeti].experience < yetiXPTarget)
+        selectedFamiliar = $familiar[cooler yeti];
+    else if (get_property("_mapToACandyRichBlockDrops").to_int() < 1)
+        selectedFamiliar = $familiar[Jill-of-All-Trades];
+    else if (get_property("_knuckleboneDrops").to_int() < 100)
+        selectedFamiliar = $familiar[skeleton of crimbo past];
+    else
+        selectedFamiliar = $familiar[Jill-of-All-Trades];
+    return selectedFamiliar;
+}
+
+familiar selectFreeKillFamiliar(){
+    int mimicXPTarget = 950;
+    int yetiXPTarget = 2000; // (225 * 7) for Too Cool, 400 for double xp, topped off to 2000
+    return selectFreeKillFamiliar(mimicXPTarget,yetiXPTarget);
+}
+
 // Familiar selection with a Cooler Yeti fallback.
 void altFam(familiar fam){
     if (have_familiar(fam)){

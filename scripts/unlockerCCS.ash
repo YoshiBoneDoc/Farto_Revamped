@@ -1923,7 +1923,8 @@ boolean handleBARFCombat(string page_text){
         if (my_location() == $location[Barf Mountain] && last_monster() == $monster[garbage tourist]){
             // Olfaction replaces an existing target directly; keep a garbage-tourist trail.
             barfSniff($monster[garbage tourist]);
-            if (current_round() > 0 && get_property("spookyVHSTapeMonster") == ""
+            if (get_property("teresBarfUseVHS").to_boolean()
+                && current_round() > 0 && get_property("spookyVHSTapeMonster") == ""
                 && !get_property("_teresBarfVhsEncounter").to_boolean()
                 && (!get_property("_teresBarfPlannedExecution").to_boolean()
                     ||(get_property("_teresBarfPlanMask").to_int()==0&&!get_property("_teresBarfPlanStooper").to_boolean()))

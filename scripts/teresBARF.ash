@@ -41,6 +41,8 @@ void barfBeginDay(){
 }
 
 void barfOneTimePrep(){
+    if(current_round()==0&&!in_multi_fight()&&handling_choice()&&last_choice()==1067
+        &&!barfLeaveMaintenanceTunnels())abort("BARF could not leave Maintenance Tunnels cleanly.");
     if(!can_interact()||!can_adventure($location[Barf Mountain])||my_inebriety()>inebriety_limit())
         abort("BARF prep needs aftercore, Barf Mountain access, and a character who is not overdrunk.");
     if(handling_choice()||current_round()>0||in_multi_fight())
@@ -126,20 +128,24 @@ void barfRunPlanned(int turns,boolean prompted){
 // Explicit 'run' executes the revised plan; 'run-test' prompts between blocks.
 // The old phase aliases remain previews.
 void main(string command){
-    if (command == "diet-snapshot"){ barfDietSnapshot(); return; }
-    if (command == "diet-plan"){barfDietPlan();return;}
-    if (command == "diet-candidates"){barfDietPlan(true);return;}
-    string[int] args = split_string(command,"\\s+");
-    string phase = command == "" ? "all" : args[0].to_lower_case();
-    int turns = count(args) > 1 ? args[1].to_int() : 0;
-    if(phase=="run"||phase=="run-test"){
-        if(count(args)>2||(count(args)>1&&(!create_matcher("^[0-9]+$",args[1]).find()||turns<=0)))abort("Use teresBARF.ash "+phase+" [positive paid-turn limit].");
-        barfRunPlanned(turns,phase=="run-test");return;
+    try{
+        if (command == "diet-snapshot"){ barfDietSnapshot(); return; }
+        if (command == "diet-plan"){barfDietPlan();return;}
+        if (command == "diet-candidates"){barfDietPlan(true);return;}
+        string[int] args = split_string(command,"\\s+");
+        string phase = command == "" ? "all" : args[0].to_lower_case();
+        int turns = count(args) > 1 ? args[1].to_int() : 0;
+        if(phase=="run"||phase=="run-test"){
+            if(count(args)>2||(count(args)>1&&(!create_matcher("^[0-9]+$",args[1]).find()||turns<=0)))abort("Use teresBARF.ash "+phase+" [positive paid-turn limit].");
+            barfRunPlanned(turns,phase=="run-test");return;
+        }
+        if ($strings[all,prep,diet,farm,plan,sim] contains phase){barfDietPlan();return;}
+        if (!($strings[all, prep, diet, farm, plan, sim] contains phase))
+            abort("Use teresBARF.ash diet-plan for a preview, run [paid-turn limit] to execute, run-test [paid-turn limit] to pause between blocks, or diet-snapshot to export inputs.");
+    }finally{
+        print("BARF VHS tapes: "+(get_property("teresBarfUseVHS").to_boolean()?"ON":"OFF")
+            +". Use 'set teresBarfUseVHS = true' to enable buying/recording tapes, or 'set teresBarfUseVHS = false' to disable both. Already-recorded fights still occur.","blue");
     }
-    if ($strings[all,prep,diet,farm,plan,sim] contains phase){barfDietPlan();return;}
-    if (!($strings[all, prep, diet, farm, plan, sim] contains phase))
-        abort("Use teresBARF.ash diet-plan for a preview, run [paid-turn limit] to execute, run-test [paid-turn limit] to pause between blocks, or diet-snapshot to export inputs.");
-
 }
 // MUST BANISH horrible tourist family AT START!!!!! COUNT AS 3 KILLS FOR THE NC ADVENTURE
 // USE FLASKFULS SO WE CAN USE HALF-A-PURSE FOR MAX MEAT

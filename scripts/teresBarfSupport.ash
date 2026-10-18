@@ -86,16 +86,12 @@ boolean barfPlannedGoblinSwap(boolean stooper){
     return !stooper&&barfGoblinDue()&&have_familiar($familiar[Stocking Mimic]);
 }
 
+// set teresBarfUseVHS=true enables buying/recording new tapes during BARF (default off).
+// Pending VHS copies still use the normal familiar priority when recording is disabled.
 boolean barfVhsDue(){ return barfWandererDue("spookyVHSTapeMonster", "spookyVHSTapeMonsterTurn"); }
 
 familiar barfVhsFamiliar(){
-    boolean charged=get_property("_teresBarfPlannedExecution").to_boolean()&&get_property("_teresBarfPlanYetiCharged").to_boolean();
-    if(have_familiar($familiar[Chest Mimic])&&$familiar[Chest Mimic].experience<barfSetting("ChestXP",950))
-        return $familiar[Chest Mimic];
-    if(!charged&&have_familiar($familiar[Cooler Yeti])&&$familiar[Cooler Yeti].experience<barfSetting("YetiXP",2000))
-        return $familiar[Cooler Yeti];
-    if(have_familiar($familiar[Stocking Mimic]))return $familiar[Stocking Mimic];
-    return $familiar[Jill-of-All-Trades];
+    return selectFreeKillFamiliar(barfSetting("ChestXP",950),barfSetting("YetiXP",2000));
 }
 
 familiar barfTrainingFamiliar(){
@@ -388,18 +384,19 @@ void barfGear(){
             abort("BARF cannot swap out occupied capacity equipment for the training outfit.");
         familiar farmer=trainer==128?$familiar[Chest Mimic]:trainer==256?$familiar[Cooler Yeti]
             :get_property("_teresBarfPlanStooper").to_boolean()?$familiar[Stooper]:$familiar[Jill-of-All-Trades];
-        // A due goblin needs Stocking Mimic even during a planned training block.
-        // Keep Stooper once its liver space is occupied.
-        if(barfPlannedGoblinSwap(get_property("_teresBarfPlanStooper").to_boolean())){
-            farmer=$familiar[Stocking Mimic];trainer=0;
-            set_property("_teresBarfPlanTrainer",0);
-        }
         // Free copies train an eligible Mimic/Yeti before returning to Stocking Mimic.
+        // VHS now follows the shared free-fight priority, including Jill's map and knucklebones.
         // Keep Stooper/capacity equipment once its extra organ space is occupied.
-        else if(barfVhsDue()&&get_property("_teresBarfPlanMask").to_int()==0&&!get_property("_teresBarfPlanStooper").to_boolean()){
+        if(barfVhsDue()&&get_property("_teresBarfPlanMask").to_int()==0&&!get_property("_teresBarfPlanStooper").to_boolean()){
             farmer=barfVhsFamiliar();
             trainer=farmer==$familiar[Chest Mimic]?128:farmer==$familiar[Cooler Yeti]?256:0;
             set_property("_teresBarfPlanTrainer",trainer);
+        }
+        // A due goblin needs Stocking Mimic even during a planned training block.
+        // Keep Stooper once its liver space is occupied.
+        else if(barfPlannedGoblinSwap(get_property("_teresBarfPlanStooper").to_boolean())){
+            farmer=$familiar[Stocking Mimic];trainer=0;
+            set_property("_teresBarfPlanTrainer",0);
         }
         boolean battlefield=get_property("_teresBarfMode")=="battlefield";
         if(!use_familiar(farmer))abort("Planned BARF could not select "+farmer+".");
@@ -595,26 +592,47 @@ void barfKiosk(boolean acceptJob){
     } finally { set_property("choiceAdventureScript",saved); }
 }
 
+boolean barfLeaveMaintenanceTunnels(){
+    if(!handling_choice())return true;
+    if(last_choice()!=1067)return false;
+    string saved=get_property("choiceAdventureScript");
+    try{
+        set_property("choiceAdventureScript","");
+        foreach option,label in available_choice_options(){
+            string action=to_lower_case(label);
+            if(contains_text(action,"exit")||contains_text(action,"leave")){
+                run_choice(option);
+                return !handling_choice();
+            }
+        }
+        return false;
+    }finally{set_property("choiceAdventureScript",saved);}
+}
+
 void barfDinseyGarbage(){
-    if(get_property("_dinseyGarbageDisposed").to_boolean())return;
+    if(get_property("_dinseyGarbageDisposed").to_boolean()){
+        if(!barfLeaveMaintenanceTunnels())abort("BARF could not leave Maintenance Tunnels cleanly.");
+        return;
+    }
     string saved=get_property("choiceAdventureScript");string savedChoice=get_property("choiceAdventure1067");int turn=total_turns_played();
     try{
         set_property("choiceAdventureScript","");set_property("choiceAdventure1067",0);
         visit_url("place.php?whichplace=airport_stench&action=airport3_tunnels");
-        if(get_property("_dinseyGarbageDisposed").to_boolean())return;
+        if(get_property("_dinseyGarbageDisposed").to_boolean()){
+            if(!barfLeaveMaintenanceTunnels())abort("BARF could not leave Maintenance Tunnels cleanly.");
+            return;
+        }
         if(!handling_choice()||last_choice()!=1067){
             print("BARF: Maintenance Tunnels did not offer waste disposal today.","red");return;
         }
         string[int] choices=available_choice_options();
         if(!(choices contains 6)){
             print("BARF: Waste Disposal option 6 was unavailable; leaving the tunnel choice.","red");
-            boolean left=false;
-            foreach option,label in choices if(contains_text(to_lower_case(label),"leave")){run_choice(option);left=true;break;}
-            if(!left||handling_choice())abort("BARF could not leave Maintenance Tunnels cleanly.");
+            if(!barfLeaveMaintenanceTunnels())abort("BARF could not leave Maintenance Tunnels cleanly.");
             return;
         }
         run_choice(6);
-        if(handling_choice())abort("BARF waste disposal left an unresolved choice.");
+        if(!barfLeaveMaintenanceTunnels())abort("BARF waste disposal left an unresolved choice.");
         if(total_turns_played()!=turn)abort("BARF waste disposal unexpectedly spent an adventure.");
         if(!get_property("_dinseyGarbageDisposed").to_boolean())
             print("BARF: waste disposal did not register; continuing without the FunFunds.","red");

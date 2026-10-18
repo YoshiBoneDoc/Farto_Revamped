@@ -367,7 +367,9 @@ boolean barfLivePvpSpelunkyDue(barfTwoDayState actual){
 
 void barfLivePlaySpelunky(){
     print("Gettin' our Spelunkeying onnnnn", "blue");
-    cli_execute("teresspelunky.ash");
+    if(!cli_execute("teresspelunky.ash"))abort("Spelunky did not complete; resolve its diagnostic and rerun BARF.");
+    if(current_round()>0||in_multi_fight()||handling_choice()||limit_mode()=="spelunky")
+        abort("Spelunky left a fight, choice or run unfinished; resolve it before BARF continues.");
 }
 
 void barfLiveRunPvpSpelunkyCheckpoint(){
@@ -398,7 +400,8 @@ void barfLiveTouristPrep(){
 }
 
 void barfLiveVhsPrep(){
-    if(get_property("_teresBarfPlanMask").to_int()==0&&!get_property("_teresBarfPlanStooper").to_boolean()
+    if(get_property("teresBarfUseVHS").to_boolean()
+        &&get_property("_teresBarfPlanMask").to_int()==0&&!get_property("_teresBarfPlanStooper").to_boolean()
         &&get_property("spookyVHSTapeMonster")=="")
         barfLiveAcquire($item[spooky VHS tape],1,barfSetting("MaxItemPrice",100000));
     if(my_familiar()==$familiar[Stocking Mimic]
