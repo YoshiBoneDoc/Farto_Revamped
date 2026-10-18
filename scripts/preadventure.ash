@@ -48,8 +48,9 @@ void stockingMimicMood(){
     return;
     // Maintain Stocking Mimic combat buffs (2x acting for now); short potions frequency buff doesn't stack
     foreach ef in $effects[Shortly Wired]{
-        if (have_effect(ef) == 0)
-            cli_execute(ef.default);
+        if (have_effect(ef) == 0
+            && (!retrieve_item(1,$item[short white]) || !use(1,$item[short white]) || have_effect(ef) == 0))
+            abort("Stocking Mimic free fights require Shortly Wired; could not acquire or use a short white.");
     }
 }
 
@@ -759,6 +760,7 @@ void main(){
             retrieve_item($item[4-D camera]);
         cli_execute("checkpoint clear");
         mood("");
+        if(get_property("script")=="FreeKill")stockingMimicMood();
     } finally {
         set_property("betweenBattleScript",boof);
     }

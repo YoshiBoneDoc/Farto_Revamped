@@ -104,9 +104,10 @@ void barfRunPlanned(int turns,boolean prompted){
         _teresBarfPlanStooper,_teresBarfPlanTrainer,_teresBarfPlanSweatpants,_teresBarfPlanMinimumAdventures,_teresBarfMode,_teresBarfVhsEncounter,_teresBarfTurnsRemaining,_teresBarfEquipment,
         unconditionalOverride,maxOverride,famOverride,hatOverride,mainOverride,weaponOverride,offOverride,backOverride,
         shirtOverride,pantsOverride,acc1Override,acc2Override,acc3Override,famEquipOverride]saved[pref]=get_property(pref);
-    string savedMood=get_property("currentMood");boolean completed=false;beginFarmingReport();
+    string savedMood=get_property("currentMood");
     try{
         barfLiveMood("default");
+        setClan("stash");
         starter();set_property("script","BARF");set_property("subscript","");set_property("inSpendAdv",true);
         set_property("_teresBarfPlannedExecution",true);set_property("_teresBarfMode","");
         set_property("autoSatisfyWithStash",false);set_property("autoSatisfyWithMall",false);
@@ -116,10 +117,10 @@ void barfRunPlanned(int turns,boolean prompted){
         set_property("_teresBarfTurnsRemaining",turns>0?turns:barfDietPlanned.turns);
         foreach name in $strings[unconditional,max,fam,hat,main,weapon,off,back,shirt,pants,acc1,acc2,acc3,famEquip]set_property(name+"Override","");
         print("LIVE BARF: executing the printed diet"+(prompted?" with test pauses":"")+". A turn limit caps farming, not the diet purchases/consumption. Limited runs stop before end-of-day buffs and nightcap.","blue");
-        barfDietExecute(turns,prompted);completed=true;
+        barfDietExecute(turns,prompted);
     }finally{
         try{finisher();}finally{
-            try{barfLiveMood(savedMood);}finally{foreach pref,value in saved set_property(pref,value);finishFarmingReport(completed);}
+            try{barfLiveMood(savedMood);}finally{foreach pref,value in saved set_property(pref,value);}
         }
     }
 }
@@ -128,6 +129,7 @@ void barfRunPlanned(int turns,boolean prompted){
 // Explicit 'run' executes the revised plan; 'run-test' prompts between blocks.
 // The old phase aliases remain previews.
 void main(string command){
+    boolean completed=false;
     try{
         if (command == "diet-snapshot"){ barfDietSnapshot(); return; }
         if (command == "diet-plan"){barfDietPlan();return;}
@@ -136,15 +138,18 @@ void main(string command){
         string phase = command == "" ? "all" : args[0].to_lower_case();
         int turns = count(args) > 1 ? args[1].to_int() : 0;
         if(phase=="run"||phase=="run-test"){
+            beginFarmingReport();
             if(count(args)>2||(count(args)>1&&(!create_matcher("^[0-9]+$",args[1]).find()||turns<=0)))abort("Use teresBARF.ash "+phase+" [positive paid-turn limit].");
-            barfRunPlanned(turns,phase=="run-test");return;
+            barfRunPlanned(turns,phase=="run-test");completed=true;return;
         }
         if ($strings[all,prep,diet,farm,plan,sim] contains phase){barfDietPlan();return;}
         if (!($strings[all, prep, diet, farm, plan, sim] contains phase))
             abort("Use teresBARF.ash diet-plan for a preview, run [paid-turn limit] to execute, run-test [paid-turn limit] to pause between blocks, or diet-snapshot to export inputs.");
     }finally{
-        print("BARF VHS tapes: "+(get_property("teresBarfUseVHS").to_boolean()?"ON":"OFF")
-            +". Use 'set teresBarfUseVHS = true' to enable buying/recording tapes, or 'set teresBarfUseVHS = false' to disable both. Already-recorded fights still occur.","blue");
+        try{
+            print("BARF VHS tapes: "+(get_property("teresBarfUseVHS").to_boolean()?"ON":"OFF")
+                +". Use 'set teresBarfUseVHS = true' to enable buying/recording tapes, or 'set teresBarfUseVHS = false' to disable both. Already-recorded fights still occur.","blue");
+        }finally{finishFarmingReport(completed);}
     }
 }
 // MUST BANISH horrible tourist family AT START!!!!! COUNT AS 3 KILLS FOR THE NC ADVENTURE
@@ -376,7 +381,7 @@ void main(string command){
     // top off and adventure
     cli_execute("CONSUME ALL");
     cli_execute("adventure * Barf Mountain");
-    dailyWorkshed();
+    dailyWorkshed(true);
 
     // Stooper
     cli_execute("familiar Stooper");

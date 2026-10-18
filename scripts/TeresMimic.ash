@@ -708,8 +708,9 @@ void installDailyWorkshed(item target){
         abort("Workshed: could not install the owned " + target + ".");
 }
 
-void dailyWorkshed(){
-    if (my_session_adv() > 400){
+// The caller selects the phase; session adventures must not turn prep into bedtime.
+void dailyWorkshed(boolean endOfDay){
+    if (endOfDay){
         if (get_workshed() == $item[model train set]){
             if (get_property("_workshedItemUsed").to_boolean()){
                 print("Workshed: keeping the train tonight; today's switch was already used.", "blue");
@@ -738,7 +739,7 @@ void FKPrep(){
 	step("phase: FKPrep start");
     set_property("autoSatisfyWithStash", "true");
 	starter();
-	dailyWorkshed();
+	dailyWorkshed(false);
     if (to_int(get_property("_leprecondoRearrangements")) < 3){
         // Fixed aftercore layout: bed, laptop, treadmill, retro console.
         // The helper skips rearranging when these four are already installed.
@@ -2608,16 +2609,6 @@ void luckyEmbezzlers(){
     }
 }
 
-// Test the full Lucky! embezzler phase.
-void debug() {
-    // use NC forces at end so we dont waste effect turns meant for FKs when getting reward
-    step("phase: dailyFKs NC force in Shadow Rift");
-    shadowRiftForcers();
-    if (!contains_text(get_property("thoth19_event_list"),"postFKD2"))
-        cli_execute("ptrack add postFKD2");
-
-}
-
 // Burn any leftover monkey paw wishes on Salty mouth + drinking a party beer bomb
 void dailyFKPawBeers(){
     item beer=$item[party beer bomb];
@@ -2659,6 +2650,41 @@ void dailyFKPawBeers(){
             abort("Party Beer Bomb did not clear Salty Mouth; stopping before another wish.");
     }
     print("Used remaining Monkey Paw wishes on Salty Mouth, clearing each with a Party Beer Bomb under Ode.","blue");
+}
+
+// Test the full Lucky! embezzler phase.
+void debug() {
+    print("BLACK", "black");
+
+    print("GRAY", "gray");
+
+    print("RED", "red");
+
+    print("ORANGE", "orange");
+
+    print("YELLOW", "yellow");
+
+    print("GREEN", "green");
+
+    print("BLUE", "blue");
+
+    print("NAVY", "navy");
+
+    print("TEAL", "teal");
+
+    print("PURPLE", "purple");
+
+    print("MAGENTA", "magenta");
+
+    print("CYAN", "cyan");
+
+    print("GOLD", "gold");
+    print("Midnight Blue", "#1E3A5F");
+    print("Steel Blue", "#416788");
+    print("Deep Teal", "#008577");
+    print("Slate Gray", "#586777");
+    print("Emerald Green", "#087F5B");
+    print("Burnt Orange", "#C76B26");
 }
 
 // Essentially main function for Hat Path aftercore - this is the old bulkFKD2 function
@@ -2810,53 +2836,109 @@ void dailyFKs() {
     //main order: FKprep -> dailyFKs -> BARF
 
 
-void main(string phase) {
+void endOfDay(){
+    cli_execute("hobo.js breakfast");
+    cli_execute("outfit mimic time; equip solid shifting time weirdness;");
+// switch to rollover gear, hobo.js breakfast,
+    // Add your end-of-day actions here. Called after a successful full BARF run.
+    // BARF has already consumed the nightcap and equipped the rollover outfit.
+}
+
+// Full day: FKPrep -> dailyFKs -> restored FK settings/report -> BARF -> endOfDay.
+// The report now stays open through BARF, endOfDay and the final workshed switch.
+// CLI: TeresMimic.ash (or all/run). Existing individual phase commands remain available.
+// CLI: TeresMimic.ash noprep runs the full day starting at dailyFKs, skipping FKPrep.
+// With no arguments, an existing Barf Mountain pledge skips FKPrep automatically.
+// Explicit prep always runs FKPrep; all/run retain their full-prep behavior.
+// CLI: TeresMimic.ash workshed runs only the end-of-day workshed rotation.
+void main(string... phases) {
+    if(count(phases)>1)abort("Use TeresMimic.ash [prep|dailyFK|barf|debug|workshed|help], or no arguments for the full day.");
+    string phase=count(phases)>0?phases[0]:"";
+    if (phase == "help"){
+        print("");
+        print("TeresMimic :: Help Interface", "blue");
+        print("────────────────────────────", "#CBD5E1");
+        print_html("<font color='blue'>teresmimic</font><font color='#4682B4'> - Full day: Prep, Free Fights, Diet, BARF, Night routine, Workshed switch.</font>");
+        print_html("<font color='#4A68D9'>teresmimic [ <font color='blue'>prep</font> ]</font><font color='#4A68D9'> - Free-kill prep only; then stop.</font>");
+        print_html("<font color='#4A68D9'>teresmimic [ <font color='blue'>dailyFK</font> ]</font><font color='#4A68D9'> - Free fights only; no prep, diet, or BARF.</font>");
+        print_html("<font color='#4A68D9'>teresmimic [ <font color='blue'>barf</font> ]</font><font color='#4A68D9'> - BARF prep, diet, and farming through nightcap; no free-kill prep or fights.</font>");
+        print("");
+        print_html("<font color='#9268C6'>teresmimic</font> <font color='#6F459F'>[ <font color='blue'>workshed</font> ]</font><font color='#A583D0'> - END-OF-DAY workshed switch only.</font>");
+        print_html("<font color='#FFA500'>teresmimic</font> <font color='#CC5500'>[ <font color='blue'>debug</font> ]</font><font color='#FFA500'> - DEBUG USE ONLY: Run the current debug() function only.</font>");
+        print_html("<font color='#008A58'>teresmimic</font> <font color='#008000'>[ <font color='blue'>help</font> ]</font><font color='#008A58'> - Show this command list.</font>");
+        print("");
+        return;
+    }
+    // Manually switch end of day workshed if script does not (ex. if kolMafia restarted and finished BARF with <400 session adventures)
+    if (phase == "workshed"){
+        dailyWorkshed(true);
+        return;
+    }
+    boolean fullDay = phase == "";
     boolean completed = false;
     beginFarmingReport();
     try {
-        setClan("stash");
-        starter();
-        set_property("script", "FreeKill");
-        set_property("subscript", "");
-        set_property("inSpendAdv", "true");
-        set_property("LastFKTurn", total_turns_played());
-        mimicPrep();
+        // Only do the barf prep, diet, Barf adventures
+        if (phase == "barf"){
+            if(!cli_execute("teresBARF.ash run"))
+                abort("Something went wrong when trying to farm at BARF.");
+            endOfDay();
+            dailyWorkshed(true);
+            completed = true;
+            return;
+        }
+        try {
+            setClan("stash");
+            starter();
+            set_property("script", "FreeKill");
+            set_property("subscript", "");
+            set_property("inSpendAdv", "true");
+            set_property("LastFKTurn", total_turns_played());
+            mimicPrep();
 
-        switch (phase) {
-            case "weak":
-                weakMonsters();
-                break;
-            case "debug":
-                debug();
-                break;
+            switch (phase) {
+                case "":
+                    // The daily pledge marks that FKPrep has already run.
+                    // Refresh Mafia's zone tracking if the effect is active;
+                    // keep the recorded pledge useful even after it expires.
+                    if (have_effect($effect[Citizen of a Zone]) > 0)
+                        visit_url("desc_effect.php?whicheffect=" + $effect[Citizen of a Zone].descid);
+                    if (get_property("_citizenZone") == to_string($location[barf mountain]))
+                        print("Already pledged to Barf Mountain today; skipping FKPrep. Use TeresMimic.ash prep to force prep.", "blue");
+                    else
+                        FKPrep();
+                    dailyFKs();
+                    break;
 
+                // other modes for debugging/specific uses
+                case "prep":
+                    FKPrep();
+                    break;
 
+                case "dailyFK":
+                    dailyFKs();
+                    break;
 
-            case "dailyFK":
-                dailyFKs();
-                // TODO: Run teresBARF.ash after free kills; finish BARF farming with dailyWorkshed().
-                break;
-            case "prep":
-                FKPrep();
-                break;
+                case "debug":
+                    debug();
+                    break;
 
-            case "golem":
-                augustGolem();
-                break;
-
-            case "forcers":
-                shadowRiftForcers();
-                break;
-
-            default:
-                abort("Unknown phase: " + phase);
+                default:
+                    print("Unknown phase: " + phase, "red");
+                    abort("Type 'teresmimic help' for full list of commands.");
+            }
+        } finally {
+            finisher();
+        }
+        if(fullDay){
+            step("phase: BARF diet and farming");
+            if(!cli_execute("teresBARF.ash run"))
+                abort("BARF did not complete. Resolve its diagnostic and resume with teresBARF.ash run; end-of-day actions were skipped.");
+            endOfDay();
+            dailyWorkshed(true);
         }
         completed = true;
     } finally {
-        try {
-            finisher();
-        } finally {
-            finishFarmingReport(completed);
-        }
+        finishFarmingReport(completed);
     }
 }

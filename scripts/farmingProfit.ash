@@ -41,7 +41,10 @@ void reportFightWalletChange(){
 }
 
 void beginFarmingReport(){
+    // Imported scripts have separate globals; a nested BARF run shares its caller's report.
+    if(farmingReportActive||get_property("_teresFarmingReportActive").to_boolean())return;
     farmingReportActive = true;
+    set_property("_teresFarmingReportActive",true);
     farmingReportDay = today_to_string();
     farmingReportOffset = length(session_logs(1)[0]);
     farmingReportWallet = my_meat();
@@ -192,13 +195,21 @@ string farmingItemsHtml(string title,int[item] quantities,int[item] prices,strin
         +"<tr bgcolor='#EAF0F6'><td colspan='4'><font color='"+color+"'><b>"+farmingHtmlEscape(title)+"</b></font>"
         +"<br><font size='2' color='#69798D'>Highest total mall value first</font></td></tr>"
         +"<tr><td><font color='#69798D'>Item</font></td><td align='right'>Qty</td><td align='right'>Each (Meat)</td><td align='right'>Total (Meat)</td></tr>";
+    int otherTotal=0;int otherQuantity=0;int otherTypes=0;int shown=0;
     foreach i,row in rows{
+        if(row.total<2000){
+            otherTotal+=row.total;otherQuantity+=row.quantity;otherTypes+=1;continue;
+        }
         string each=row.each>0?to_string(row.each,"%,d"):is_tradeable(row.drop)?"unpriced":"untradeable";
         string total=row.each>0?to_string(row.total,"%,d"):"&mdash;";
-        html+="<tr bgcolor='"+(i%2==0?"#F6F8FB":"#FFFFFF")+"'><td><font color='#26384D'>"+farmingHtmlEscape(to_string(row.drop))
+        html+="<tr bgcolor='"+(shown++%2==0?"#F6F8FB":"#FFFFFF")+"'><td><font color='#26384D'>"+farmingHtmlEscape(to_string(row.drop))
             +"</font></td><td align='right'>"+row.quantity+"</td><td align='right'><font color='#69798D'>"+each+"</font></td>"
             +"<td align='right'><font color='"+(row.each>0?color:"#69798D")+"'>"+total+"</font></td></tr>";
     }
+    if(otherTypes>0)
+        html+="<tr><td><font color='#26384D'>Total from all other items ("+otherTypes+" item types)</font></td>"
+            +"<td align='right'>"+otherQuantity+"</td><td align='right'>&mdash;</td><td align='right'><font color='"+color+"'>"
+            +to_string(otherTotal,"%,d")+"</font></td></tr>";
     return html+"<tr bgcolor='#EAF0F6'><td colspan='3'><b>Priced subtotal</b></td><td align='right'><font color='"+color+"'><b>"
         +to_string(farmingItemsValue(quantities,prices),"%,d")+"</b></font></td></tr></table>";
 }
@@ -235,13 +246,14 @@ string farmingSummaryHtml(boolean completed,farmingTotals totals,int netMeat,int
     html+="</table>"+farmingItemsHtml("Item gains / rewards &middot; purchases excluded",changes.gains,prices,"#247455")
         +farmingItemsHtml("Existing stock consumed / lost",changes.costs,prices,"#9B5E25")
         +farmingItemsHtml("Purchased items remaining",changes.retainedPurchases,prices,"#356CA0");
-    return html+"<br><font size='2' color='#69798D'>Mall values use the saved mallprices.txt cache after mallcheck. Unpriced and untradeable items are listed but excluded from the profit estimate. Purchased items are separated from farming gains.</font><br><br>";
+    return html+"<br><font size='2' color='#69798D'>Mall values use the saved mallprices.txt cache after mallcheck. Items totaling less than 2,000 Meat are grouped together. Unpriced and untradeable items are included in the grouped counts but excluded from the profit estimate. Purchased items are separated from farming gains.</font><br><br>";
 }
 
 void finishFarmingReport(boolean completed){
     if (!farmingReportActive)
         return;
     farmingReportActive = false;
+    set_property("_teresFarmingReportActive",false);
     // Restore logging even when a fight aborted the caller.
     foreach pref, saved in farmingReportSettings
         set_property(pref, saved);
