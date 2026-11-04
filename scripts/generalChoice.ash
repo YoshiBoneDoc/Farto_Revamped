@@ -185,6 +185,7 @@ void main(int whichchoice, string page) {
         // ── simple: a single fixed run_choice(#), grouped by that number, then by case # ──
         case 633:
         case 705:
+        case 1209: // Upscale Midnight: free fake cocktail.
         case 1344:
         case 1471:
         case 1472:

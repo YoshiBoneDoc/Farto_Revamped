@@ -366,6 +366,7 @@ void prepBuffs(){
     if (get_property("_portableSteamUnitUsed") == "false")
         cli_execute("use portable steam unit");
     setClan("stash");
+    cli_execute("leaves 222");
 }
 
 // ─── FREE-KILL PREP ──────────────────────────────────────────────────────────
@@ -978,14 +979,21 @@ void reminisce() {
     foreach pref in $strings[famOverride, maxOverride, pantsOverride]
         savedGear[pref] = get_property(pref);
     try {
-        prepareDailyShardCombat();
         // Let the consult script copy the goblin before any automatic killing action.
         set_auto_attack(0);
         // Preparation is explicit here; the locket's automatic hook would repeat it.
         set_property("betweenBattleScript", "");
         foreach mon in $monsters[sausage goblin, black crayon flower, black crayon spiraling shape]{
-            if (locketAvailable() == 0)
+            if (locketAvailable() <= 0)
                 break;
+            boolean foughtToday=false;
+            foreach i,id in split_string(get_property("_locketMonstersFought"),",")
+                if(id.to_int()==to_int(mon))foughtToday=true;
+            if(foughtToday){
+                print("Already reminisced "+mon+" today; skipping.","blue");
+                continue;
+            }
+            prepareDailyShardCombat();
             if (mon == $monster[sausage goblin]){
                 set_property("subscript", "locketCopySource");
                 if (have_familiar($familiar[chest mimic])
@@ -1162,7 +1170,7 @@ void settleRufusRewards(boolean startQuest) {
             if (!adv1(rift))
                 abort("Rufus: could not redeem the lodestone.");
             if (total_turns_played() != turnsBefore && get_property("subscript") != "shadowForcers")
-                abort("Rufus: lodestone redemption unexpectedly spent a turn.");
+                print("Rufus: lodestone redemption unexpectedly spent a turn; continuing.", "red");
             // A different free encounter can interrupt reward redemption.
             // Keep trying while the lodestone is still in inventory.
             if (item_amount(lodestone) < stonesBefore)
@@ -1265,7 +1273,7 @@ void scientistTentacleFight(){
         if (!get_property("_eldritchTentacleFought").to_boolean() || current_round() > 0)
             abort("Scientist tentacle fight did not finish.");
         if (total_turns_played() != turnsBefore)
-            abort("Scientist tentacle unexpectedly spent a turn.");
+            print("Scientist tentacle unexpectedly spent a turn; continuing.", "red");
         main@postadventure();
     } finally {
         foreach pref, value in saved
@@ -1303,7 +1311,7 @@ void trickOrTreatFreeFights(){
             if (!get_property("_mapToACandyRichBlockUsed").to_boolean() || block == "")
                 abort("The candy map did not open today's free Trick-or-Treat block.");
             if (total_turns_played() != turnsBefore)
-                abort("Opening the daily Trick-or-Treat block unexpectedly spent a turn.");
+                print("Opening the daily Trick-or-Treat block unexpectedly spent a turn; continuing.", "red");
         }
         if (contains_text(block, "L") || contains_text(block, "S")){
             if (!have_outfit("Ceramic Suit") || !outfit("Ceramic Suit"))
@@ -1320,7 +1328,7 @@ void trickOrTreatFreeFights(){
                 if (handling_choice() && last_choice() == 806)
                     run_choice(2); // Take the huge bowl of candy at the star house.
                 if (total_turns_played() != turnsBefore)
-                    abort("Trick-or-Treat light house unexpectedly spent a turn.");
+                    print("Trick-or-Treat light house unexpectedly spent a turn; continuing.", "red");
                 if (get_property("_trickOrTreatBlock") == before)
                     abort("Trick-or-Treat light house did not advance the block.");
             }
@@ -1345,7 +1353,7 @@ void trickOrTreatFreeFights(){
                     abort("Trick-or-Treat combat did not finish.");
                 main@postadventure();
                 if (total_turns_played() != turnsBefore)
-                    abort("Trick-or-Treat dark house unexpectedly spent a turn.");
+                    print("Trick-or-Treat dark house unexpectedly spent a turn; continuing.", "red");
                 if (get_property("_trickOrTreatBlock") == before)
                     abort("Trick-or-Treat fight did not advance the block.");
             }
@@ -1389,7 +1397,7 @@ void neverendingPartyFreeFights(){
             if (!adv1(party))
                 abort("Neverending Party encounter failed.");
             if (total_turns_played() != turnsBefore)
-                abort("Neverending Party unexpectedly spent a turn.");
+                print("Neverending Party unexpectedly spent a turn; continuing.", "red");
             if (get_property("_neverendingPartyFreeTurns").to_int() > fightsBefore)
                 freeInterruptions = 0;
             else if (++freeInterruptions >= 20)
@@ -1560,7 +1568,7 @@ boolean shadowRiftVisit(string phase) {
             if(fallbackPaidTurn)
                 print("Shadow Rift: fallback finisher spent one adventure; continuing free kills.","red");
             else
-                abort("Shadow Rift " + phase + " unexpectedly spent a turn.");
+                print("Shadow Rift " + phase + " unexpectedly spent a turn; continuing.", "red");
         }
         settleRufusRewards(false);
         return true;
@@ -1799,13 +1807,14 @@ void bankShadowWaters(){
     int expected = shadowWatersExpectedTurns();
     int target = expected + 30;
     string[string] saved;
-    foreach pref in $strings[choiceAdventureScript, choiceAdventure1497, choiceAdventure1498, _teresRufusWatersOnly]
+    foreach pref in $strings[choiceAdventureScript, choiceAdventure1497, choiceAdventure1498, _teresRufusWatersOnly, subscript]
         saved[pref] = get_property(pref);
     try {
         set_property("choiceAdventureScript", "");
         set_property("choiceAdventure1497", 0);
         set_property("choiceAdventure1498", 0);
         set_property("_teresRufusWatersOnly", true);
+        set_property("subscript", "shadowForcers");
         settleRufusRewards(false);
         if (get_property("questRufus") != "unstarted")
             abort("Shadow Waters: finish the existing Rufus quest before banking item quests.");
@@ -1827,18 +1836,23 @@ void bankShadowWaters(){
         if (get_property("questRufus") != "unstarted") abort("Shadow Waters ended with an unfinished quest.");
         print("Shadow Waters banked: " + have_effect($effect[Shadow Waters])
             + " turns for " + expected + " projected adventures plus one extra reward.", "blue");
-    } finally { foreach pref, value in saved set_property(pref, value); }
+    } finally {
+        // Paid reward visits must not leak into the next free-fight turn check.
+        set_property("LastFKTurn", total_turns_played());
+        foreach pref, value in saved set_property(pref, value);
+    }
 }
 
 void shadowRiftForcers() {
     if (have_effect($effect[Shadow Affinity]) > 0)
         abort("Use shadowRiftAffinity() to finish Affinity before spending NC forces.");
     string[string] savedGear;
-    foreach pref in $strings[_teresForcerGearCacheActive,_teresForcerParkaMode,_teresGearBaselineKey,_teresGearBaselineOutfit]
+    foreach pref in $strings[_teresForcerGearCacheActive,_teresForcerParkaMode,_teresGearBaselineKey,_teresGearBaselineOutfit,subscript]
         savedGear[pref]=get_property(pref);
     try {
         clearPreAdvGearCache();
         set_property("_teresForcerGearCacheActive",true);
+        set_property("subscript", "shadowForcers");
         int interruptions = 0;
         while (true){
             int combatsBefore = get_property("_shadowRiftCombats").to_int();
@@ -1861,6 +1875,7 @@ void shadowRiftForcers() {
         }
         bankShadowWaters();
     } finally {
+        set_property("LastFKTurn", total_turns_played());
         foreach pref,value in savedGear set_property(pref,value);
     }
 }
@@ -2119,7 +2134,9 @@ void habitatRecall(){
     string[string] saved;
     foreach pref in $strings[subscript, famOverride, maxOverride, acc3Override, offOverride, mainOverride, famEquipOverride]
         saved[pref] = get_property(pref);
+    int savedAutoAttack = get_auto_attack();
     try {
+        set_auto_attack(0);
         prepareDailyShardCombat();
         if (!is_banished($monster[fluffy bunny])){
             if (!retrieve_item(1, $item[stuffed yam stinkbomb])) abort("Habitat chain needs a bunny banish.");
@@ -2156,13 +2173,18 @@ void habitatRecall(){
             prepareDailyShardCombat();
             int before = get_property("_monsterHabitatsFightsLeft").to_int();
             int casts = get_property("_monsterHabitatsRecalled").to_int();
+            set_property("subscript", "habitatRecall");
+            set_auto_attack(0);
             if (!adv1($location[The Dire Warren])) abort("Habitat chain adventure failed.");
             if (before == get_property("_monsterHabitatsFightsLeft").to_int()
                 && casts == get_property("_monsterHabitatsRecalled").to_int()){
                 if (++interruptions >= 20) abort("Habitat chain made no progress for 20 encounters; inspect the encounter.");
             } else interruptions = 0;
         }
-    } finally { foreach pref, value in saved set_property(pref, value); }
+    } finally {
+        foreach pref, value in saved set_property(pref, value);
+        set_auto_attack(savedAutoAttack);
+    }
 }
 
 /* Previous Habitat implementation, retained for reference.
@@ -2779,8 +2801,9 @@ void dailyFKs() {
     print("We made it through all the Free Kill sources for the day! YAY!", "blue");
 
 /*
- string confirmedFK = "";
+ TODO STILL: FIX MIDNIGHT GINGERBREAD CHOICE - NEED TO GET OUTFIT FIRST
  TODO:
+
   - Refract + YR uses
   - add PVP somewhere
   - Burn mana on Libram between adventures

@@ -362,7 +362,8 @@ boolean barfLiveCanFarm(barfTwoDayState actual){
 }
 
 boolean barfLivePvpSpelunkyDue(barfTwoDayState actual){
-    return actual.adventures<=10&&get_property("_teresBarfPvpSpelunkyDay")!=today_to_string();
+    return actual.mask==0&&!actual.stooper&&count(barfLiveRetained)==0
+        &&actual.adventures<=10&&get_property("_teresBarfPvpSpelunkyDay")!=today_to_string();
 }
 
 void barfLivePlaySpelunky(){
@@ -372,16 +373,34 @@ void barfLivePlaySpelunky(){
         abort("Spelunky left a fight, choice or run unfinished; resolve it before BARF continues.");
 }
 
-void barfLiveRunPvpSpelunkyCheckpoint(){
-    barfTwoDayState actual=barfLiveObserveFresh();
-    if(!barfLivePvpSpelunkyDue(actual))return;
-    print("10-adventure BARF checkpoint: using remaining PvP turns before final diet consumption.", "blue");
-    if(!cli_execute("PVP_MAB"))abort("Could not run PVP_MAB at the 10-adventure BARF checkpoint.");
+void barfLiveRunPvpCheckpoint(){
+    if(get_property("_teresBarfPvpDay")==today_to_string())return;
+    if(my_familiar()==$familiar[Stooper]||get_property("_teresBarfPlanMask").to_int()!=0
+        ||count(barfLiveRetained)>0){
+        print("Skipping late PvP: capacity gear or retained rollover buffs are already active.","orange");
+        return;
+    }
+    print("BARF end-of-day checkpoint: using remaining PvP fights before capacity gear and retained buffs.","blue");
+    if(!cli_execute("PVP_MAB"))abort("Could not finish PVP_MAB before final diet consumption.");
     if(current_round()>0||in_multi_fight()||handling_choice())abort("PVP_MAB left combat or a choice unresolved; resolve it before BARF continues.");
+    if(pvp_attacks_left()>0)abort("PVP_MAB left PvP fights unused; finish them before final diet consumption.");
+    set_property("_teresBarfPvpDay",today_to_string());
+    barfLiveObserveFresh();barfLiveGear();
+}
+
+void barfLiveRunPvpSpelunkyCheckpoint(boolean beforeFinal){
+    barfTwoDayState actual=barfLiveObserveFresh();
+    if(actual.mask!=0||actual.stooper||count(barfLiveRetained)>0
+        ||get_property("_teresBarfPvpSpelunkyDay")==today_to_string())return;
+    // Actual rolls can reach the first capacity swap slightly above ten.
+    // Finish the detours now rather than removing capacity equipment later.
+    if(!beforeFinal&&!barfLivePvpSpelunkyDue(actual))return;
+    barfLiveRunPvpCheckpoint();
     barfLivePlaySpelunky();
     set_property("_teresBarfPvpSpelunkyDay",today_to_string());
-    barfLiveGear();
+    barfLiveObserveFresh();barfLiveGear();
 }
+void barfLiveRunPvpSpelunkyCheckpoint(){barfLiveRunPvpSpelunkyCheckpoint(false);}
 
 boolean barfLiveCompletedLoss(boolean wasLost,string started,int turn){
     if(current_round()>0||in_multi_fight()||handling_choice()||!get_property("_lastCombatLost").to_boolean())return false;
@@ -579,15 +598,19 @@ void barfDietExecute(int limit,boolean prompted){
         clear_food_helper();clear_booze_helper();
         if(prompted)barfLiveConfirm("equip planned gear and begin the test run");
         barfLiveGear();barfLiveRequireOdeSlot();barfLiveSave();barfTwoDayState plan=barfLivePolicy;
+        boolean finishingSchedule=false;
         while(true){
             boolean checkpoint=false;boolean preparationApproved=false;
             string[int] rows=split_string(plan.schedule,"\n");
             foreach i,row in rows{
                 if(row=="")continue;string[int] c=split_string(row,"\t");
                 if(limit>0&&total_turns_played()-barfLiveStarted>=limit){print("BARF paid-turn limit reached; no final buffs or nightcap applied.","blue");return;}
-                if(limit==0&&barfLivePvpSpelunkyDue(barfLiveObserve())
-                    &&(c[0]=="capacity"||(c[0]=="phase"&&count(c)>1&&index_of(c[1],"Final consumption:")==0)))
-                    barfLiveRunPvpSpelunkyCheckpoint();
+                if(limit==0&&(c[0]=="capacity"||c[0]=="stooper"
+                    ||(c[0]=="phase"&&count(c)>1&&index_of(c[1],"Final consumption:")==0))){
+                    barfLiveRunPvpCheckpoint();
+                    barfLiveRunPvpSpelunkyCheckpoint(true);
+                    finishingSchedule=true;
+                }
                 if(c[0]=="phase"){
                     if(limit>0&&index_of(c[1],"Final consumption:")==0){print("Limited BARF run finished before end-of-day consumption.","blue");return;}
                     preparationApproved=false;
@@ -606,7 +629,14 @@ void barfDietExecute(int limit,boolean prompted){
                         if(empty>=5)abort("BARF made no progress for five attempts.");
                         if(++attempts>c[1].to_int()+100)abort("Too many free encounters without completing the planned farming block.");
                     }
-                    if(limit==0&&c[2].to_int()<128)barfLiveRunPvpSpelunkyCheckpoint();
+                    if(limit==0&&c[2].to_int()<128&&barfLivePvpSpelunkyDue(barfLiveObserve())){
+                        barfLiveRunPvpSpelunkyCheckpoint();
+                        finishingSchedule=true;
+                        print("Spelunky checkpoint complete; continuing the selected diet's remaining steps without rebuilding it.","blue");
+                    }
+                    // Keep the chosen late diet after the detour. Actual-state
+                    // action checks and farming reserves still apply to every step.
+                    if(finishingSchedule)continue;
                     checkpoint=true;break;
                 }
                 if(prompted&&!preparationApproved&&c[0]!="coolReserveRelease"&&c[0]!="nightcap"&&c[0]!="rollover"){

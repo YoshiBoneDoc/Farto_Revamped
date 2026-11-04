@@ -120,6 +120,7 @@ void constructBanish(){
 }
 
 // Stop on spent turns during FreeKill testing.
+// Unexpected paid turns now warn and continue; the testing stops below are retired.
 void freeKillTurnGuard(){
     if (get_property("script") != "FreeKill")
         return;
@@ -139,8 +140,8 @@ void freeKillTurnGuard(){
             print("Warning: the free-kill fallback finisher spent one adventure at "
                 + my_location() + "; continuing.", "red");
         else
-            abort("FreeKill unexpectedly spent " + turnsSpent + " turn(s) at "
-                + my_location() + " against " + last_monster() + ".");
+            print("Warning: FreeKill unexpectedly spent " + turnsSpent + " turn(s) at "
+                + my_location() + " against " + last_monster() + "; continuing.", "red");
     }
 }
 

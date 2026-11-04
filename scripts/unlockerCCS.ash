@@ -1091,10 +1091,16 @@ void prepareShadowTreeCombat(string page_text, boolean trackHP, boolean transfor
             int lastWaffleRound = 23;
             if (have_skill($skill[Bowl Straight Up]) && item_amount($item[cosmic bowling ball]) > 0)
                 lastWaffleRound -= 1;
-            if (current_round() >= lastWaffleRound || wafflesUsed >= 15 || !weaklingCanStall())
-                abort("Shadow Rift: could not safely reach a Shadow Tree for tracking; combat is paused.");
-            if (item_amount($item[waffle]) == 0)
-                abort("Shadow Rift: ran out of waffles before finding a Shadow Tree.");
+            if (current_round() >= lastWaffleRound || wafflesUsed >= 15 || !weaklingCanStall()){
+                print("Shadow Rift: cannot safely keep looking for a Shadow Tree; deferring tracking to a later fight and continuing to the finisher.", "darkorange");
+                trackingTree = false;
+                break;
+            }
+            if (item_amount($item[waffle]) == 0){
+                print("Shadow Rift: no waffles left; deferring Shadow Tree tracking and continuing to the finisher.", "darkorange");
+                trackingTree = false;
+                break;
+            }
             int roundBefore = current_round();
             int wafflesBefore = item_amount($item[waffle]);
             throw_item($item[waffle]);
@@ -1117,14 +1123,16 @@ void prepareShadowTreeCombat(string page_text, boolean trackHP, boolean transfor
         return;
     // Old shard actions cannot prove a waffle replacement is still cold-aligned.
     if (trackHP)
-        startWeaklingCombat(page_text, trackingTree || transformed);
+        startWeaklingCombat(page_text, trackingTree || transformed || wafflesUsed > 0);
     if (current_round() == 0)
         return;
     if (trackingTree){
         if (!weaklingIced)
             abort("Shadow Rift tracking requires cold alignment before Slash or Mild Evil.");
-        if (current_round() >= 28 || !weaklingCanStall())
-            abort("Shadow Rift: not enough safe time/HP to Slash the Shadow Tree.");
+        if (current_round() >= 28 || !weaklingCanStall()){
+            print("Shadow Rift: not enough safe time/HP to Slash; deferring tracking to a later fight and continuing to the finisher.", "darkorange");
+            return;
+        }
         int usesBefore = get_property("_mcHugeLargeSlashUses").to_int();
         updateWeaklingHP(to_string(combatSkill($skill[McHugeLarge Slash])));
         if (get_property("_mcHugeLargeSlashUses").to_int() <= usesBefore)
@@ -1659,19 +1667,30 @@ boolean handleFlamingPlantCombat(){
     return true;
 }
 
+// Mafia decrements the Habitat counter at encounter start. Zero during the
+// fifth copy is the last chance to renew before that goblin is killed.
+void renewSausageHabitat(){
+    if (get_property("subscript") != "habitatRecall" || last_monster() != $monster[sausage goblin]
+        || current_round() == 0 || get_property("_monsterHabitatsFightsLeft").to_int() > 0
+        || get_property("_monsterHabitatsRecalled").to_int() >= 3)
+        return;
+    int before = get_property("_monsterHabitatsRecalled").to_int();
+    combatCounterSkill($skill[Recall Facts: Monster Habitats], "_monsterHabitatsRecalled");
+    if (get_property("_monsterHabitatsRecalled").to_int() <= before
+        || get_property("_monsterHabitatsFightsLeft").to_int() <= 0)
+        abort("Habitat renewal did not register; leave this goblin alive to finish renewing the chain.");
+}
+
 // Goblins are copied before killing; automatic roaming chains are paused.
 boolean handleSausageGoblinCombat(string page_text){
     if (last_monster() != $monster[sausage goblin])
         return false;
+    renewSausageHabitat();
     boolean shardFight = shardCombatMode() && !last_monster().boss;
     if (shardFight)
         startWeaklingCombat(page_text);
     if (current_round() == 0)
         return true;
-    if (get_property("subscript") == "habitatRecall"
-        && get_property("_monsterHabitatsFightsLeft").to_int() == 0
-        && get_property("_monsterHabitatsRecalled").to_int() < 3)
-        combatCounterSkill($skill[Recall Facts: Monster Habitats], "_monsterHabitatsRecalled");
     copyMonster($monster[sausage goblin]);
     if (shardFight && current_round() > 0)
         updateWeaklingHP(visit_url("fight.php", false));
@@ -2025,6 +2044,7 @@ void main(int round, monster mob, string page_text){
     print("monster level is " + numeric_modifier("monster level"));
     print("high stat is " + max(my_buffedstat($stat[muscle]), my_buffedstat($stat[mysticality]), my_buffedstat($stat[moxie])));
 
+    renewSausageHabitat();
     if (!deferBowlUntilOpener())
         bowlStraightUpStall(false);
     if (current_round() == 0)
