@@ -1816,6 +1816,11 @@ void bankShadowWaters(){
         set_property("_teresRufusWatersOnly", true);
         set_property("subscript", "shadowForcers");
         settleRufusRewards(false);
+        if(get_property("questRufus")=="started"&&get_property("rufusQuestType")=="entity"){
+            print("Shadow Waters banking deferred: the "+get_property("rufusQuestTarget")
+                +" quest is still pending after the available forcers. Continuing to BARF without additional banking.","orange");
+            return;
+        }
         if (get_property("questRufus") != "unstarted")
             abort("Shadow Waters: finish the existing Rufus quest before banking item quests.");
         while (have_effect($effect[Shadow Waters]) < target){
