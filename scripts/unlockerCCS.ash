@@ -1894,6 +1894,10 @@ boolean handleBARFCombat(string page_text){
         combatCounterSkill($skill[BCZ: Refracted Gaze], "_bczRefractedGazeCasts");
         if(get_property("_bczRefractedGazeCasts")==beforeGaze)
             abort("BCZ: Refracted Gaze did not succeed; combat paused before the yellow ray.");
+        if(current_round()==0){
+            print("BCZ succeeded, but the fight ended before the yellow ray; continuing without Everything Looks Yellow.","orange");
+            return true;
+        }
         while (current_round() > 0 && current_round() < 27 && have_effect($effect[Everything Looks Yellow]) == 0){
             int before = current_round();
             string response;

@@ -348,7 +348,12 @@ barfTwoDayState barfLiveRemaining(){
         barfDietQuickNeedMoreCoolSlots=false;
         plan=barfDietQuickSchedule(initial,menu,barfLiveDistill);
     }
-    if(plan.cash<0||!barfDietMeetsTargets(plan)||!barfDietReplay(initial,plan))abort("The updated remaining diet failed validation. Stopped before another action.");
+    if(plan.cash<0)abort("Remaining diet could not construct a funded complete schedule.");
+    if(!barfDietMeetsTargets(plan))abort("Remaining diet missed targets: finished="+plan.finished
+        +", uncovered cooling="+plan.uses["coolUncovered"]+", required cold drink="+plan.uses["coldRequired"]
+        +", sweat casts left="+barfDietSweatCastsRemaining(plan)+", pants sweat="+plan.pantsSweat
+        +", Chest XP="+plan.chestXP+", Yeti high water="+plan.uses["yetiHighWater"]+", Yeti XP="+plan.yetiXP+".");
+    if(!barfDietReplay(initial,plan))abort("Remaining diet failed ordered replay (funding, reserve, retention or forecast consistency).");
     barfLiveRejectUnsupported(plan);
     barfLiveCoolSlots=initial.uses["coolSlots"];
     print("Remaining diet recalculated from actual adventures, organs, XP and daily resources.","blue");return plan;
@@ -494,7 +499,13 @@ boolean barfLiveAdventure(){
     // The after-adventure hook normally does this. Check again for free fights
     // whose post hook was skipped, without repeating its other upkeep actions.
     barfRefreshResin();
-    if(battlefield)barfLiveRestoreBattlefield();
+    if(battlefield){
+        if(have_effect($effect[Everything Looks Yellow])==0){
+            barfLiveBattlefieldUnavailable=true;
+            print("BARF battlefield detour did not grant Everything Looks Yellow; skipping further battlefield attempts this run.","orange");
+        }
+        barfLiveRestoreBattlefield();
+    }
     boolean lost=barfLiveCompletedLoss(lostBefore,fight,turn);
     if(battlefield&&!ok&&!lost&&turn==total_turns_played()
         &&adventures==my_adventures()&&fight==get_property("_lastCombatStarted")){
@@ -598,9 +609,10 @@ void barfDietExecute(int limit,boolean prompted){
         clear_food_helper();clear_booze_helper();
         if(prompted)barfLiveConfirm("equip planned gear and begin the test run");
         barfLiveGear();barfLiveRequireOdeSlot();barfLiveSave();barfTwoDayState plan=barfLivePolicy;
-        boolean finishingSchedule=false;
-        while(true){
-            boolean checkpoint=false;boolean preparationApproved=false;
+        // Execute the validated initial order, including capacity gear after the detours.
+        // Random yields change the safe farming count, not the remaining diet menu.
+        {
+            boolean preparationApproved=false;
             string[int] rows=split_string(plan.schedule,"\n");
             foreach i,row in rows{
                 if(row=="")continue;string[int] c=split_string(row,"\t");
@@ -609,7 +621,6 @@ void barfDietExecute(int limit,boolean prompted){
                     ||(c[0]=="phase"&&count(c)>1&&index_of(c[1],"Final consumption:")==0))){
                     barfLiveRunPvpCheckpoint();
                     barfLiveRunPvpSpelunkyCheckpoint(true);
-                    finishingSchedule=true;
                 }
                 if(c[0]=="phase"){
                     if(limit>0&&index_of(c[1],"Final consumption:")==0){print("Limited BARF run finished before end-of-day consumption.","blue");return;}
@@ -631,13 +642,11 @@ void barfDietExecute(int limit,boolean prompted){
                     }
                     if(limit==0&&c[2].to_int()<128&&barfLivePvpSpelunkyDue(barfLiveObserve())){
                         barfLiveRunPvpSpelunkyCheckpoint();
-                        finishingSchedule=true;
                         print("Spelunky checkpoint complete; continuing the selected diet's remaining steps without rebuilding it.","blue");
                     }
                     // Keep the chosen late diet after the detour. Actual-state
                     // action checks and farming reserves still apply to every step.
-                    if(finishingSchedule)continue;
-                    checkpoint=true;break;
+                    continue;
                 }
                 if(prompted&&!preparationApproved&&c[0]!="coolReserveRelease"&&c[0]!="nightcap"&&c[0]!="rollover"){
                     barfLiveConfirmPreparation(rows,i);preparationApproved=true;
@@ -649,9 +658,8 @@ void barfDietExecute(int limit,boolean prompted){
                 else if(c[0]=="rollover")abort("Rollover reached without a successful final nightcap.");
                 else barfLiveApply(row);
             }
-            if(!checkpoint)abort("The remaining diet ended without its final nightcap.");
             if(limit>0&&total_turns_played()-barfLiveStarted>=limit){print("BARF paid-turn limit reached; no nightcap applied.","blue");return;}
-            plan=barfLiveRemaining();
+            abort("The selected diet ended without its final nightcap.");
         }
     }finally{clear_food_helper();clear_booze_helper();barfLiveObserve();barfLiveSave();}
 }

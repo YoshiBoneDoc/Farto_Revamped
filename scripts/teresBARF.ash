@@ -92,6 +92,8 @@ void barfOneTimePrep(){
 
 
 void barfRunPlanned(int turns,boolean prompted){
+    // Persist entry even if BARF later aborts during prep, planning or farming.
+    set_property("_teresMimicBarfStartedDay",today_to_string());
     if(get_property("mayoInMouth")!="")abort("Handle queued Mayo before executing an exact diet.");
     barfLiveRequireOdeSlot();
     barfOneTimePrep();

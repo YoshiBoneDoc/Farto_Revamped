@@ -2898,6 +2898,11 @@ void main(string... phases) {
         return;
     }
     boolean fullDay = phase == "";
+    if(fullDay&&get_property("_teresMimicFreeFightsDoneDay")==today_to_string()
+        &&get_property("_teresMimicBarfStartedDay")==today_to_string()){
+        print("Free fights completed and BARF already started today; resuming BARF directly.","blue");
+        phase="barf";
+    }
     boolean completed = false;
     beginFarmingReport();
     try {
@@ -2954,6 +2959,8 @@ void main(string... phases) {
             finisher();
         }
         if(fullDay){
+            // Only a completed free-fight phase and successful cleanup reach here.
+            set_property("_teresMimicFreeFightsDoneDay",today_to_string());
             step("phase: BARF diet and farming");
             if(!cli_execute("teresBARF.ash run"))
                 abort("BARF did not complete. Resolve its diagnostic and resume with teresBARF.ash run; end-of-day actions were skipped.");
