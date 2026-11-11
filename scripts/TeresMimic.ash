@@ -756,6 +756,19 @@ void FKPrep(){
     // Get daily goodies (Sheriff gear, Marching Band stuff)
     step("phase: FKPrep getting sheriff and band goodies");
     goodies();
+    // Buy up to today's three soybean futures, using only coins on hand.
+    if (item_amount($item[Interesting Coin]) >= 7){
+        visit_url("shop.php?whichshop=interesting");
+        int futuresRemaining = max(0, 3 - get_property("_itemBoughtPerDay12295").to_int());
+        for (int i = 0; i < futuresRemaining && item_amount($item[Interesting Coin]) >= 7; i++){
+            if (!buy($coinmaster[Spend your Interesting Coins], 1, $item[soybean futures])){
+                print("Prep: could not buy soybean futures; continuing.", "red");
+                break;
+            }
+        }
+    }
+    cli_execute("buy 100 Dreadsylvanian cold-fashioned @ 100000;");
+
     if (get_property("_clanFortuneConsultUses").to_int() < 3 && is_online("OnlyFax"))
         clanFortune();
 
@@ -2865,7 +2878,9 @@ void dailyFKs() {
 
 
 void endOfDay(){
+    setClan("VIP");
     cli_execute("hobo.js breakfast");
+    setClan("stash");
     cli_execute("outfit mimic time; equip solid shifting time weirdness;");
 // switch to rollover gear, hobo.js breakfast,
     // Add your end-of-day actions here. Called after a successful full BARF run.

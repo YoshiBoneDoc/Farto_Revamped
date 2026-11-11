@@ -359,10 +359,21 @@ barfTwoDayState barfLiveRemaining(){
     print("Remaining diet recalculated from actual adventures, organs, XP and daily resources.","blue");return plan;
 }
 
+int barfLiveAdventureReserve(){
+    return max(barfSetting("ReserveAdventures",0),max(0,200-barfTwoDayRollover-barfDietNightcapMinimum()));
+}
+
+void barfLiveRequireFarmed(barfTwoDayState actual){
+    if(actual.adventures>barfLiveAdventureReserve())
+        abort("Refusing to finish with "+actual.adventures+" adventures (reserve "
+            +barfLiveAdventureReserve()+", Looking Cool "+barfDietDuration(actual,$effect[Looking Cool])
+            +"). The remaining farming was blocked; resolve cooling/retained buffs and resume before overdrinking.");
+}
+
 boolean barfLiveCanFarm(barfTwoDayState actual){
     // Gear is checked against real organ limits by barfLiveGear. Avoid a cached
     // forecast stage here; the physical account has already used its resources.
-    int reserve=max(barfSetting("ReserveAdventures",0),max(0,200-barfTwoDayRollover-barfDietNightcapMinimum()));
+    int reserve=barfLiveAdventureReserve();
     return !actual.finished&&actual.adventures>=reserve+1&&barfDietDuration(actual,$effect[Looking Cool])>0&&barfDietRetentionLegal(actual,1);
 }
 
@@ -521,6 +532,7 @@ boolean barfLiveAdventure(){
 
 void barfLiveFinish(){
     barfTwoDayState actual=barfLiveObserve();
+    barfLiveRequireFarmed(actual);
     if(have_skill($skill[Sweat Out Some Booze])
         &&(barfDietSweatCastsRemaining(actual)>0||actual.pantsSweat<75))
         abort("Finish requires all three Sweat Out Some Booze casts and at least 75% sweatpants charge; replan before nightcap.");
@@ -578,6 +590,49 @@ void barfLiveConfirmFarm(int stage,int remaining,int batch){
     barfLiveConfirm("up to "+min(remaining,batch)+" paid "+purpose+" turn(s)");
 }
 
+boolean barfLiveFarmToReserve(string[int] rows,int first){
+    // Spend real surplus before committing more slots or retained buffs. Other
+    // blocks keep their chosen lengths so training and drink order stay intact.
+    for n from first+1 to count(rows)-1{
+        if(rows[n]=="")continue;
+        string[int] action=split_string(rows[n],"\t");
+        if(action[0]=="phase"){
+            if(index_of(action[1],"Final consumption:")==0)return true;
+            continue;
+        }
+        return action[0]=="capacity"||action[0]=="stooper"||action[0]=="nightcap"
+            ||(action[0]=="consume"&&action[4].to_boolean());
+    }
+    return false;
+}
+
+string barfLiveExtraCooling(string[int] rows,int first){
+    string[int] c=split_string(rows[first],"\t");
+    if(c[0]!="consume"||c[3]!="0")return rows[first];
+    item drink=to_item(c[1].to_int());
+    if(drink.inebriety!=1)return rows[first];
+    barfTwoDayState actual=barfLiveObserve();
+    float needed=actual.adventures-barfLiveAdventureReserve();int futureRefreshes=0;int futureDouble=0;
+    for n from first to count(rows)-1{
+        if(rows[n]=="")continue;
+        string[int] action=split_string(rows[n],"\t");
+        if(action[0]=="consume"||action[0]=="noodleSpleen")needed+=action[6].to_float();
+        if(action[0]=="extra")needed+=action[3].to_float();
+        if(action[0]=="distill")needed+=action[2].to_float();
+        if(action[0]=="consume"&&action[3]=="1")futureRefreshes+=1;
+        if(action[0]=="consume"&&action[3]=="2")futureDouble=400;
+    }
+    // Only enhance an already selected drink, and preserve XP for its later
+    // planned refreshes. Never replace the meal or buy an unplanned drink.
+    if(needed<=barfDietDuration(actual,$effect[Looking Cool])+100*futureRefreshes
+        ||actual.yetiDouble||actual.yetiXP<225*(futureRefreshes+1)+futureDouble+barfSetting("YetiReserveXP",0))return rows[first];
+    c[3]="1";string row="";
+    for n from 0 to count(c)-1 row+=(n>0?"\t":"")+c[n];
+    barfLiveCoolSlots+=1;
+    print("Live adventure surplus needs more Looking Cool; enhancing the selected "+drink+" with spare Yeti XP.","blue");
+    return row;
+}
+
 void barfDietExecute(int limit,boolean prompted){
     if(!barfDietPlanReady)abort("Generate a complete validated diet before execution.");
     if(!can_adventure($location[Barf Mountain])||handling_choice()||current_round()>0||in_multi_fight())abort("BARF access is required, with no pending combat or choice.");
@@ -629,16 +684,21 @@ void barfDietExecute(int limit,boolean prompted){
                 }
                 if(c[0]=="farm"){
                     int remaining=c[1].to_int();int attempts=0;int empty=0;int batch=c[2].to_int()>=128?1:5;
+                    boolean drain=limit==0&&c[2].to_int()<128&&barfLiveFarmToReserve(rows,i);
+                    int target=barfLiveAdventureReserve();
+                    if(limit==0&&get_property("_teresBarfPvpSpelunkyDay")!=today_to_string())target=max(target,10);
                     int batchPaid=0;boolean batchApproved=false;
-                    while(remaining>0&&barfLiveCanFarm(barfLiveObserve())){
+                    while((drain?my_adventures()>target:remaining>0)&&barfLiveCanFarm(barfLiveObserve())){
                         if(limit>0&&total_turns_played()-barfLiveStarted>=limit)break;
                         if(limit==0&&c[2].to_int()<128&&barfLivePvpSpelunkyDue(barfLiveObserve()))break;
+                        if(drain)remaining=max(1,my_adventures()-target);
                         if(prompted&&!batchApproved){barfLiveConfirmFarm(c[2].to_int(),remaining,batch);batchApproved=true;}
                         int before=total_turns_played();empty=barfLiveAdventure()?0:empty+1;
                         int spent=max(0,total_turns_played()-before);remaining-=spent;batchPaid+=spent;
                         if(batchPaid>=batch){batchPaid=0;batchApproved=false;}
                         if(empty>=5)abort("BARF made no progress for five attempts.");
-                        if(++attempts>c[1].to_int()+100)abort("Too many free encounters without completing the planned farming block.");
+                        if(spent>0)attempts=0;
+                        else if(++attempts>100)abort("Too many free encounters without completing the planned farming block.");
                     }
                     if(limit==0&&c[2].to_int()<128&&barfLivePvpSpelunkyDue(barfLiveObserve())){
                         barfLiveRunPvpSpelunkyCheckpoint();
@@ -656,7 +716,7 @@ void barfDietExecute(int limit,boolean prompted){
                 else if(c[0]=="coolReserveRelease"){barfLiveCoolSlots=0;continue;}
                 else if(c[0]=="nightcap"){if(limit>0)return;if(prompted)barfLiveConfirm("the final Vintage smart drink and rollover outfit");barfLiveFinish();return;}
                 else if(c[0]=="rollover")abort("Rollover reached without a successful final nightcap.");
-                else barfLiveApply(row);
+                else barfLiveApply(limit==0?barfLiveExtraCooling(rows,i):row);
             }
             if(limit>0&&total_turns_played()-barfLiveStarted>=limit){print("BARF paid-turn limit reached; no nightcap applied.","blue");return;}
             abort("The selected diet ended without its final nightcap.");
