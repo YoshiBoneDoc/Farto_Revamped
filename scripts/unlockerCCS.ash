@@ -164,9 +164,18 @@ void updateWeaklingHP(string page_text){
 
 boolean lateCombatWarningPrinted = false;
 
+boolean quickFreeKillCombat(){
+    return get_property("script") == "FreeKill" && !last_monster().boss
+        && get_property("teresMimicQuickRun").to_boolean();
+}
+
+boolean shieldbuttStall(){
+    return weaklingIced && !quickFreeKillCombat()
+        && have_equipped($item[April Shower Thoughts shield]) && have_skill($skill[Shieldbutt]);
+}
+
 boolean shieldMicrophoneFight(){
-    return !last_monster().boss && weaklingIced
-        && have_equipped($item[April Shower Thoughts shield]) && have_skill($skill[Shieldbutt])
+    return !last_monster().boss && shieldbuttStall()
         && have_skill($skill[Ambidextrous Funkslinging])
         && get_property("subscript") != "looseFK" && my_location().zone != "Gingerbread City"
         && (my_location() != $location[Shadow Rift (The Misspelled Cemetary)]
@@ -175,6 +184,7 @@ boolean shieldMicrophoneFight(){
 }
 
 int weaklingFinisherRound(){
+    if (quickFreeKillCombat()) return 11;
     // Required free kills get rounds 25-30 for Hat Trick retries.
     if(get_property("subscript")=="looseFK")return 25;
     return shieldMicrophoneFight() && item_amount($item[droppable microphone]) > 0 ? 26 : 28;
@@ -210,9 +220,10 @@ void warnLateCombat(){
 
 // Retry only hat-blocked actions; other failures retain the caller's checks.
 string freeKillUseState(skill action);
-string combatSkill(skill action){
+string combatSkill(skill action, string counter){
     if(current_round()==0)return "";
     string used=skillResourceFlags[action].freeKill?freeKillUseState(action):"";
+    string countBefore = counter == "" ? "" : get_property(counter);
     while(current_round()>0){
         throwLateMicrophones();
         if(current_round()==0)return "";
@@ -220,6 +231,7 @@ string combatSkill(skill action){
         int before=current_round();
         string response=to_string(use_skill(action));
         if(weaklingIced && current_round()>0)updateWeaklingHP(response);
+        if(counter != "" && get_property(counter) != countBefore)return response;
         if(skillResourceFlags[action].freeKill&&freeKillUseState(action)!=used)return response;
         string text=replace_all(create_matcher("<[^>]*>",response)," ").to_lower_case();
         boolean distracted=contains_text(text,"too distracted")
@@ -233,6 +245,10 @@ string combatSkill(skill action){
         print("Hats blocked "+action+"; retrying at round "+current_round()+".","blue");
     }
     return "";
+}
+
+string combatSkill(skill action){
+    return combatSkill(action, "");
 }
 
 void backupSpell(int n) { for i from 1 to n { if (current_round() == 0) return; combatSkill($skill[Weapon of the Pastalord]); } }
@@ -323,17 +339,24 @@ void retryFreeKillSkill(skill action){
     }
 }
 
-void finishFreeKillFallback(){
-    if(current_round()==0)return;
-    print("Free-kill source is spent or unavailable; finishing with Carbohydrate Cudgel and continuing.","red");
-    if(!have_skill($skill[Carbohydrate Cudgel]))abort("Cannot finish the free-kill fight: Carbohydrate Cudgel is unavailable.");
-    // Only this explicitly authorized recovery may explain a paid FK encounter.
-    set_property("_teresFreeKillFallbackTurn",total_turns_played());
-    while(current_round()>0){
-        int before=current_round();
-        combatSkill($skill[Carbohydrate Cudgel]);
+void finishWithCudgel(boolean freeKillFallback){
+    if (current_round() == 0) return;
+    skill cudgel = $skill[Carbohydrate Cudgel];
+    if (!have_skill(cudgel)) abort("Cannot finish combat: Carbohydrate Cudgel is unavailable.");
+    if (freeKillFallback){
+        print("Free-kill source is spent or unavailable; finishing with Carbohydrate Cudgel and continuing.","red");
+        // Only this explicitly authorized recovery may explain a paid FK encounter.
+        set_property("_teresFreeKillFallbackTurn",total_turns_played());
+    }
+    while (current_round() > 0){
+        int before = current_round();
+        combatSkill(cudgel);
         if(current_round()==before)abort("Carbohydrate Cudgel did not advance combat; inspect the fight.");
     }
+}
+
+void finishFreeKillFallback(){
+    finishWithCudgel(true);
 }
 
 void free_kill(string ptext) {
@@ -455,7 +478,7 @@ string [item] basePairs = {
 boolean bowlStraightUpAttempted = false;
 boolean bowlWaitingForShard = false;
 boolean bowlStraightUpStall(boolean trackHP){
-    if (current_round() == 0 || current_round() >= 28 || last_monster().boss
+    if (current_round() == 0 || current_round() >= (quickFreeKillCombat() ? 11 : 28) || last_monster().boss
         || bowlStraightUpAttempted || bowlWaitingForShard || !have_skill($skill[Bowl Straight Up])
         || item_amount($item[cosmic bowling ball]) == 0
         || contains_text(get_property("_lastCombatActions"), "sk7407;"))
@@ -677,7 +700,7 @@ void combatCounterSkill(skill action, string counter){
         && $skills[Transcendent Olfaction,Gallapagosian Mating Call] contains action;
     while (current_round() > 0 && (barfSniffing || current_round() < 27) && get_property(counter) == before){
         int roundBefore = current_round();
-        string response = to_string(combatSkill(action));
+        string response = combatSkill(action, counter);
         if (get_property("script") == "FreeKill" && weaklingIced) updateWeaklingHP(response);
         if (get_property(counter) != before) return;
         if (current_round() == roundBefore || !contains_text(response, "distracted"))
@@ -882,7 +905,7 @@ void prepareWeaklingCombat(){
     int finishRound = weaklingFinisherRound();
     while (current_round() > 0 && current_round() < finishRound && weaklingCanStall()){
         int roundBefore = current_round();
-        boolean shieldStall = weaklingIced && have_equipped($item[april shower thoughts shield]) && have_skill($skill[Shieldbutt]);
+        boolean shieldStall = shieldbuttStall();
         if (!shieldStall && current_round() >= 11)
             break;
         if (!waterBalloonStall(shieldStall ? finishRound - 1 : 10, true)){
@@ -895,12 +918,13 @@ void prepareWeaklingCombat(){
             print("[DEBUG] Weakling preparation failed; continuing combat.", "red");
             break;
         }
-        if ((!weaklingIced || !have_equipped($item[april shower thoughts shield]) || !have_skill($skill[Shieldbutt])) && current_round() > 10)
+        if (!shieldbuttStall() && current_round() > 10)
             break;
         if (current_round() > 0 && current_round() < finishRound && my_hp() < 100 && weaklingCanStall())
             updateWeaklingHP(to_string(throw_items($item[new age healing crystal], $item[new age healing crystal])));
     }
-    if (current_round() > 0 && current_round() < finishRound && last_monster() == $monster[eldritch tentacle])
+    if (!quickFreeKillCombat() && current_round() > 0 && current_round() < finishRound
+        && last_monster() == $monster[eldritch tentacle])
         backupSpell(min(4, finishRound - current_round()));
     if (current_round() > 0 && last_monster() == $monster[flaming leaflet])
         updateWeaklingHP(to_string(throw_items($item[lit leaf lasso], $item[lit leaf lasso])));
@@ -908,6 +932,7 @@ void prepareWeaklingCombat(){
 
 // Shared late stall, without damage spells before a required free-kill item.
 void stallWeaklingCombat(){
+    if (quickFreeKillCombat()) return;
     bowlStraightUpStall(true);
     int finishRound = weaklingFinisherRound();
     while (current_round() > 0 && current_round() < finishRound && weaklingIced && weaklingCanStall()){
@@ -935,6 +960,10 @@ void stallWeaklingCombat(){
 }
 
 void finishWeaklingCombat(boolean lateStall){
+    if (quickFreeKillCombat()){
+        finishWithCudgel(false);
+        return;
+    }
     if (current_round() > 0 && current_round() < weaklingFinisherRound() && weaklingIced && weaklingCanStall()
         && have_equipped($item[congressional medal of insanity]))
         updateWeaklingHP(to_string(combatSkill($skill[Weapon of the Pastalord])));
@@ -1018,7 +1047,7 @@ void finishStockingMimicCombat(string page_text, boolean requireFreeKill){
         return;
     boolean isLooseFK = get_property("subscript") == "looseFK";
     if (weaklingIced && !last_monster().boss){
-        boolean shieldStall = have_equipped($item[April Shower Thoughts shield]) && have_skill($skill[Shieldbutt]);
+        boolean shieldStall = shieldbuttStall();
         if (shieldStall)
             stallWeaklingCombat();
         // Goblin chain kills follow the stall, even when the opening page offered them.
@@ -1040,6 +1069,10 @@ void finishStockingMimicCombat(string page_text, boolean requireFreeKill){
             && (get_property("_curveballMonster").to_monster() != last_monster()
                 || get_property("_curveballFightsLeft").to_int() == 0))
             free_kill(page_text);
+    }
+    if (quickFreeKillCombat()){
+        finishWithCudgel(isLooseFK && requireFreeKill);
+        return;
     }
     // Curveball finishing also applies outside looseFK.
     if (current_round() > 0 && get_property("_curveballMonster").to_monster() == last_monster()
@@ -1211,8 +1244,7 @@ boolean handleIcedShadowRiftCombat(string page_text){
         updateWeaklingHP(to_string(combatSkill($skill[RECALL FACTS: %PHYLUM CIRCADIAN RHYTHMS])));
     if (!requiresFreeKill && current_round() > 0 && weaklingCanStall())
         updateWeaklingHP(to_string(steal()));
-    boolean shieldStall = weaklingIced && have_equipped($item[April Shower Thoughts shield])
-        && have_skill($skill[Shieldbutt]);
+    boolean shieldStall = shieldbuttStall();
     bowlStraightUpStall(true);
     while (current_round() > 0 && current_round() <= 10 && weaklingCanStall()){
         int roundBefore = current_round();
@@ -1677,7 +1709,8 @@ void renewSausageHabitat(){
     int before = get_property("_monsterHabitatsRecalled").to_int();
     combatCounterSkill($skill[Recall Facts: Monster Habitats], "_monsterHabitatsRecalled");
     if (get_property("_monsterHabitatsRecalled").to_int() <= before
-        || get_property("_monsterHabitatsFightsLeft").to_int() <= 0)
+        || get_property("_monsterHabitatsFightsLeft").to_int() != 5
+        || get_property("_monsterHabitatsMonster").to_monster() != $monster[sausage goblin])
         abort("Habitat renewal did not register; leave this goblin alive to finish renewing the chain.");
 }
 
@@ -1691,6 +1724,16 @@ boolean handleSausageGoblinCombat(string page_text){
         startWeaklingCombat(page_text);
     if (current_round() == 0)
         return true;
+    skill habitats = $skill[Recall Facts: Monster Habitats];
+    if (get_property("script") == "FreeKill" && get_property("subscript") == "copiedGoblin"
+        && get_property("_monsterHabitatsFightsLeft").to_int() == 0
+        && get_property("_monsterHabitatsRecalled").to_int() < 3
+        && combat_skill_available(habitats)){
+        combatCounterSkill(habitats, "_monsterHabitatsRecalled");
+        if (get_property("_monsterHabitatsFightsLeft").to_int() != 5
+            || get_property("_monsterHabitatsMonster").to_monster() != $monster[sausage goblin])
+            print("Habitat seed did not queue five goblins; the Dire Warren phase will check the chain.", "orange");
+    }
     copyMonster($monster[sausage goblin]);
     if (shardFight && current_round() > 0)
         updateWeaklingHP(visit_url("fight.php", false));
@@ -1698,8 +1741,12 @@ boolean handleSausageGoblinCombat(string page_text){
     // Chest Mimic copies eggs; only Stocking Mimic uses purple-candle chaining.
     if (current_round() > 0 && my_familiar() == $familiar[stocking mimic]
         && have_effect($effect[everything looks purple]) == 0
-        && have_equipped($item[roman candelabra]))
-        updateWeaklingHP(to_string(combatSkill($skill[blow the purple candle!])));
+        && have_equipped($item[roman candelabra])){
+        if (shardFight && item_amount($item[shard of double-ice]) == 0)
+            print("Skipping the purple candle because its follow-up needs a second shard of double-ice.", "orange");
+        else
+            updateWeaklingHP(combatSkill($skill[Blow the Purple Candle!], "romanCandelabraPurpleCasts"));
+    }
     boolean stockingMimic = my_familiar() == $familiar[stocking mimic];
     if (shardFight)
         prepareFreeKillCombat();

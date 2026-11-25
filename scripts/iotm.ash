@@ -1335,11 +1335,14 @@ void sendAutumnatonToShadowRift(){
 void clearPreAdvGearCache(){
     set_property("_teresGearBaselineKey", "");
     set_property("_teresGearBaselineOutfit", "");
+    set_property("_teresGearBaselinePool", "");
+    set_property("_teresGearBaselineContext", "");
 }
 
 // starter(): point mafia's between-battle / after-adventure / choice hooks and the CCS at this environment.
 void starter(){
     clearPreAdvGearCache();
+    set_property("_teresGearBaselinePoolActive", true);
     // Start with small absolute targets, including before the first gear hook.
     // KoLmafia stores these as fractions; preadventure recalculates after swaps.
     set_property("hpAutoRecovery", min(1.0, 750.0 / max(1, my_maxhp())));
@@ -1362,6 +1365,7 @@ void starter(){
 // subscript / inSpendAdv / every *Override).
 void finisher() {
     clearPreAdvGearCache();
+    set_property("_teresGearBaselinePoolActive", false);
     set_property("script", "");
     set_property("subscript", "");
     set_property("betweenBattleScript",   betweenBattleScriptStorage);

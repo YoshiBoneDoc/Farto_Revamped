@@ -377,7 +377,8 @@ void barfTrainingGear(){
 }
 
 void barfGear(){
-    set_property("_teresBarfVhsEncounter",barfVhsDue());
+    boolean vhsDue = barfVhsDue();
+    set_property("_teresBarfVhsEncounter",vhsDue);
     if(get_property("_teresBarfPlannedExecution").to_boolean()){
         int trainer=get_property("_teresBarfPlanTrainer").to_int();
         if(trainer>0&&get_property("_teresBarfPlanMask").to_int()>0)
@@ -387,7 +388,7 @@ void barfGear(){
         // Free copies train an eligible Mimic/Yeti before returning to Stocking Mimic.
         // VHS now follows the shared free-fight priority, including Jill's map and knucklebones.
         // Keep Stooper/capacity equipment once its extra organ space is occupied.
-        if(barfVhsDue()&&get_property("_teresBarfPlanMask").to_int()==0&&!get_property("_teresBarfPlanStooper").to_boolean()){
+        if(vhsDue&&get_property("_teresBarfPlanMask").to_int()==0&&!get_property("_teresBarfPlanStooper").to_boolean()){
             farmer=barfVhsFamiliar();
             trainer=farmer==$familiar[Chest Mimic]?128:farmer==$familiar[Cooler Yeti]?256:0;
             set_property("_teresBarfPlanTrainer",trainer);
@@ -399,7 +400,7 @@ void barfGear(){
             set_property("_teresBarfPlanTrainer",0);
         }
         boolean battlefield=get_property("_teresBarfMode")=="battlefield";
-        if(!use_familiar(farmer))abort("Planned BARF could not select "+farmer+".");
+        if(my_familiar()!=farmer&&!use_familiar(farmer))abort("Planned BARF could not select "+farmer+".");
         item[slot] desired=battlefield?barfFarmingOutfit(farmer)
             :barfPlannedOutfit(get_property("_teresBarfPlanMask").to_int(),farmer,trainer,
                 get_property("_teresBarfPlanSweatpants").to_boolean());

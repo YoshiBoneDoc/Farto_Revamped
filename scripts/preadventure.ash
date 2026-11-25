@@ -67,6 +67,60 @@ buffer preAdvMaximize(){
 // Reuse a baseline within this run; only simple, single-slot requirements are
 // temporary swaps. Accessories, exclusions and familiar/location changes define
 // a new baseline. Other objectives, item modes and weapon conflicts use the solver.
+boolean timedPreAdvMaximize(string goal, string reason){
+    int started = now_to_int();
+    boolean success = maximize(goal, false);
+    print("Maximizer (" + reason + ", " + get_property("script") + "/" + get_property("subscript")
+        + "): " + (now_to_int() - started) + " ms. " + goal, "blue");
+    return success;
+}
+
+string preAdvMaximizeFallback;
+boolean preAdvDeclineBaseline(string reason){
+    preAdvMaximizeFallback = reason;
+    return false;
+}
+
+string preAdvGearPoolContext(){
+    buffer context;
+    foreach attribute in $stats[muscle,mysticality,moxie] context.append(my_basestat(attribute) + ":");
+    foreach buff, turns in my_effects() if(turns > 0)
+        context.append(to_int(buff) + "=" + numeric_modifier(buff, "Familiar Weight")
+            + "/" + numeric_modifier(buff, "Familiar Experience") + ",");
+    foreach pref in $strings[parkaMode,ledCandleMode,snowsuit,backupCameraMode,umbrellaState,autoSatisfyWithCloset,autoSatisfyWithStorage]
+        context.append(":" + get_property(pref));
+    // Count accessible gear independently of whether it is currently equipped.
+    boolean[item] candidates;
+    foreach it in get_inventory() if(to_slot(it) != $slot[none]) candidates[it] = true;
+    foreach it in get_closet() if(to_slot(it) != $slot[none]) candidates[it] = true;
+    if(can_interact()) foreach it in get_storage() if(to_slot(it) != $slot[none]) candidates[it] = true;
+    foreach position in $slots[hat,weapon,off-hand,back,shirt,pants,acc1,acc2,acc3,familiar] {
+        item it = equipped_item(position);
+        if(it != $item[none]) candidates[it] = true;
+    }
+    foreach it in candidates {
+        int quantity = available_amount(it);
+        if(quantity > 0) context.append(":" + to_int(it) + "=" + quantity);
+    }
+    return context.to_string();
+}
+
+string preAdvSavedBaseline(string key, string freshOutfit){
+    string[int] saved = split_string(get_property("_teresGearBaselinePool"), "\\n");
+    if(freshOutfit == ""){
+        foreach index, row in saved
+            if(starts_with(row, key + "\t")) return substring(row, length(key) + 1);
+        return "";
+    }
+    buffer pool;
+    foreach index, row in saved
+        if(row != "" && index >= count(saved) - 11 && !starts_with(row, key + "\t"))
+            pool.append(row + "\n");
+    pool.append(key + "\t" + freshOutfit);
+    set_property("_teresGearBaselinePool", pool.to_string());
+    return freshOutfit;
+}
+
 boolean applyBaselineGear(string goal){
     boolean forcers=get_property("_teresForcerGearCacheActive").to_boolean()
         && get_property("subscript") != "shadowBoss";
@@ -75,7 +129,7 @@ boolean applyBaselineGear(string goal){
     if (forcers && objective != "familiar weight" && objective != "familiar experience")
         abort("Unsupported NC-forcer outfit objective: " + objective);
     if (objective != "familiar weight" && objective != "familiar experience")
-        return false;
+        return preAdvDeclineBaseline("different objective");
 
     string baselineGoal = objective + ", -equip bat wings, -equip legendary seal-clubbing club, -equip McHugeLarge left pole";
     item[slot] overrides;
@@ -94,7 +148,7 @@ boolean applyBaselineGear(string goal){
         if (!matched && forcers)
             abort("Unsupported NC-forcer gear request: " + clause);
         if (!matched)
-            return false;
+            return preAdvDeclineBaseline("unsupported clause: " + clause);
         boolean spikolodon=forcers && equipment.group(2).to_lower_case()=="jurassic parka (spikolodon)";
         item required = spikolodon?$item[Jurassic Parka]:equipment.group(2).to_item();
         if(spikolodon)parkaMode="spikolodon";
@@ -107,7 +161,7 @@ boolean applyBaselineGear(string goal){
         if(forcers && (required==$item[none] || (contains_text(clause,"(") && required!=$item[Jurassic Parka])))
             abort("Unsupported NC-forcer equipment: " + clause);
         if (required == $item[none] || ((!forcers || required!=$item[Jurassic Parka]) && (contains_text(clause, "(") || contains_text(clause, ")"))))
-            return false;
+            return preAdvDeclineBaseline("unresolved item or mode: " + clause);
         if (equipment.group(1) == "-") {
             excluded[required] = true;
             if (required != $item[bat wings] && required != $item[legendary seal-clubbing club]
@@ -129,7 +183,7 @@ boolean applyBaselineGear(string goal){
             || (position == $slot[weapon] && weapon_hands(required) > 1)
             || (overrides contains position && overrides[position] != required)){
             if(forcers)abort("Conflicting NC-forcer equipment: "+clause);
-            else return false;
+            else return preAdvDeclineBaseline("slot or weapon conflict: " + clause);
         }
         overrides[position] = required;
         if(forcers && $items[devilbone corset,angelbone chopsticks,angelbone dice,devilbone rosary,angelbone totem,devilbone greaves,Drunkula's wineglass] contains required)
@@ -138,10 +192,10 @@ boolean applyBaselineGear(string goal){
     foreach position, required in overrides
         if (excluded contains required){
             if(forcers)abort("NC-forcer gear both requires and excludes "+required);
-            else return false;
+            else return preAdvDeclineBaseline("required item is also excluded: " + required);
         }
 
-    // Hooks execute separately, so two scratch properties carry the baseline.
+    // Hooks execute separately, so scratch properties carry the baseline.
     // starter()/finisher() clear them; day, path and environment also delimit reuse.
     string key = today_to_string() + ":" + my_ascensions() + ":" + my_class()
         + ":" + my_path() + ":" + my_familiar() + ":" + my_location().environment
@@ -150,14 +204,27 @@ boolean applyBaselineGear(string goal){
         + ":" + baselineGoal;
     if(forcers)key="Shadow Rift NC forcers";
     if (get_property("_teresGearBaselineKey") != key) {
-        clearPreAdvGearCache();
-        print("Gear baseline: maximizing " + baselineGoal + ".", "blue");
-        if (!maximize(baselineGoal, false))
-            abort("preAdv baseline maximize() failed: " + baselineGoal);
-        if(forcers)set_property("_teresForcerParkaMode",get_property("parkaMode"));
+        boolean usePool = !forcers && get_property("_teresGearBaselinePoolActive").to_boolean();
         string outfit;
-        foreach position in $slots[hat, weapon, off-hand, back, shirt, pants, acc1, acc2, acc3, familiar]
-            outfit += (outfit == "" ? "" : ",") + to_int(equipped_item(position));
+        if(usePool){
+            string context = preAdvGearPoolContext();
+            if(get_property("_teresGearBaselineContext") != context){
+                set_property("_teresGearBaselinePool", "");
+                set_property("_teresGearBaselineContext", context);
+            }
+            outfit = preAdvSavedBaseline(key, "");
+        }
+        if(outfit == ""){
+            set_property("_teresGearBaselineKey", "");
+            set_property("_teresGearBaselineOutfit", "");
+            print("Gear baseline: maximizing " + baselineGoal + ".", "blue");
+            if (!timedPreAdvMaximize(baselineGoal, "new baseline"))
+                abort("preAdv baseline maximize() failed: " + baselineGoal);
+            if(forcers)set_property("_teresForcerParkaMode",get_property("parkaMode"));
+            foreach position in $slots[hat, weapon, off-hand, back, shirt, pants, acc1, acc2, acc3, familiar]
+                outfit += (outfit == "" ? "" : ",") + to_int(equipped_item(position));
+            if(usePool) preAdvSavedBaseline(key, outfit);
+        } else print("Gear baseline: reusing " + baselineGoal + ".", "blue");
         set_property("_teresGearBaselineOutfit", outfit);
         set_property("_teresGearBaselineKey", key);
     }
@@ -166,7 +233,7 @@ boolean applyBaselineGear(string goal){
     if (count(baseline) != 10) {
         if(forcers)abort("Invalid cached NC-forcer outfit; restart the phase.");
         clearPreAdvGearCache();
-        return false;
+        return preAdvDeclineBaseline("invalid cached outfit");
     }
     item[slot] desired;
     int index = 0;
@@ -192,18 +259,18 @@ boolean applyBaselineGear(string goal){
     // A two-handed baseline needs a different weapon to support an off-hand.
     if (weapon_hands(desired[$slot[weapon]]) > 1 && desired[$slot[off-hand]] != $item[none]){
         if(forcers)abort("NC-forcer weapon conflicts with its required offhand.");
-        else return false;
+        else return preAdvDeclineBaseline("two-handed weapon with a required offhand");
     }
     foreach required, copies in copiesNeeded
         if (available_amount(required) < copies) {
             if(forcers)abort("Cached NC-forcer outfit is missing "+required+".");
             clearPreAdvGearCache();
-            return false;
+            return preAdvDeclineBaseline("missing " + required);
         }
     foreach position, required in desired
         if (required != $item[none] && equipped_item(position) != required && !can_equip(required)){
             if(forcers)abort("Cannot equip required NC-forcer item: "+required);
-            else return false;
+            else return preAdvDeclineBaseline("cannot equip " + required);
         }
 
     // Clear the off-hand first when restoring a two-handed baseline; otherwise
@@ -255,7 +322,7 @@ void applyPreAdvGear(buffer maximize){
     boolean greenReady = have_effect($effect[everything looks green]) == 0;
     boolean dartReady = have_effect($effect[everything looks red]) == 0;
     // Simple familiar outfits reuse a baseline; complex setups retain full maximization.
-    if (!applyBaselineGear(maximize.to_string()) && !maximize(maximize.to_string(), false)) {
+    if (!applyBaselineGear(maximize.to_string()) && !timedPreAdvMaximize(maximize.to_string(), "full fallback: " + preAdvMaximizeFallback)) {
         // DEBUG for if maximize fails
         print("MAXIMIZE STRING: " + maximize.to_string(), "red");
         abort("preAdv maximize() failed: " + maximize.to_string());

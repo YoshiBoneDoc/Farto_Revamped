@@ -164,12 +164,13 @@ void spendSpareLibramMP(){
 // Per-turn upkeep: safety aborts, script-specific bookkeeping, then the daily
 // resource chores (Law of Averages, autumn-aton, resin, trainset, universe skill,
 // sweat, consumable top-ups, distill).
-void postAdv(){
+void postAdv(boolean combatSettled){
     if (get_property("script") == "BARF"){
         barfPostAdventure();
         return;
     }
-    if (contains_text(visit_url("main.php"),"You're fighting"))
+    if (combatSettled ? (current_round() > 0 || in_multi_fight())
+        : contains_text(visit_url("main.php"),"You're fighting"))
         run_combat();
     // Bail loudly on a lost fight or a "stuck" last-adventure zone before doing anything else.
     set_property("NCtoC","false");
@@ -238,11 +239,15 @@ void postAdv(){
     spendSpareLibramMP();
 }
 
+void postAdv(){
+    postAdv(false);
+}
+
 // Adventure routing stays with the calling script; this hook only runs upkeep.
 void main(){
     string boof = get_property("betweenBattleScript");
     try {
-        postAdv();
+        postAdv(get_property("_teresPostAdvCombatSettled").to_boolean());
     } finally {
         set_property("betweenBattleScript",boof);
         set_property("afterAdventureScript","postadventure.ash");

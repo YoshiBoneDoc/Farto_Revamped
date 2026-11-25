@@ -503,6 +503,13 @@ int barfDietScoreKernelHits;int barfDietScoreKernelMisses;
 boolean[string,item] barfDietContinuationLive;int[item] barfDietContinuationOwned;
 int[int] barfDietEffectCaps;
 barfTwoDayState[string] barfDietFillCache;
+string[int] barfDietFillCacheOrder;
+int barfDietFillCacheNext;
+int barfDietFillCacheLimit=256;
+boolean[string] barfDietFillContinuationFlags=$strings[capacityPolicy,pourStages,pourDone,pourMidTurn,pourSweat0,pourSweat1,pourSweat2];
+barfTwoDayState[string] barfDietTrainingPrefixCache;
+int barfDietTrainingPrefixHits;
+int[item] barfDietMaximumRolls;
 int barfDietFillCacheHits;int barfDietFillCacheMisses;
 barfTwoDayState[string] barfDietPreparationCache;
 int barfDietPreparationHits;int barfDietPreparationMisses;
@@ -517,6 +524,9 @@ void barfDietResetSearchCaches(){
     clear(barfDietContinuationLive);clear(barfDietContinuationOwned);
     clear(barfDietFarmPrefixes);barfDietFarmParentKey="";
     clear(barfDietFillCache);barfDietFillCacheHits=0;barfDietFillCacheMisses=0;
+    clear(barfDietFillCacheOrder);barfDietFillCacheNext=0;
+    clear(barfDietTrainingPrefixCache);barfDietTrainingPrefixHits=0;
+    clear(barfDietMaximumRolls);
     clear(barfDietPreparationCache);barfDietPreparationHits=0;barfDietPreparationMisses=0;
     clear(barfDietCapacityStartCache);clear(barfDietCapacityStartAges);barfDietCapacityStartClock=0;barfDietCapacityStartHits=0;
     barfDietMemoize=true;barfDietSkipBare=true;barfDietShareFarmForecasts=true;
@@ -638,15 +648,19 @@ int barfDietTurnsToDelayedAdventure(barfTwoDayState s,item it){
 // All state fields except schedule text. Forecasts rebase their suffix onto the
 // caller's schedule; no organs, stock, XP, buffs, financial totals or policy flags
 // are discarded. In particular, expected/minimum adventures are not rounded.
-string barfDietExactStateKey(barfTwoDayState s){
+string barfDietExactStateKey(barfTwoDayState s,boolean organFill){
     string key=s.fullness+":"+s.drunkenness+":"+s.spleen+":"+s.adventures+":"+s.minimumAdventures
         +":"+s.mask+":"+s.stooper+":"+s.sweat+":"+s.pantsSweat+":"+s.yetiXP+":"+s.yetiDouble
         +":"+s.noodles+":"+s.milk+":"+s.spork+":"+s.aioli+":"+s.whet+":"+s.shotglass
         +":"+s.turns+":"+s.income+":"+s.cost+":"+s.cash+":"+s.finished+":"+s.chestXP
         +":"+s.earlyJillTurns+":"+s.liquidIncome+":"+s.trainingCost+":"+s.trainingOpportunity
         +barfDietEffectKey(s,true);
-    foreach name,used in s.uses if(used!=0)key+=":"+length(name)+":"+name+"="+used;
+    foreach name,used in s.uses if(used!=0&&(!organFill||!(barfDietFillContinuationFlags contains name)))
+        key+=":"+length(name)+":"+name+"="+used;
     return key;
+}
+string barfDietExactStateKey(barfTwoDayState s){
+    return barfDietExactStateKey(s,false);
 }
 string barfDietFillStateClass(barfTwoDayState s){
     barfTwoDayState normalized=barfDietClone(s);
@@ -968,10 +982,23 @@ barfTwoDayState barfDietInitialState(){
 }
 
 float barfDietScore(barfTwoDayState s);
+float barfDietScore(barfTwoDayState s,float adventures,float minimumAdventures,string effectKey);
 float barfDietMarginalAdventure(barfTwoDayState source,float minimum,float average){
-    barfTwoDayState s=barfDietClone(source);s.minimumAdventures+=minimum;s.adventures+=average;
-    float before=barfDietScore(s);s.minimumAdventures+=1;s.adventures+=1;
-    return max(0,barfDietScore(s)-before);
+    // Match the old scoring copy's treatment of explicitly false retained flags.
+    foreach id,keep in source.retained if(!keep){source=barfDietClone(source);break;}
+    float adventures=source.adventures+average;
+    float minimumAdventures=source.minimumAdventures+minimum;
+    string effectKey=barfDietMemoize?barfDietEffectKey(source,true):"";
+    float before=barfDietScore(source,adventures,minimumAdventures,effectKey);
+    return max(0,barfDietScore(source,adventures+1,minimumAdventures+1,effectKey)-before);
+}
+int barfDietMaximumRoll(item target,int minimum){
+    if(!(barfDietMaximumRolls contains target)){
+        string[int] bounds=split_string(target.adventures,"-");
+        if(count(bounds)<=1)return minimum;
+        barfDietMaximumRolls[target]=bounds[1].to_int();
+    }
+    return barfDietMaximumRolls[target];
 }
 barfTwoDayState barfDietConsumeState(barfTwoDayState source,barfTwoDayItem entry,boolean retain,int yeti,boolean bare){
     barfTwoDayState rejected;rejected.cash=-1;
@@ -1001,8 +1028,7 @@ barfTwoDayState barfDietConsumeState(barfTwoDayState source,barfTwoDayItem entry
         s.income+=3*copied;s.liquidIncome+=3*copied;s.sweat+=available_amount($item[tiny stillsuit])>0?3:0;
     }
     float minimum=0;float mean=0;
-    string[int] bounds=split_string(entry.target.adventures,"-");
-    int lo=entry.minimum.to_int();int hi=count(bounds)>1?bounds[1].to_int():lo;
+    int lo=entry.minimum.to_int();int hi=barfDietMaximumRoll(entry.target,lo);
     if(entry.target==$item[Affirmation Cookie]){lo=9;hi=9;}
     boolean tuxedo=entry.average>0&&entry.drunkenness>0&&contains_text(entry.target.notes,"MARTINI")&&barfDietTuxLegal(source);
     if (entry.target.inebriety>0&&yeti>0){
@@ -1216,11 +1242,14 @@ int barfDietLiverLimit(barfTwoDayState s){return barfDietStage(s).drunkenness+s.
 int barfDietSpleenLimit(barfTwoDayState s){return barfDietStage(s).spleen;}
 float barfDietScore(barfTwoDayState s){
     if(s.cash<0)return -1000000000000.0;
+    return barfDietScore(s,s.adventures,s.minimumAdventures,barfDietMemoize?barfDietEffectKey(s,true):"");
+}
+float barfDietScore(barfTwoDayState s,float adventures,float minimumAdventures,string effectKey){
+    if(s.cash<0)return -1000000000000.0;
     // Cache projected terms only; keep the original order of financial arithmetic.
-    string key="";string effectKey="";
+    string key="";
     if(barfDietMemoize){
-        effectKey=barfDietEffectKey(s,true);
-        key=s.mask+":"+s.stooper+":"+s.finished+":"+s.uses["forecastMode"]+":"+s.adventures+":"+s.minimumAdventures+":"+s.uses["touristTurns"]+effectKey
+        key=s.mask+":"+s.stooper+":"+s.finished+":"+s.uses["forecastMode"]+":"+adventures+":"+minimumAdventures+":"+s.uses["touristTurns"]+effectKey
             +barfDietDelayedAdventureStateKey(s);
         if(barfDietFutureCache contains key)return (s.income-s.cost+barfDietTomorrowCache[key])+barfDietFutureCache[key];
     }
@@ -1229,7 +1258,7 @@ float barfDietScore(barfTwoDayState s){
         if(barfDietMemoize){barfDietFutureCache[key]=0;barfDietTomorrowCache[key]=tomorrow;}
         return score;
     }
-    float adventureBudget=max(0,(s.uses["forecastMode"]>0?s.adventures:s.minimumAdventures)
+    float adventureBudget=max(0,(s.uses["forecastMode"]>0?adventures:minimumAdventures)
         -max(0,200-barfTwoDayRollover-barfDietNightcapMinimum()));
     float retentionBudget=1000000;
     foreach id,keep in s.retained if(keep)retentionBudget=min(retentionBudget,max(0,s.effects[id]-5));
@@ -1691,25 +1720,29 @@ barfTwoDayState barfDietQuickConsume(barfTwoDayState s,barfTwoDayItem e,boolean 
 }
 record barfDietFillChoices {int[int] indices;barfTwoDayState[int] first;};
 barfDietFillChoices barfDietQuickChoices(barfTwoDayState source,string organ,int room,boolean broad){
-    barfDietFillChoices choices;int[int] eligible;
+    barfDietFillChoices choices;int[int] eligible;int[int] sizes;
     foreach i,e in barfTwoDayItems{
         int size=barfDietOrganSize(e,organ);
-        if(size>0&&size<=room&&barfDietRegularFillItem(e))eligible[count(eligible)]=i;
+        if(size>0&&size<=room&&barfDietRegularFillItem(e)){
+            eligible[count(eligible)]=i;sizes[i]=size;
+        }
     }
     if(broad||count(eligible)<=16){choices.indices=eligible;return choices;}
-    float[int] ranks;barfTwoDayState[int] first;float base=barfDietScore(source);
+    float[int] ranks;barfTwoDayState[int] first;boolean[int] comparable;float base=barfDietScore(source);
     foreach n,i in eligible{
         if(barfDietQuickExpired())return choices;
         barfTwoDayState next=barfDietQuickConsume(source,barfTwoDayItems[i],false);
         if(next.cash<0)continue;
-        first[i]=next;ranks[i]=(barfDietScore(next)-base)/barfDietOrganSize(barfTwoDayItems[i],organ);
+        first[i]=next;ranks[i]=(barfDietScore(next)-base)/sizes[i];
+        barfTwoDayItem e=barfTwoDayItems[i];comparable[i]=e.special==""&&!barfDietLimitedCandidate(e);
     }
     foreach i,rank in ranks{
         barfTwoDayItem e=barfTwoDayItems[i];int better=0;
-        if(!barfDietLimitedCandidate(e)&&e.special=="")foreach j,other in ranks{
+        boolean relevant=barfDietRelevantEffect(e.buff);
+        if(comparable[i])foreach j,other in ranks{
+            if(i==j||sizes[j]!=sizes[i]||!comparable[j])continue;
             barfTwoDayItem f=barfTwoDayItems[j];
-            if(i==j||barfDietOrganSize(f,organ)!=barfDietOrganSize(e,organ)||barfDietLimitedCandidate(f)||f.special!="")continue;
-            if(barfDietRelevantEffect(e.buff)&&(f.buff!=e.buff||f.duration!=e.duration))continue;
+            if(relevant&&(f.buff!=e.buff||f.duration!=e.duration))continue;
             if(other>rank||(other==rank&&j<i))better+=1;
             if(better>=4)break;
         }
@@ -1743,7 +1776,7 @@ barfTwoDayState barfDietQuickFillUncached(barfTwoDayState source,string organ,in
         foreach choice,parent in dp[filled] foreach n,i in choices.indices{
             barfTwoDayItem e=barfTwoDayItems[i];
             int size=barfDietOrganSize(e,organ);
-            if(size<=0||size>room-filled||!barfDietRegularFillItem(e))continue;
+            if(size>room-filled)continue;
             barfTwoDayState next=filled==0&&(choices.first contains i)?choices.first[i]:barfDietQuickConsume(parent,e,false);
             if(next.cash<0)continue;
             int at=barfDietOrganUsed(next,organ)-used;
@@ -1794,25 +1827,30 @@ barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target
         return barfDietQuickFillUncached(source,organ,target,broad);
     // Exact inputs include every economic/resource field. Only schedule text is
     // rebased; fills append actions without inspecting the preceding actions.
-    // Capacity policy affects later equipment decisions, never this pure organ fill.
-    barfTwoDayState normalized=source;
-    if(source.uses["capacityPolicy"]!=0){normalized=barfDietClone(source);normalized.uses["capacityPolicy"]=0;}
-    string key=organ+":"+target+":"+broad+":"+barfDietExactStateKey(normalized);
+    // Later equipment and pour policies are already reflected in the fill target.
+    string key=organ+":"+target+":"+broad+":"+barfDietExactStateKey(source,true);
     if(barfDietFillCache contains key){
         barfDietFillCacheHits+=1;
         barfTwoDayState cached=barfDietClone(barfDietFillCache[key]);
-        cached.schedule=source.schedule+cached.schedule;cached.uses["capacityPolicy"]=source.uses["capacityPolicy"];return cached;
+        cached.schedule=source.schedule+cached.schedule;
+        foreach flag in barfDietFillContinuationFlags{
+            if(source.uses[flag]!=0)cached.uses[flag]=source.uses[flag];
+            else remove cached.uses[flag];
+        }
+        return cached;
     }
     barfDietFillCacheMisses+=1;
-    barfTwoDayState result=barfDietQuickFillUncached(normalized,organ,target,broad);
+    barfTwoDayState result=barfDietQuickFillUncached(source,organ,target,broad);
     if(result.cash>=0&&!barfDietQuickExpired()){
         // Bounded storage avoids retaining every frontier of an unrestricted run.
-        if(count(barfDietFillCache)>=64)clear(barfDietFillCache);
+        int index=barfDietFillCacheNext%barfDietFillCacheLimit;
+        if(barfDietFillCacheOrder contains index)remove barfDietFillCache[barfDietFillCacheOrder[index]];
+        barfDietFillCacheOrder[index]=key;
+        barfDietFillCacheNext+=1;
         barfTwoDayState cached=barfDietClone(result);
         cached.schedule=substring(cached.schedule,length(source.schedule));
         barfDietFillCache[key]=cached;
     }
-    if(result.cash>=0)result.uses["capacityPolicy"]=source.uses["capacityPolicy"];
     return result;
 }
 barfTwoDayState barfDietQuickFill(barfTwoDayState source,string organ,int target){
@@ -1932,15 +1970,17 @@ void barfDietSearchReport(){
     print("SEARCH trials: "+barfDietSearchMetrics["attempted"]+" attempted, "+barfDietSearchMetrics["complete"]+" completed, "+barfDietSearchMetrics["targets"]
         +" met targets, "+barfDietSearchMetrics["cached"]+" cached; pairs reached="+barfDietPairReached+", expired at entry="+barfDietPairExpiredAtEntry
         +", eligible="+barfDietMenuPairsGenerated+", top="+barfDietPairTop+".","blue");
-    print("SEARCH exact fill cache: "+barfDietFillCacheHits+" hits, "+barfDietFillCacheMisses+" misses, "+count(barfDietFillCache)+" stored (maximum 64).","blue");
+    print("SEARCH exact fill cache: "+barfDietFillCacheHits+" hits, "+barfDietFillCacheMisses+" misses, "+count(barfDietFillCache)+" stored (maximum "+barfDietFillCacheLimit+").","blue");
     print("SEARCH preparation cache: "+barfDietPreparationHits+" hits, "+barfDietPreparationMisses+" misses, "+count(barfDietPreparationCache)+" stored (maximum 16).","blue");
     print("SEARCH shared capacity starts: "+barfDietCapacityStartHits+" hits; "+count(barfDietCapacityStartCache)+" stored (maximum 8).","blue");
+    print("SEARCH shared training prefixes: "+barfDietTrainingPrefixHits+" hits; "+count(barfDietTrainingPrefixCache)+" stored (maximum 16).","blue");
     print("SEARCH score coefficients: "+barfDietScoreKernelHits+" hits, "+barfDietScoreKernelMisses+" misses; "+count(barfDietScoreKernels)+" stored (maximum 256).","blue");
     if(!get_property("teresBarfDietDiagnostics").to_boolean())return;
     foreach phase in $strings[estimate,fallback,XP,starting,pours,width,local,training,pairs,capacity,events,bundles]{
         if(barfDietSearchMetrics[phase+":ms"]==0&&barfDietSearchMetrics[phase+":attempted"]==0)continue;
         print("SEARCH phase="+phase+" ms="+barfDietSearchMetrics[phase+":ms"]+" attempted="+barfDietSearchMetrics[phase+":attempted"]
-            +" completed="+barfDietSearchMetrics[phase+":complete"]+" targets="+barfDietSearchMetrics[phase+":targets"]+" cached="+barfDietSearchMetrics[phase+":cached"],"blue");
+            +" completed="+barfDietSearchMetrics[phase+":complete"]+" targets="+barfDietSearchMetrics[phase+":targets"]+" cached="+barfDietSearchMetrics[phase+":cached"]
+            +" fill hits="+barfDietSearchMetrics[phase+":fillHits"]+" fill misses="+barfDietSearchMetrics[phase+":fillMisses"],"blue");
     }
 }
 
@@ -2174,7 +2214,7 @@ barfTwoDayState barfDietQuickResources(barfTwoDayState s,barfDietLateMenu menu,b
 barfTwoDayState barfDietQuickFinish(barfTwoDayState source){
     return barfDietFinishState(barfDietQuickFarm(source));
 }
-barfTwoDayState barfDietQuickStart(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
+barfTwoDayState barfDietQuickTrain(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
     barfTwoDayState s=barfDietClone(initial);
     s.schedule+="phase\tStart: normal farming gear; eat/drink/chew the quantities below.\n";
     if(s.milk==0&&!get_property("_milkOfMagnesiumUsed").to_boolean()&&s.uses["milk"]==0){
@@ -2197,6 +2237,36 @@ barfTwoDayState barfDietQuickStart(barfTwoDayState initial,barfDietLateMenu menu
         }
         if(barfDietStageKey(s)>=128){s.cash=-1;return s;}
     }
+    return s;
+}
+barfTwoDayState barfDietQuickTrainingPrefix(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
+    // Training sees pending pour reservations and the initial pour. Later timing
+    // choices first take effect after this prefix.
+    if(!barfDietMemoize||barfDietTraceCash
+        ||(initial.uses["pourMidTurn"]==0&&initial.uses["pourSweat1"]==0&&initial.uses["pourSweat2"]==0))
+        return barfDietQuickTrain(initial,menu,distill);
+    barfTwoDayState normalized=barfDietClone(initial);
+    foreach flag in $strings[pourMidTurn,pourSweat1,pourSweat2]remove normalized.uses[flag];
+    string key=menu.fullness+":"+menu.drunkenness+":"+menu.spleen+":"+distill+":"+barfDietExactStateKey(normalized);
+    barfTwoDayState s;
+    if(barfDietTrainingPrefixCache contains key){
+        barfDietTrainingPrefixHits+=1;
+        s=barfDietClone(barfDietTrainingPrefixCache[key]);
+        s.schedule=initial.schedule+s.schedule;
+    }else{
+        s=barfDietQuickTrain(normalized,menu,distill);
+        if(s.cash>=0&&!barfDietQuickExpired()){
+            if(count(barfDietTrainingPrefixCache)>=16)clear(barfDietTrainingPrefixCache);
+            barfTwoDayState cached=barfDietClone(s);
+            cached.schedule=substring(s.schedule,length(initial.schedule));
+            barfDietTrainingPrefixCache[key]=cached;
+        }
+    }
+    foreach flag in $strings[pourMidTurn,pourSweat1,pourSweat2]if(initial.uses[flag]!=0)s.uses[flag]=initial.uses[flag];
+    return s;
+}
+barfTwoDayState barfDietQuickStart(barfTwoDayState initial,barfDietLateMenu menu,boolean distill){
+    barfTwoDayState s=barfDietQuickTrainingPrefix(initial,menu,distill);if(s.cash<0)return s;
     if(barfDietPourPending(s,1)){
         s=barfDietTimedPour(s,1);if(s.cash<0)return s;
         s=barfDietQuickFillStage(s,menu,distill);if(s.cash<0)return s;
@@ -2349,6 +2419,7 @@ barfTwoDayState barfDietQuickTrial(barfTwoDayState initial,barfDietLateMenu menu
     }
     barfTwoDayState failed;failed.cash=-1;if(barfDietQuickExpired())return failed;
     int trialStarted=now_to_int();barfDietSearchMetrics["attempted"]+=1;barfDietSearchMetrics[barfDietSearchPhase+":attempted"]+=1;
+    int fillHits=barfDietFillCacheHits;int fillMisses=barfDietFillCacheMisses;
     print("Diet comparison "+(barfDietTrialCount+1)+": "+label+"; "+((now_to_int()-barfDietTrialStarted)/1000)+" seconds elapsed.","blue");
     barfDietQuickNeedMoreCoolSlots=false;
     barfTwoDayState next=barfDietQuickSchedule(initial,menu,distill);
@@ -2361,6 +2432,8 @@ barfTwoDayState barfDietQuickTrial(barfTwoDayState initial,barfDietLateMenu menu
     if(!barfDietQuickExpired())barfDietTrials[key]=barfDietClone(next);
     barfDietTrialCount+=1;
     barfDietSearchMetrics[barfDietSearchPhase+":ms"]+=now_to_int()-trialStarted;
+    barfDietSearchMetrics[barfDietSearchPhase+":fillHits"]+=barfDietFillCacheHits-fillHits;
+    barfDietSearchMetrics[barfDietSearchPhase+":fillMisses"]+=barfDietFillCacheMisses-fillMisses;
     if(next.cash>=0){barfDietSearchMetrics["complete"]+=1;barfDietSearchMetrics[barfDietSearchPhase+":complete"]+=1;}
     if(barfDietMeetsTargets(next)){barfDietSearchMetrics["targets"]+=1;barfDietSearchMetrics[barfDietSearchPhase+":targets"]+=1;}
     barfDietRememberComparison(next);
@@ -2652,8 +2725,11 @@ barfTwoDayState barfDietQuickPlan(barfTwoDayState initial,boolean firstCompleteO
     barfDietLateMenu empty;barfDietLateMenu bestMenu=empty;boolean bestDistill=false;
     print("Building a complete fallback, then comparing starting diets; no full-day beam search.","blue");
     int estimateStarted=now_to_int();barfDietSearchPhase="estimate";
+    int estimateFillHits=barfDietFillCacheHits;int estimateFillMisses=barfDietFillCacheMisses;
     barfTwoDayState estimate=barfDietQuickSchedule(initial,empty,false);
     barfDietSearchMetrics["estimate:ms"]=now_to_int()-estimateStarted;
+    barfDietSearchMetrics["estimate:fillHits"]=barfDietFillCacheHits-estimateFillHits;
+    barfDietSearchMetrics["estimate:fillMisses"]=barfDietFillCacheMisses-estimateFillMisses;
     if(estimate.cash<0){
         string reason=barfDietQuickFailure!=""?barfDietQuickFailure:"No specific blocker was recorded.";
         print("Initial diet estimate failed: "+reason,"red");

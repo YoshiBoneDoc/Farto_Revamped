@@ -979,6 +979,10 @@ void purpleCandlePrep(){
     else
         set_property("maxOverride", get_property("maxOverride") + ", -equip legendary seal-clubbing club");
     main@preadventure();
+    if (shardCombatMode() && have_equipped($item[Roman Candelabra])
+        && have_effect($effect[Everything Looks Purple]) == 0
+        && item_amount($item[shard of double-ice]) < 2)
+        retrieve_item(2, $item[shard of double-ice]);
 }
 
 // Use the sausage goblin as the copy source, then finish the two black-crayon locket fights.
@@ -1865,7 +1869,7 @@ void shadowRiftForcers() {
     if (have_effect($effect[Shadow Affinity]) > 0)
         abort("Use shadowRiftAffinity() to finish Affinity before spending NC forces.");
     string[string] savedGear;
-    foreach pref in $strings[_teresForcerGearCacheActive,_teresForcerParkaMode,_teresGearBaselineKey,_teresGearBaselineOutfit,subscript]
+    foreach pref in $strings[_teresForcerGearCacheActive,_teresForcerParkaMode,_teresGearBaselineKey,_teresGearBaselineOutfit,_teresGearBaselinePool,_teresGearBaselineContext,subscript]
         savedGear[pref]=get_property(pref);
     try {
         clearPreAdvGearCache();
@@ -2143,9 +2147,10 @@ void gingerbread(){
 
 // NEED TO FIX THIS
 void habitatRecall(){
-    if (!have_skill($skill[Recall Facts: Monster Habitats])) return;
     if (get_property("_monsterHabitatsRecalled").to_int() >= 3
         && get_property("_monsterHabitatsFightsLeft").to_int() == 0) return;
+    if (get_property("_monsterHabitatsFightsLeft").to_int() == 0
+        && !have_skill($skill[Just the Facts])) return;
     if (get_property("_monsterHabitatsFightsLeft").to_int() > 0
         && get_property("_monsterHabitatsMonster").to_monster() != $monster[sausage goblin])
         abort("Habitat Recall is already active for another monster; finish that chain first.");
@@ -2227,21 +2232,36 @@ void habitatRecall(){
 
 */
 
+void finishCopiedGoblinFights(){
+    int attempts = 0;
+    while (current_round() > 0 || in_multi_fight()){
+        if (++attempts > 20) abort("Copied goblin combat did not finish after 20 attempts.");
+        run_combat();
+    }
+    if (handling_choice()) abort("Copied goblin sequence left a choice open: " + last_choice() + ".");
+}
+
 void mimicEgg(){
-    int reserve = have_skill($skill[Recall Facts: Monster Habitats])
-        && get_property("_monsterHabitatsRecalled").to_int() < 3
-        && get_property("_monsterHabitatsFightsLeft").to_int() == 0 ? 2 : 1;
-    while (item_amount($item[mimic egg]) > reserve){
+    while (item_amount($item[mimic egg]) > 1){
         int eggsBefore = item_amount($item[mimic egg]);
+        if (eggsBefore == 2 && have_skill($skill[Just the Facts])
+            && get_property("_monsterHabitatsRecalled").to_int() < 3
+            && get_property("_monsterHabitatsFightsLeft").to_int() == 0)
+            return;
         purpleCandlePrep();
         cli_execute("c2t_megg fight sausage goblin");
-        if (current_round() > 0)
-            run_combat();
+        finishCopiedGoblinFights();
         if (item_amount($item[mimic egg]) >= eggsBefore){
             print("Could not consume a sausage-goblin mimic egg; stopping the egg loop.", "red");
             return;
         }
-        cli_execute("postadventure");
+        string savedCombatSettled = get_property("_teresPostAdvCombatSettled");
+        try {
+            set_property("_teresPostAdvCombatSettled", true);
+            cli_execute("postadventure");
+        } finally {
+            set_property("_teresPostAdvCombatSettled", savedCombatSettled);
+        }
     }
 }
 boolean faxing(){
@@ -2253,6 +2273,7 @@ boolean faxing(){
         if (item_amount($item[photocopied monster]) > 0 && get_property("photocopyMonster").to_monster() == $monster[sausage goblin]){
             purpleCandlePrep();
             use($item[photocopied monster]);
+            finishCopiedGoblinFights();
             return true;
         }
     }
@@ -2271,10 +2292,12 @@ void copyMonsters(){
     if (item_amount($item[shaking 4-D camera]) > 0 && get_property("cameraMonster").to_monster() == $monster[sausage goblin]){
         purpleCandlePrep();
         use($item[shaking 4-D camera]);
+        finishCopiedGoblinFights();
     }
     if (item_amount($item[envyfish egg]) > 0 && get_property("envyfishMonster").to_monster() == $monster[sausage goblin]){
         purpleCandlePrep();
         use($item[envyfish egg]);
+        finishCopiedGoblinFights();
     }
 }
 
@@ -2730,6 +2753,10 @@ void debug() {
 // Essentially main function for Hat Path aftercore - this is the old bulkFKD2 function
 void dailyFKs() {
     step("phase: dailyFKs start");
+    if (get_property("teresMimicQuickRun").to_boolean())
+        print("Free fights: quick mode (round 11 Cudgel, no Shieldbutt stalling).", "blue");
+    else
+        print("Free fights: standard mode (Shieldbutt stalling when available).", "blue");
     // Keep preadventure from running extra post-adventure upkeep for an NC force.
     set_property("inSpendAdv","true");
     set_property("LastFKTurn", total_turns_played());
@@ -2787,7 +2814,13 @@ void dailyFKs() {
     step("phase: dailyFKs scientist tentacle");
     scientistTentacleFight();
     step("phase: dailyFKs copied monsters");
-    copyMonsters();
+    string savedCopyPhase = get_property("subscript");
+    try {
+        set_property("subscript", "copiedGoblin");
+        copyMonsters();
+    } finally {
+        set_property("subscript", savedCopyPhase);
+    }
     step("phase: dailyFKs Dire Warren Habitat recalls");
     habitatRecall();
     step("phase: dailyFKs Trick-or-Treat houses");
@@ -2904,6 +2937,7 @@ void main(string... phases) {
         print_html("<font color='blue'>teresmimic</font><font color='#4682B4'> - Full day: Prep, Free Fights, Diet, BARF, Night routine, Workshed switch.</font>");
         print_html("<font color='#4A68D9'>teresmimic [ <font color='blue'>prep</font> ]</font><font color='#4A68D9'> - Free-kill prep only; then stop.</font>");
         print_html("<font color='#4A68D9'>teresmimic [ <font color='blue'>dailyFK</font> ]</font><font color='#4A68D9'> - Free fights only; no prep, diet, or BARF.</font>");
+        print("Before running, use set teresMimicQuickRun = true for shorter free fights, or set teresMimicQuickRun = false for standard stalling.");
         print_html("<font color='#4A68D9'>teresmimic [ <font color='blue'>barf</font> ]</font><font color='#4A68D9'> - BARF prep, diet, and farming through nightcap; no free-kill prep or fights.</font>");
         print("");
         print_html("<font color='#9268C6'>teresmimic</font> <font color='#6F459F'>[ <font color='blue'>workshed</font> ]</font><font color='#A583D0'> - END-OF-DAY workshed switch only.</font>");
